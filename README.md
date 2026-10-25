@@ -23,6 +23,7 @@ All findings, mathematical formulations, internal package architectures, and des
 | [**11. Prefab & Blueprint Translator Architecture**](docs/research/11_HYTALE_PREFAB_TRANSLATOR_AND_BLUEPRINT_ADAPTER.md) | Hytale `.prefab.json` parser, `BlockMappingRegistry` (hytale $\to$ minecraft), socket connection preservation, and adaptive foundation plinths for uneven terrain. |
 | [**12. Official Biome Settings Translator & Presets**](docs/research/12_HYTALE_BIOME_SETTINGS_TRANSLATOR_AND_OFFICIAL_PRESETS.md) | Native ingestion of published Hytale V2 biome assets (`Server/HytaleGenerator/Biomes/`), parsing of `GradientWarp`, `DistanceToBiomeEdge`, `YSampled`, and official presets (*Verdant Forest*, *Whispering Grove*, *Howling Sands*, *Boreal Tundra*). |
 | [**13. Mod Compatibility & Biome Auto-Synthesis**](docs/research/13_MOD_COMPATIBILITY_AND_VANILLA_BIOME_INGESTION.md) | Universal mod ecosystem integration: `ModdedBlockResolver` with fallback chains, `BiomeAutoSynthesizer` for auto-ingesting vanilla and modded biomes (*Terralith*, *Biomes O' Plenty*), and `FeatureCompatibilityBridge` for modded ores and trees. |
+| [**14. Hytale Modding Ecosystem & DataPack Parity**](docs/research/14_HYTALE_MODDING_ECOSYSTEM_AND_DATA_PACK_PARITY.md) | Comparative analysis of Hytale's `IWorldGenProvider` and asset pack system (`manifest.json`) vs our Minecraft 26.1 DataPack parity (`data/<namespace>/hytaleworldgen/`), custom Java registry hooks, and pack priority layering. |
 
 ---
 
