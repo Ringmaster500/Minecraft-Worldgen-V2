@@ -1,0 +1,26 @@
+{
+  "$schema": "https://hytale.com/schemas/worldgen/v2/biome.json",
+  "name": "HowlingSands",
+  "zone": "Zone2_HowlingSands",
+  "type": "TileBiome",
+  "weight": 12.0,
+  "sizeModifier": 2.0,
+  "defaultTransitionDistance": 64.0,
+  "maxSlopeForCover": 52.0,
+  "minSpaceForCover": 2,
+
+  "layers": [
+    { "material": "hytale:sand", "thickness": 5 },
+    { "material": "hytale:sandstone", "thickness": 8 },
+    { "material": "hytale:stone", "thickness": 999 }
+  ],
+  "fallbackMaterial": "hytale:sandstone",
+  "cliffMaterial": "hytale:stone_granite",
+
+  "terrainSettings": {
+    "baseHeight": 72.0,
+    "heightScale": 36.0,
+    "duneAnisotropyX": 0.003,
+    "duneAnisotropyZ": 0.012
+  }
+}

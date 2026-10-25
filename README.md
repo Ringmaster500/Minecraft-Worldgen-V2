@@ -20,6 +20,8 @@ All findings, mathematical formulations, internal package architectures, and des
 | [**08. Minecraft 26.1 Deobfuscated Integration**](docs/research/08_MINECRAFT_26_1_DEOBFUSCATED_ADAPTATION.md) | Minecraft 26.1 official deobfuscation benefits, Java 25 runtime (virtual threads, Vector API, memory segments), bridging `HytaleBiomeSource` to `BiomeSource` and `HytaleChunkGenerator` to `ChunkGenerator`. |
 | [**09. Technical Implementation Specification**](docs/research/09_TECHNICAL_IMPLEMENTATION_SPECIFICATION.md) | Concrete project blueprint, modular directory layout, class contracts, and API definitions. |
 | [**10. Contextual Awareness, Spawn & Relational Landmarks**](docs/research/10_CONTEXTUAL_AWARENESS_SPAWN_AND_RELATIONAL_LANDMARKS.md) | Macro Topological Feature Graphs, conditional island spawn predicates, relational landmark hierarchies (Landmark A $\implies$ Landmark B), and procedural spline-based road networks. |
+| [**11. Prefab & Blueprint Translator Architecture**](docs/research/11_HYTALE_PREFAB_TRANSLATOR_AND_BLUEPRINT_ADAPTER.md) | Hytale `.prefab.json` parser, `BlockMappingRegistry` (hytale $\to$ minecraft), socket connection preservation, and adaptive foundation plinths for uneven terrain. |
+| [**12. Official Biome Settings Translator & Presets**](docs/research/12_HYTALE_BIOME_SETTINGS_TRANSLATOR_AND_OFFICIAL_PRESETS.md) | Native ingestion of published Hytale V2 biome assets (`Server/HytaleGenerator/Biomes/`), parsing of `GradientWarp`, `DistanceToBiomeEdge`, `YSampled`, and official presets (*Verdant Forest*, *Whispering Grove*, *Howling Sands*, *Boreal Tundra*). |
 
 ---
 

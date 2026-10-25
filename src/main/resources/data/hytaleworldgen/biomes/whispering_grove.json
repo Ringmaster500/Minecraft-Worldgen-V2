@@ -1,0 +1,20 @@
+{
+  "$schema": "https://hytale.com/schemas/worldgen/v2/biome.json",
+  "name": "WhisperingGrove",
+  "zone": "Zone1_EmeraldGrove",
+  "type": "CustomBiome",
+  "priority": 10,
+  "parentBiomes": ["VerdantForest"],
+  "noiseThreshold": [0.62, 1.0],
+  "defaultTransitionDistance": 32.0,
+  "maxSlopeForCover": 40.0,
+  "minSpaceForCover": 4,
+
+  "layers": [
+    { "material": "hytale:podzol", "thickness": 2 },
+    { "material": "hytale:dirt_coarse", "thickness": 4 },
+    { "material": "hytale:stone", "thickness": 999 }
+  ],
+  "fallbackMaterial": "hytale:stone",
+  "cliffMaterial": "hytale:slate_deep"
+}

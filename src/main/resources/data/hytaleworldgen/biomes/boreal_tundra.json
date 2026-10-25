@@ -1,0 +1,25 @@
+{
+  "$schema": "https://hytale.com/schemas/worldgen/v2/biome.json",
+  "name": "BorealTundra",
+  "zone": "Zone3_BorealTundra",
+  "type": "TileBiome",
+  "weight": 14.0,
+  "sizeModifier": 1.8,
+  "defaultTransitionDistance": 48.0,
+  "maxSlopeForCover": 38.0,
+  "minSpaceForCover": 3,
+
+  "layers": [
+    { "material": "hytale:snow_block", "thickness": 2 },
+    { "material": "hytale:dirt_coarse", "thickness": 3 },
+    { "material": "hytale:stone", "thickness": 999 }
+  ],
+  "fallbackMaterial": "hytale:stone",
+  "cliffMaterial": "hytale:ice_packed",
+
+  "terrainSettings": {
+    "baseHeight": 90.0,
+    "heightScale": 45.0,
+    "peakSpineSharpening": true
+  }
+}
