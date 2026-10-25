@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[2,)"
+license="MIT"
+issueTrackerURL="https://github.com/example/Minecraft-Worldgen-V2/issues"
+
+[[mods]]
+modId="hytaleworldgen"
+version="1.0.0"
+displayName="Hytale WorldGen V2"
+authors="Ringm"
+description='''
+A high-performance implementation of Hytale's WorldGen V2 procedural engine for deobfuscated Minecraft 26.1.
+'''
+
+[[dependencies.hytaleworldgen]]
+modId="neoforge"
+type="required"
+versionRange="[26.1,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.hytaleworldgen]]
+modId="minecraft"
+type="required"
+versionRange="[26.1,)"
+ordering="NONE"
+side="BOTH"
