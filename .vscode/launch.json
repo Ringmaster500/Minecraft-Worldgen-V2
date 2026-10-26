@@ -3,57 +3,8 @@
   "configurations": [
     {
       "type": "java",
-      "request": "attach",
-      "name": "⚡ Attach Debugger (Live Hot-Reload)",
-      "hostName": "localhost",
-      "port": 5005
-    },
-    {
-      "type": "java",
       "request": "launch",
-      "name": "Client (Direct Launch)",
-      "presentation": {
-        "group": "Mod Development",
-        "order": 1
-      },
-      "mainClass": "net.neoforged.devlaunch.Main",
-      "args": [
-        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\clientRunProgramArgs.txt"
-      ],
-      "vmArgs": [
-        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\clientRunVmArgs.txt",
-        "-Dfml.modFolders\u003dworldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
-      ],
-      "cwd": "${workspaceFolder}\\run",
-      "env": {},
-      "console": "internalConsole",
-      "shortenCommandLine": "none"
-    },
-    {
-      "type": "java",
-      "request": "launch",
-      "name": "Server (Direct Launch)",
-      "presentation": {
-        "group": "Mod Development",
-        "order": 2
-      },
-      "mainClass": "net.neoforged.devlaunch.Main",
-      "args": [
-        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\serverRunProgramArgs.txt"
-      ],
-      "vmArgs": [
-        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\serverRunVmArgs.txt",
-        "-Dfml.modFolders\u003dworldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
-      ],
-      "cwd": "${workspaceFolder}\\run",
-      "env": {},
-      "console": "internalConsole",
-      "shortenCommandLine": "none"
-    },
-    {
-      "type": "java",
-      "request": "launch",
-      "name": "Client",
+      "name": "Client (With Live Hot-Reload)",
       "presentation": {
         "group": "Mod Development - Minecraft-Worldgen-V2",
         "order": 0
@@ -65,12 +16,19 @@
       ],
       "vmArgs": [
         "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\clientRunVmArgs.txt",
-        "-Dfml.modFolders\u003dworldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
+        "-Dfml.modFolders=worldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
       ],
       "cwd": "${workspaceFolder}\\run",
       "env": {},
       "console": "internalConsole",
       "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "attach",
+      "name": "⚡ Attach Debugger (Port 5005)",
+      "hostName": "localhost",
+      "port": 5005
     },
     {
       "type": "java",
@@ -87,7 +45,7 @@
       ],
       "vmArgs": [
         "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\serverRunVmArgs.txt",
-        "-Dfml.modFolders\u003dworldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
+        "-Dfml.modFolders=worldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
       ],
       "cwd": "${workspaceFolder}\\run",
       "env": {},
