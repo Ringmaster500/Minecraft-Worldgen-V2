@@ -1,0 +1,10 @@
+{
+  "generator.worldgenv2.volumetric": "WorldGen V2: Volumetric Continents",
+  "generator.worldgenv2.volumetric.info": "Volumetric 3D overhangs, BiCarta Voronoi biomes, and SpaceAndDepth geology",
+  "generator.worldgenv2.volumetric_hytale": "WorldGen V2: Hytale Extended (576Y)",
+  "generator.worldgenv2.volumetric_hytale.info": "Extended 576-block height world [-64..512] with soaring alpine peaks and deep caverns",
+  "generator.worldgenv2.spawn_island_landmarks": "WorldGen V2: Spawn Island & Landmarks",
+  "generator.worldgenv2.spawn_island_landmarks.info": "Start on a sculpted island with connected landmarks & bridges, surrounded by ocean and outer continents",
+  "generator.worldgenv2.end_rings_archipelago": "WorldGen V2: Full Overworld + Custom End Rings",
+  "generator.worldgenv2.end_rings_archipelago.info": "Volumetric Overworld + Node-built End dimension (Central Island, 10 Obsidian Towers, Void Moat & Outer Islands)"
+}

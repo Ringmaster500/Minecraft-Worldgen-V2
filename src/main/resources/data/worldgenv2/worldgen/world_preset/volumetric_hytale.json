@@ -1,0 +1,40 @@
+{
+  "dimensions": {
+    "minecraft:overworld": {
+      "type": "worldgenv2:overworld_hytale",
+      "generator": {
+        "type": "worldgenv2:volumetric_v2",
+        "preset": "hytale_extended",
+        "biome_source": {
+          "type": "worldgenv2:bicarta_biomes",
+          "seed": 1337,
+          "cell_size": 192
+        },
+        "sea_level": 128,
+        "min_y": -64,
+        "gen_depth": 576
+      }
+    },
+    "minecraft:the_nether": {
+      "type": "minecraft:the_nether",
+      "generator": {
+        "type": "minecraft:noise",
+        "biome_source": {
+          "type": "minecraft:multi_noise",
+          "preset": "minecraft:nether"
+        },
+        "settings": "minecraft:nether"
+      }
+    },
+    "minecraft:the_end": {
+      "type": "minecraft:the_end",
+      "generator": {
+        "type": "minecraft:noise",
+        "biome_source": {
+          "type": "minecraft:the_end"
+        },
+        "settings": "minecraft:end"
+      }
+    }
+  }
+}

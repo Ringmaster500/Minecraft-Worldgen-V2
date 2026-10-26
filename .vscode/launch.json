@@ -1,0 +1,98 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "request": "attach",
+      "name": "⚡ Attach Debugger (Live Hot-Reload)",
+      "hostName": "localhost",
+      "port": 5005
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Client (Direct Launch)",
+      "presentation": {
+        "group": "Mod Development",
+        "order": 1
+      },
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\clientRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\clientRunVmArgs.txt",
+        "-Dfml.modFolders\u003dworldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Server (Direct Launch)",
+      "presentation": {
+        "group": "Mod Development",
+        "order": 2
+      },
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\serverRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\serverRunVmArgs.txt",
+        "-Dfml.modFolders\u003dworldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Client",
+      "presentation": {
+        "group": "Mod Development - Minecraft-Worldgen-V2",
+        "order": 0
+      },
+      "projectName": "Minecraft-Worldgen-V2",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\clientRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\clientRunVmArgs.txt",
+        "-Dfml.modFolders\u003dworldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Server",
+      "presentation": {
+        "group": "Mod Development - Minecraft-Worldgen-V2",
+        "order": 1
+      },
+      "projectName": "Minecraft-Worldgen-V2",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\serverRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@C:\\VSCode Projects\\Minecraft Worldgen V2\\build\\moddev\\serverRunVmArgs.txt",
+        "-Dfml.modFolders\u003dworldgenv2%%C:\\VSCode Projects\\Minecraft Worldgen V2\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    }
+  ]
+}

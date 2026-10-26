@@ -1,0 +1,239 @@
+{
+  "name": "minecraft:arid_dunes",
+  "category": "desert",
+  "type": "TileBiome",
+  "weight": 12.0,
+  "sizeModifier": 1.8,
+  "defaultTransitionDistance": 64.0,
+  "climate": {
+    "continentalness": 0.10,
+    "temperature": 0.90,
+    "humidity": -0.85
+  },
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 76.0,
+        "scale": 32.0
+      },
+      {
+        "type": "Noise2dDensity",
+        "noiseType": "OpenSimplex2",
+        "fractalType": "Ridged",
+        "frequency": 0.0045,
+        "octaves": 3,
+        "amplitude": 0.50
+      },
+      {
+        "type": "CurveMapperDensity",
+        "input": {
+          "type": "YSampledDensity",
+          "yInterval": 8,
+          "input": {
+            "type": "Noise3dDensity",
+            "noiseType": "OpenSimplex2",
+            "frequency": 0.010,
+            "octaves": 3,
+            "amplitude": 0.36
+          }
+        },
+        "curve": {
+          "type": "DistanceSCurve",
+          "exponentA": 1.0,
+          "exponentB": 1.0,
+          "range": 1.0,
+          "transition": 0.5,
+          "transitionSmooth": 0.20
+        }
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "maxAngleDegrees": 52.0 },
+            { "type": "SpaceCheckPattern", "minAirAbove": 2 }
+          ]
+        },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "minecraft:sand", "thickness": 4 },
+            { "material": "minecraft:sandstone", "thickness": 8 },
+            { "material": "minecraft:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "minecraft:sandstone",
+          "cliffMaterial": "minecraft:smooth_sandstone",
+          "maxSlopeForCover": 52.0,
+          "minSpaceForCover": 2
+        }
+      },
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "minAngleDegrees": 52.0 }
+          ]
+        },
+        "provider": {
+          "type": "WeightedMaterialProvider",
+          "weights": [
+            { "material": "minecraft:smooth_sandstone", "weight": 55.0 },
+            { "material": "minecraft:terracotta", "weight": 30.0 },
+            { "material": "minecraft:orange_terracotta", "weight": 15.0 }
+          ]
+        }
+      },
+      {
+        "pattern": { "type": "CeilingPattern" },
+        "provider": {
+          "type": "ConstantMaterialProvider",
+          "material": "minecraft:sandstone"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "minecraft:sandstone"
+    }
+  },
+  "props": [
+    {
+      "type": "PropRuntime",
+      "stage": 1,
+      "precision": "PROP",
+      "scannerReach": 16,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 5.0
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.40,
+          "weightedAssignments": [
+            {
+              "weight": 70.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlock": "minecraft:sand",
+                  "maxSlopeDegrees": 30.0,
+                  "child": {
+                    "type": "BlockProp",
+                    "block": "minecraft:dead_bush"
+                  }
+                }
+              }
+            },
+            {
+              "weight": 30.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlock": "minecraft:sand",
+                  "maxSlopeDegrees": 25.0,
+                  "child": {
+                    "type": "UnionProp",
+                    "props": [
+                      {
+                        "type": "CuboidProp",
+                        "material": "minecraft:cactus",
+                        "radiusX": 0,
+                        "height": 3,
+                        "radiusZ": 0,
+                        "yOffset": 0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "PropRuntime",
+      "stage": 2,
+      "precision": "PROP",
+      "scannerReach": 24,
+      "prefabRadius": 8,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 18.0
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.65,
+          "weightedAssignments": [
+            {
+              "weight": 100.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlocks": ["minecraft:sand", "minecraft:sandstone"],
+                  "maxSlopeDegrees": 35.0,
+                  "child": {
+                    "type": "RandomRotatorProp",
+                    "horizontalRotations": true,
+                    "seed": "dune_hoodoo",
+                    "child": {
+                      "type": "UnionProp",
+                      "props": [
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:sandstone",
+                          "radiusX": 1,
+                          "height": 5,
+                          "radiusZ": 1,
+                          "yOffset": 0,
+                          "bevelEdges": true
+                        },
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:smooth_sandstone",
+                          "radiusX": 2,
+                          "height": 1,
+                          "radiusZ": 2,
+                          "yOffset": 4,
+                          "bevelEdges": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

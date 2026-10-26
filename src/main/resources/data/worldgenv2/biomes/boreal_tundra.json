@@ -1,0 +1,239 @@
+{
+  "name": "minecraft:boreal_tundra",
+  "category": "taiga",
+  "type": "TileBiome",
+  "weight": 14.0,
+  "sizeModifier": 1.6,
+  "defaultTransitionDistance": 48.0,
+  "climate": {
+    "continentalness": 0.20,
+    "temperature": -0.25,
+    "humidity": 0.20
+  },
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 82.0,
+        "scale": 32.0
+      },
+      {
+        "type": "GradientWarpDensity",
+        "input": {
+          "type": "Noise2dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.005,
+          "octaves": 3,
+          "amplitude": 0.45
+        },
+        "warpSource": {
+          "type": "Noise2dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.007,
+          "octaves": 2,
+          "amplitude": 1.0
+        },
+        "warpStrength": 16.0
+      },
+      {
+        "type": "YSampledDensity",
+        "yInterval": 8,
+        "input": {
+          "type": "Noise3dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.012,
+          "octaves": 3,
+          "amplitude": 0.38
+        }
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "maxAngleDegrees": 40.0 },
+            { "type": "SpaceCheckPattern", "minAirAbove": 2 }
+          ]
+        },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "minecraft:podzol", "thickness": 2 },
+            { "material": "minecraft:coarse_dirt", "thickness": 3 },
+            { "material": "minecraft:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "minecraft:stone",
+          "cliffMaterial": "minecraft:stone",
+          "maxSlopeForCover": 40.0,
+          "minSpaceForCover": 2
+        }
+      },
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "minAngleDegrees": 40.0 }
+          ]
+        },
+        "provider": {
+          "type": "WeightedMaterialProvider",
+          "weights": [
+            { "material": "minecraft:stone", "weight": 60.0 },
+            { "material": "minecraft:packed_ice", "weight": 25.0 },
+            { "material": "minecraft:andesite", "weight": 15.0 }
+          ]
+        }
+      },
+      {
+        "pattern": { "type": "CeilingPattern" },
+        "provider": {
+          "type": "ConstantMaterialProvider",
+          "material": "minecraft:stone"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "minecraft:stone"
+    }
+  },
+  "props": [
+    {
+      "type": "PropRuntime",
+      "stage": 1,
+      "precision": "PROP",
+      "scannerReach": 16,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 4.0
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.20,
+          "weightedAssignments": [
+            {
+              "weight": 60.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:fern" }
+              }
+            },
+            {
+              "weight": 40.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:short_grass" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "PropRuntime",
+      "stage": 2,
+      "precision": "PROP",
+      "scannerReach": 24,
+      "prefabRadius": 6,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 8.5
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.30,
+          "weightedAssignments": [
+            {
+              "weight": 80.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlocks": ["minecraft:podzol", "minecraft:coarse_dirt"],
+                  "maxSlopeDegrees": 30.0,
+                  "child": {
+                    "type": "RandomRotatorProp",
+                    "horizontalRotations": true,
+                    "seed": "spruce_tree",
+                    "child": {
+                      "type": "UnionProp",
+                      "props": [
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:spruce_log",
+                          "radiusX": 0,
+                          "height": 7,
+                          "radiusZ": 0,
+                          "yOffset": 0
+                        },
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:spruce_leaves",
+                          "radiusX": 2,
+                          "height": 2,
+                          "radiusZ": 2,
+                          "yOffset": 3,
+                          "bevelEdges": true
+                        },
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:spruce_leaves",
+                          "radiusX": 1,
+                          "height": 3,
+                          "radiusZ": 1,
+                          "yOffset": 5,
+                          "bevelEdges": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "weight": 20.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlocks": ["minecraft:podzol", "minecraft:coarse_dirt"],
+                  "child": {
+                    "type": "CuboidProp",
+                    "material": "minecraft:mossy_cobblestone",
+                    "radiusX": 1,
+                    "height": 1,
+                    "radiusZ": 1,
+                    "bevelEdges": true
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

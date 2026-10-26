@@ -1,0 +1,150 @@
+{
+  "name": "minecraft:sunlit_plains",
+  "category": "plains",
+  "type": "TileBiome",
+  "weight": 16.0,
+  "sizeModifier": 1.35,
+  "defaultTransitionDistance": 48.0,
+  "climate": {
+    "continentalness": 0.05,
+    "temperature": 0.20,
+    "humidity": -0.30
+  },
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 71.0,
+        "scale": 22.0
+      },
+      {
+        "type": "Noise2dDensity",
+        "noiseType": "OpenSimplex2",
+        "frequency": 0.0038,
+        "octaves": 2,
+        "amplitude": 0.30
+      },
+      {
+        "type": "YSampledDensity",
+        "yInterval": 8,
+        "input": {
+          "type": "Noise3dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.010,
+          "octaves": 2,
+          "amplitude": 0.22
+        }
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "maxAngleDegrees": 45.0 },
+            { "type": "SpaceCheckPattern", "minAirAbove": 2 }
+          ]
+        },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "minecraft:grass_block", "thickness": 1 },
+            { "material": "minecraft:dirt", "thickness": 3 },
+            { "material": "minecraft:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "minecraft:stone",
+          "cliffMaterial": "minecraft:andesite",
+          "maxSlopeForCover": 45.0,
+          "minSpaceForCover": 2
+        }
+      },
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "minAngleDegrees": 45.0 }
+          ]
+        },
+        "provider": {
+          "type": "WeightedMaterialProvider",
+          "weights": [
+            { "material": "minecraft:stone", "weight": 70.0 },
+            { "material": "minecraft:andesite", "weight": 30.0 }
+          ]
+        }
+      },
+      {
+        "pattern": { "type": "CeilingPattern" },
+        "provider": {
+          "type": "ConstantMaterialProvider",
+          "material": "minecraft:stone"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "minecraft:stone"
+    }
+  },
+  "props": [
+    {
+      "type": "PropRuntime",
+      "stage": 1,
+      "precision": "PROP",
+      "scannerReach": 16,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 3.0
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.12,
+          "weightedAssignments": [
+            {
+              "weight": 50.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:short_grass" }
+              }
+            },
+            {
+              "weight": 25.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:dandelion" }
+              }
+            },
+            {
+              "weight": 15.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:poppy" }
+              }
+            },
+            {
+              "weight": 10.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:cornflower" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

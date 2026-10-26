@@ -1,0 +1,54 @@
+{
+  "$schema": "https://hytale.com/schemas/prefab/v2.json",
+  "name": "hytale:settlements/kweebec_shelter_01",
+  "version": 2,
+  "size": { "x": 5, "y": 5, "z": 5 },
+  "anchor": { "x": 2, "y": 0, "z": 2 },
+  "palette": [
+    { "id": 0, "name": "hytale:empty" },
+    { "id": 1, "name": "hytale:wood_oak_planks" },
+    { "id": 2, "name": "hytale:wood_oak_log", "properties": { "axis": "y" } },
+    { "id": 3, "name": "hytale:stone_cobble" },
+    { "id": 4, "name": "hytale:thatch_roof_stairs", "properties": { "facing": "north", "half": "bottom" } },
+    { "id": 5, "name": "hytale:torch_wall", "properties": { "facing": "south" } }
+  ],
+  "blocks": [
+    { "x": 0, "y": 0, "z": 0, "paletteIndex": 3 },
+    { "x": 1, "y": 0, "z": 0, "paletteIndex": 1 },
+    { "x": 2, "y": 0, "z": 0, "paletteIndex": 1 },
+    { "x": 3, "y": 0, "z": 0, "paletteIndex": 1 },
+    { "x": 4, "y": 0, "z": 0, "paletteIndex": 3 },
+    { "x": 0, "y": 0, "z": 2, "paletteIndex": 1 },
+    { "x": 2, "y": 0, "z": 2, "paletteIndex": 1 },
+    { "x": 4, "y": 0, "z": 2, "paletteIndex": 1 },
+    { "x": 0, "y": 0, "z": 4, "paletteIndex": 3 },
+    { "x": 4, "y": 0, "z": 4, "paletteIndex": 3 },
+    { "x": 0, "y": 1, "z": 0, "paletteIndex": 2 },
+    { "x": 0, "y": 2, "z": 0, "paletteIndex": 2 },
+    { "x": 4, "y": 1, "z": 0, "paletteIndex": 2 },
+    { "x": 4, "y": 2, "z": 0, "paletteIndex": 2 },
+    { "x": 0, "y": 1, "z": 4, "paletteIndex": 2 },
+    { "x": 0, "y": 2, "z": 4, "paletteIndex": 2 },
+    { "x": 4, "y": 1, "z": 4, "paletteIndex": 2 },
+    { "x": 4, "y": 2, "z": 4, "paletteIndex": 2 },
+    { "x": 2, "y": 3, "z": 2, "paletteIndex": 4 },
+    { "x": 2, "y": 2, "z": 1, "paletteIndex": 5 }
+  ],
+  "sockets": [
+    {
+      "name": "doorway_front",
+      "type": "CORRIDOR_CONNECTION",
+      "gender": "SOCKET_FEMALE",
+      "position": { "x": 2, "y": 0, "z": 0 },
+      "facing": "NORTH",
+      "compatibleTags": ["path", "courtyard"]
+    }
+  ],
+  "adaptiveFoundations": [
+    {
+      "area": { "minX": 0, "minZ": 0, "maxX": 4, "maxZ": 4 },
+      "fillMaterial": "hytale:stone_cobble",
+      "maxDepth": 12
+    }
+  ]
+}

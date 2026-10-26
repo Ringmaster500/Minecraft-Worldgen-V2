@@ -1,0 +1,128 @@
+{
+  "$schema": "https://hytale.com/schemas/worldgen/v2/biome.json",
+  "name": "BorealTundra",
+  "zone": "Zone3_BorealTundra",
+  "type": "TileBiome",
+  "weight": 14.0,
+  "sizeModifier": 1.8,
+  "defaultTransitionDistance": 48.0,
+  "maxSlopeForCover": 38.0,
+  "minSpaceForCover": 3,
+  "layers": [
+    { "material": "hytale:snow_block", "thickness": 2 },
+    { "material": "hytale:dirt_coarse", "thickness": 3 },
+    { "material": "hytale:stone", "thickness": 999 }
+  ],
+  "fallbackMaterial": "hytale:stone",
+  "cliffMaterial": "hytale:ice_packed",
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 92.0,
+        "scale": 44.0
+      },
+      {
+        "type": "CurveMapperDensity",
+        "input": {
+          "type": "Noise2dDensity",
+          "noiseType": "OpenSimplex2",
+          "fractalType": "Ridged",
+          "frequency": 0.004,
+          "octaves": 4,
+          "amplitude": 0.75
+        },
+        "curve": {
+          "type": "DistanceExponentialCurve",
+          "exponent": 1.8,
+          "range": 1.0
+        }
+      },
+      {
+        "type": "GradientWarpDensity",
+        "input": {
+          "type": "Noise2dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.0035,
+          "octaves": 2,
+          "amplitude": 0.40
+        },
+        "warpSource": {
+          "type": "Noise2dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.006,
+          "octaves": 2,
+          "amplitude": 1.0
+        },
+        "warpStrength": 20.0
+      },
+      {
+        "type": "YSampledDensity",
+        "yInterval": 6,
+        "input": {
+          "type": "Noise3dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.013,
+          "octaves": 3,
+          "amplitude": 0.58
+        }
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "maxAngleDegrees": 38.0 },
+            { "type": "SpaceCheckPattern", "minAirAbove": 2 }
+          ]
+        },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "hytale:snow_block", "thickness": 3 },
+            { "material": "hytale:ice_packed", "thickness": 4 },
+            { "material": "hytale:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "hytale:stone",
+          "cliffMaterial": "hytale:ice_packed",
+          "maxSlopeForCover": 38.0,
+          "minSpaceForCover": 2
+        }
+      },
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "minAngleDegrees": 38.0 }
+          ]
+        },
+        "provider": {
+          "type": "WeightedMaterialProvider",
+          "weights": [
+            { "material": "hytale:ice_packed", "weight": 50.0 },
+            { "material": "hytale:stone", "weight": 35.0 },
+            { "material": "hytale:ice_blue", "weight": 15.0 }
+          ]
+        }
+      },
+      {
+        "pattern": { "type": "CeilingPattern" },
+        "provider": {
+          "type": "ConstantMaterialProvider",
+          "material": "hytale:ice_packed"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "hytale:stone"
+    }
+  }
+}

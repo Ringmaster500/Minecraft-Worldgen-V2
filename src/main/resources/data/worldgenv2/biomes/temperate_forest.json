@@ -1,0 +1,265 @@
+{
+  "name": "minecraft:temperate_forest",
+  "category": "forest",
+  "type": "TileBiome",
+  "weight": 18.0,
+  "sizeModifier": 1.4,
+  "defaultTransitionDistance": 48.0,
+  "climate": {
+    "continentalness": 0.10,
+    "temperature": 0.10,
+    "humidity": 0.35
+  },
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 68.0,
+        "scale": 28.0
+      },
+      {
+        "type": "GradientWarpDensity",
+        "input": {
+          "type": "Noise2dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.0045,
+          "octaves": 3,
+          "amplitude": 0.50
+        },
+        "warpSource": {
+          "type": "Noise2dDensity",
+          "noiseType": "OpenSimplex2",
+          "frequency": 0.008,
+          "octaves": 2,
+          "amplitude": 1.0
+        },
+        "warpStrength": 14.0
+      },
+      {
+        "type": "CurveMapperDensity",
+        "input": {
+          "type": "YSampledDensity",
+          "yInterval": 8,
+          "input": {
+            "type": "Noise3dDensity",
+            "noiseType": "OpenSimplex2",
+            "frequency": 0.011,
+            "octaves": 3,
+            "amplitude": 0.44
+          }
+        },
+        "curve": {
+          "type": "DistanceSCurve",
+          "exponentA": 1.0,
+          "exponentB": 1.0,
+          "range": 1.0,
+          "transition": 0.5,
+          "transitionSmooth": 0.25
+        }
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "maxAngleDegrees": 45.0 },
+            { "type": "SpaceCheckPattern", "minAirAbove": 3 }
+          ]
+        },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "minecraft:grass_block", "thickness": 1 },
+            { "material": "minecraft:dirt", "thickness": 3 },
+            { "material": "minecraft:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "minecraft:stone",
+          "cliffMaterial": "minecraft:andesite",
+          "maxSlopeForCover": 45.0,
+          "minSpaceForCover": 3
+        }
+      },
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "minAngleDegrees": 45.0 }
+          ]
+        },
+        "provider": {
+          "type": "WeightedMaterialProvider",
+          "weights": [
+            { "material": "minecraft:stone", "weight": 65.0 },
+            { "material": "minecraft:andesite", "weight": 25.0 },
+            { "material": "minecraft:gravel", "weight": 10.0 }
+          ]
+        }
+      },
+      {
+        "pattern": { "type": "CeilingPattern" },
+        "provider": {
+          "type": "ConstantMaterialProvider",
+          "material": "minecraft:stone"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "minecraft:stone"
+    }
+  },
+  "props": [
+    {
+      "type": "PropRuntime",
+      "stage": 1,
+      "precision": "PROP",
+      "scannerReach": 16,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 3.5
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.15,
+          "weightedAssignments": [
+            {
+              "weight": 55.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:short_grass" }
+              }
+            },
+            {
+              "weight": 20.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:fern" }
+              }
+            },
+            {
+              "weight": 15.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:dandelion" }
+              }
+            },
+            {
+              "weight": 10.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": { "type": "BlockProp", "block": "minecraft:poppy" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "PropRuntime",
+      "stage": 2,
+      "precision": "PROP",
+      "scannerReach": 24,
+      "prefabRadius": 6,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 8.0
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.30,
+          "weightedAssignments": [
+            {
+              "weight": 70.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlock": "minecraft:grass_block",
+                  "maxSlopeDegrees": 30.0,
+                  "child": {
+                    "type": "RandomRotatorProp",
+                    "horizontalRotations": true,
+                    "seed": "forest_tree",
+                    "child": {
+                      "type": "UnionProp",
+                      "props": [
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:oak_log",
+                          "radiusX": 0,
+                          "height": 5,
+                          "radiusZ": 0,
+                          "yOffset": 0
+                        },
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:oak_leaves",
+                          "radiusX": 2,
+                          "height": 2,
+                          "radiusZ": 2,
+                          "yOffset": 3,
+                          "bevelEdges": true
+                        },
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:oak_leaves",
+                          "radiusX": 1,
+                          "height": 1,
+                          "radiusZ": 1,
+                          "yOffset": 5,
+                          "bevelEdges": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "weight": 30.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlock": "minecraft:grass_block",
+                  "maxSlopeDegrees": 35.0,
+                  "child": {
+                    "type": "CuboidProp",
+                    "material": "minecraft:mossy_cobblestone",
+                    "radiusX": 1,
+                    "height": 1,
+                    "radiusZ": 1,
+                    "bevelEdges": true
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

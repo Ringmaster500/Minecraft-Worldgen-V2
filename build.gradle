@@ -1,5 +1,6 @@
 plugins {
     id 'java-library'
+    id 'eclipse'
     id 'net.neoforged.moddev' version '2.0.148'
 }
 
@@ -16,6 +17,8 @@ neoForge {
     runs {
         client {
             client()
+            jvmArgument '-Xmx8G'
+            jvmArgument '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005'
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             systemProperty 'forge.logging.console.level', 'debug'
         }
@@ -43,4 +46,86 @@ dependencies {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = 25
+}
+
+test {
+    failOnNoDiscoveredTests = false
+}
+
+tasks.register('verifyPhase3And4', JavaExec) {
+    group = 'verification'
+    description = 'Runs the BiCarta, Phase 3 & Phase 4 verification suite'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase3And4VerificationTest'
+}
+
+tasks.register('verifyPhase7', JavaExec) {
+    group = 'verification'
+    description = 'Verifies climate biomes, caves, rivers and 3D underground biomes'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase7VerificationTest'
+}
+
+tasks.register('verifyPhase8', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Phase 8 Curves & Vector Provider framework'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase8VerificationTest'
+}
+
+tasks.register('verifyPhase9', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Phase 9 Advanced Density Nodes & Caching Infrastructure'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase9VerificationTest'
+}
+
+tasks.register('verifyPhase10', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Phase 10 Positions Providers, Scanners & Assignments'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase10VerificationTest'
+}
+
+tasks.register('verifyPhase11', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Phase 11 Block Mask System & Advanced Prop Operators'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase11VerificationTest'
+}
+
+tasks.register('verifyPhase12', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Phase 12 Procedural Graph Generator Subsystem'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase12VerificationTest'
+}
+
+tasks.register('verifyPhase13', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Phase 13 Prop Runtime Context Precision & Dynamic Chunk Bounds'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase13VerificationTest'
+}
+
+tasks.register('verifyPhase14', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Phase 14 JSON AST Schema Ingestion (All 293 Nodes & 24 Categories)'
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.worldgenv2.Phase14VerificationTest'
+}
+
+tasks.register('verifyWorldHeight', JavaExec) {
+    group = 'verification'
+    description = 'Verifies World Height presets and arbitrary manual configuration'
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.worldgenv2.WorldHeightConfigTest'
+}
+
+tasks.register('verifyEngine', JavaExec) {
+    group = 'verification'
+    description = 'Runs the standalone verification suites'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.Phase2VerificationTest'
+    finalizedBy('verifyPhase3And4', 'verifyPhase7', 'verifyPhase8', 'verifyPhase9', 'verifyPhase10', 'verifyPhase11', 'verifyPhase12', 'verifyPhase13', 'verifyPhase14', 'verifyWorldHeight')
 }

@@ -1,0 +1,124 @@
+{
+  "$schema": "https://hytale.com/schemas/worldgen/v2/biome.json",
+  "name": "WhisperingGrove",
+  "zone": "Zone1_EmeraldGrove",
+  "type": "CustomBiome",
+  "priority": 10,
+  "parentBiomes": [
+    "VerdantForest"
+  ],
+  "noiseThreshold": 0.25,
+  "maxNoiseThreshold": 1.0,
+  "fadeMargin": 0.12,
+  "defaultTransitionDistance": 32.0,
+  "maxSlopeForCover": 40.0,
+  "minSpaceForCover": 4,
+  "layers": [
+    { "material": "hytale:podzol", "thickness": 2 },
+    { "material": "hytale:dirt_coarse", "thickness": 4 },
+    { "material": "hytale:stone", "thickness": 999 }
+  ],
+  "fallbackMaterial": "hytale:stone",
+  "cliffMaterial": "hytale:slate_deep",
+  "placementNoise": {
+    "type": "Noise2dDensity",
+    "noiseType": "OpenSimplex2",
+    "frequency": 0.003,
+    "octaves": 2,
+    "amplitude": 1.0
+  },
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 76.0,
+        "scale": 30.0
+      },
+      {
+        "type": "Noise2dDensity",
+        "noiseType": "OpenSimplex2",
+        "frequency": 0.004,
+        "octaves": 3,
+        "amplitude": 0.52
+      },
+      {
+        "type": "CurveMapperDensity",
+        "input": {
+          "type": "YSampledDensity",
+          "yInterval": 8,
+          "input": {
+            "type": "Noise3dDensity",
+            "noiseType": "OpenSimplex2",
+            "frequency": 0.012,
+            "octaves": 3,
+            "amplitude": 0.55
+          }
+        },
+        "curve": {
+          "type": "DistanceSCurve",
+          "exponentA": 1.0,
+          "exponentB": 1.0,
+          "range": 1.0,
+          "transition": 0.5,
+          "transitionSmooth": 0.25
+        }
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "maxAngleDegrees": 40.0 },
+            { "type": "SpaceCheckPattern", "minAirAbove": 3 }
+          ]
+        },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "hytale:podzol", "thickness": 2 },
+            { "material": "hytale:dirt_coarse", "thickness": 4 },
+            { "material": "hytale:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "hytale:stone",
+          "cliffMaterial": "hytale:slate_deep",
+          "maxSlopeForCover": 40.0,
+          "minSpaceForCover": 3
+        }
+      },
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "minAngleDegrees": 40.0 }
+          ]
+        },
+        "provider": {
+          "type": "WeightedMaterialProvider",
+          "weights": [
+            { "material": "hytale:slate_deep", "weight": 50.0 },
+            { "material": "hytale:stone", "weight": 35.0 },
+            { "material": "hytale:stone_andesite", "weight": 15.0 }
+          ]
+        }
+      },
+      {
+        "pattern": { "type": "CeilingPattern" },
+        "provider": {
+          "type": "ConstantMaterialProvider",
+          "material": "hytale:stone"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "hytale:stone"
+    }
+  }
+}

@@ -2,25 +2,22 @@
 
 ## 1. Modular Architecture Overview
 
-To achieve industrial stability, long-term maintainability, and peak performance, our implementation is partitioned into two clean layers:
+To achieve industrial stability, long-term maintainability, peak performance, and an intuitive modpack creator experience, our implementation is partitioned into three clean tiers:
 
 ```
-                      Minecraft Worldgen V2 Project
-                                    │
-       ┌────────────────────────────┴───────────────────────────┐
-       ▼                                                        ▼
-[ core/ ]                                                [ mod/ ]
-hytale-worldgen-core                                     hytale-worldgen-minecraft
-(Pure Java 25 Foundation Engine)                         (Minecraft 26.1 Adapter Mod)
-──────────────────────────────────                       ───────────────────────────
-• Zero Minecraft Dependencies                            • NeoForge 26.1 / Fabric 26.1
-• Fast 3D Density Engine (FastNoiseLite)                 • HytaleChunkGenerator
-• Staged Chunk Pipeline (StagedChunkGenerator)           • HytaleBiomeSource
-• BiCarta & Voronoi Cellular Grid                        • Voxel Palette Adapter
-• SpaceAndDepth Material System                          • In-Game Commands:
-• Pattern Matchers (Slope, Surface, Normal)                - /hytale reload
-• Single-Pass Prop & Socket Prefab Engine                  - /hytale viewport
-• JSON Biome AST Compiler & Watcher                      • DataPack & Config Loaders
+                          Minecraft Worldgen V2 Project
+                                        │
+        ┌───────────────────────────────┼───────────────────────────────┐
+        ▼                               ▼                               ▼
+[ worldgenv2-core ]            [ worldgenv2 (Runtime) ]        [ worldgenv2-studio ]
+(Pure Java 25 Engine)          (Minecraft 26.1 Adapter)        (Creator Companion Mod)
+───────────────────────        ────────────────────────        ────────────────────────
+• Zero MC Dependencies         • NeoForge 26.1 Runtime         • Client-Only Creator Suite
+• Fast 3D Density Engine       • WorldGenV2ChunkGenerator      • In-Game Inspector HUD
+• Staged Chunk Pipeline        • WorldGenV2BiomeSource         • WYSIWYG Biome Sculptor
+• BiCarta Voronoi Grid         • Config Datapack Auto-Mounter  • Modded Block Picker
+• SpaceAndDepth Strata         • ModdedBlockResolver           • Fast Sub-50ms /viewport
+• Contextual Prop & Prefabs    • Shipped in all Modpacks       • Excluded from Player Packs
 ```
 
 ---

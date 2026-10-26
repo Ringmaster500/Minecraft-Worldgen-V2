@@ -1,0 +1,48 @@
+{
+  "dimensions": {
+    "minecraft:overworld": {
+      "type": "minecraft:overworld",
+      "generator": {
+        "type": "worldgenv2:volumetric_v2",
+        "biome_source": {
+          "type": "worldgenv2:bicarta_biomes",
+          "seed": 1337,
+          "cell_size": 192,
+          "layout_preset": "default"
+        },
+        "sea_level": 63,
+        "min_y": -64,
+        "gen_depth": 384
+      }
+    },
+    "minecraft:the_nether": {
+      "type": "minecraft:the_nether",
+      "generator": {
+        "type": "minecraft:noise",
+        "biome_source": {
+          "type": "minecraft:multi_noise",
+          "preset": "minecraft:nether"
+        },
+        "settings": "minecraft:nether"
+      }
+    },
+    "minecraft:the_end": {
+      "type": "minecraft:the_end",
+      "generator": {
+        "type": "worldgenv2:volumetric_v2",
+        "biome_source": {
+          "type": "worldgenv2:bicarta_biomes",
+          "seed": 1337,
+          "cell_size": 192,
+          "layout_preset": "end_rings_archipelago"
+        },
+        "sea_level": 0,
+        "min_y": 0,
+        "gen_depth": 256,
+        "default_block": "minecraft:end_stone",
+        "default_fluid": "minecraft:air",
+        "deep_lava_flooding": false
+      }
+    }
+  }
+}

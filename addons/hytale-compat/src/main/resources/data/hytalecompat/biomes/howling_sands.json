@@ -1,0 +1,113 @@
+{
+  "$schema": "https://hytale.com/schemas/worldgen/v2/biome.json",
+  "name": "HowlingSands",
+  "zone": "Zone2_HowlingSands",
+  "type": "TileBiome",
+  "weight": 12.0,
+  "sizeModifier": 2.0,
+  "defaultTransitionDistance": 64.0,
+  "maxSlopeForCover": 52.0,
+  "minSpaceForCover": 2,
+  "layers": [
+    { "material": "hytale:sand", "thickness": 4 },
+    { "material": "hytale:sandstone", "thickness": 8 },
+    { "material": "hytale:stone", "thickness": 999 }
+  ],
+  "fallbackMaterial": "hytale:sandstone",
+  "cliffMaterial": "hytale:sandstone_smooth",
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 76.0,
+        "scale": 32.0
+      },
+      {
+        "type": "Noise2dDensity",
+        "noiseType": "OpenSimplex2",
+        "fractalType": "Ridged",
+        "frequency": 0.0045,
+        "octaves": 3,
+        "amplitude": 0.50
+      },
+      {
+        "type": "CurveMapperDensity",
+        "input": {
+          "type": "YSampledDensity",
+          "yInterval": 8,
+          "input": {
+            "type": "Noise3dDensity",
+            "noiseType": "OpenSimplex2",
+            "frequency": 0.010,
+            "octaves": 3,
+            "amplitude": 0.36
+          }
+        },
+        "curve": {
+          "type": "DistanceSCurve",
+          "exponentA": 1.0,
+          "exponentB": 1.0,
+          "range": 1.0,
+          "transition": 0.5,
+          "transitionSmooth": 0.20
+        }
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "maxAngleDegrees": 52.0 },
+            { "type": "SpaceCheckPattern", "minAirAbove": 2 }
+          ]
+        },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "hytale:sand", "thickness": 4 },
+            { "material": "hytale:sandstone", "thickness": 8 },
+            { "material": "hytale:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "hytale:sandstone",
+          "cliffMaterial": "hytale:sandstone_smooth",
+          "maxSlopeForCover": 52.0,
+          "minSpaceForCover": 2
+        }
+      },
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "minAngleDegrees": 52.0 }
+          ]
+        },
+        "provider": {
+          "type": "WeightedMaterialProvider",
+          "weights": [
+            { "material": "hytale:sandstone_smooth", "weight": 55.0 },
+            { "material": "hytale:terracotta", "weight": 30.0 },
+            { "material": "hytale:terracotta_orange", "weight": 15.0 }
+          ]
+        }
+      },
+      {
+        "pattern": { "type": "CeilingPattern" },
+        "provider": {
+          "type": "ConstantMaterialProvider",
+          "material": "hytale:sandstone"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "hytale:sandstone"
+    }
+  }
+}

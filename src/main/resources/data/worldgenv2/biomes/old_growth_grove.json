@@ -1,0 +1,283 @@
+{
+  "name": "minecraft:old_growth_grove",
+  "category": "forest",
+  "type": "CustomBiome",
+  "priority": 10,
+  "parentBiomes": [
+    "minecraft:temperate_forest",
+    "TemperateForest"
+  ],
+  "noiseThreshold": 0.25,
+  "maxNoiseThreshold": 1.0,
+  "fadeMargin": 0.12,
+  "placementNoise": {
+    "type": "Noise2dDensity",
+    "noiseType": "OpenSimplex2",
+    "frequency": 0.003,
+    "octaves": 2,
+    "amplitude": 1.0
+  },
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 76.0,
+        "scale": 30.0
+      },
+      {
+        "type": "Noise2dDensity",
+        "noiseType": "OpenSimplex2",
+        "frequency": 0.004,
+        "octaves": 3,
+        "amplitude": 0.52
+      },
+      {
+        "type": "CurveMapperDensity",
+        "input": {
+          "type": "YSampledDensity",
+          "yInterval": 8,
+          "input": {
+            "type": "Noise3dDensity",
+            "noiseType": "OpenSimplex2",
+            "frequency": 0.012,
+            "octaves": 3,
+            "amplitude": 0.55
+          }
+        },
+        "curve": {
+          "type": "DistanceSCurve",
+          "exponentA": 1.0,
+          "exponentB": 1.0,
+          "range": 1.0,
+          "transition": 0.5,
+          "transitionSmooth": 0.25
+        }
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "maxAngleDegrees": 42.0 },
+            { "type": "SpaceCheckPattern", "minAirAbove": 3 }
+          ]
+        },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "minecraft:podzol", "thickness": 2 },
+            { "material": "minecraft:coarse_dirt", "thickness": 4 },
+            { "material": "minecraft:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "minecraft:stone",
+          "cliffMaterial": "minecraft:mossy_cobblestone",
+          "maxSlopeForCover": 42.0,
+          "minSpaceForCover": 3
+        }
+      },
+      {
+        "pattern": {
+          "type": "AndPattern",
+          "patterns": [
+            { "type": "SurfacePattern" },
+            { "type": "SlopePattern", "minAngleDegrees": 42.0 }
+          ]
+        },
+        "provider": {
+          "type": "WeightedMaterialProvider",
+          "weights": [
+            { "material": "minecraft:mossy_cobblestone", "weight": 45.0 },
+            { "material": "minecraft:stone", "weight": 35.0 },
+            { "material": "minecraft:andesite", "weight": 20.0 }
+          ]
+        }
+      },
+      {
+        "pattern": { "type": "CeilingPattern" },
+        "provider": {
+          "type": "ConstantMaterialProvider",
+          "material": "minecraft:stone"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "minecraft:stone"
+    }
+  },
+  "props": [
+    {
+      "type": "PropRuntime",
+      "stage": 1,
+      "precision": "PROP",
+      "scannerReach": 16,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 3.0
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.15,
+          "weightedAssignments": [
+            {
+              "weight": 50.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlocks": ["minecraft:podzol", "minecraft:coarse_dirt"],
+                  "maxSlopeDegrees": 35.0,
+                  "child": {
+                    "type": "BlockProp",
+                    "block": "minecraft:fern"
+                  }
+                }
+              }
+            },
+            {
+              "weight": 25.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlocks": ["minecraft:podzol", "minecraft:coarse_dirt"],
+                  "maxSlopeDegrees": 35.0,
+                  "child": {
+                    "type": "BlockProp",
+                    "block": "minecraft:red_mushroom"
+                  }
+                }
+              }
+            },
+            {
+              "weight": 25.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlocks": ["minecraft:podzol", "minecraft:coarse_dirt"],
+                  "maxSlopeDegrees": 35.0,
+                  "child": {
+                    "type": "BlockProp",
+                    "block": "minecraft:brown_mushroom"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "PropRuntime",
+      "stage": 2,
+      "precision": "PROP",
+      "scannerReach": 28,
+      "prefabRadius": 8,
+      "prop": {
+        "type": "AssignmentsProp",
+        "positions": {
+          "type": "TriangularGrid2d",
+          "spacing": 9.0
+        },
+        "scanner": {
+          "type": "LinearScanner",
+          "axis": "Y",
+          "minOffset": -24,
+          "maxOffset": 24
+        },
+        "assignments": {
+          "type": "WeightedAssignment",
+          "skipChance": 0.35,
+          "weightedAssignments": [
+            {
+              "weight": 65.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlock": "minecraft:podzol",
+                  "maxSlopeDegrees": 25.0,
+                  "child": {
+                    "type": "RandomRotatorProp",
+                    "horizontalRotations": true,
+                    "seed": "ancient_tree",
+                    "child": {
+                      "type": "UnionProp",
+                      "props": [
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:dark_oak_log",
+                          "radiusX": 1,
+                          "height": 9,
+                          "radiusZ": 1,
+                          "yOffset": 0
+                        },
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:dark_oak_leaves",
+                          "radiusX": 3,
+                          "height": 3,
+                          "radiusZ": 3,
+                          "yOffset": 6,
+                          "bevelEdges": true
+                        },
+                        {
+                          "type": "CuboidProp",
+                          "material": "minecraft:dark_oak_leaves",
+                          "radiusX": 2,
+                          "height": 2,
+                          "radiusZ": 2,
+                          "yOffset": 9,
+                          "bevelEdges": true
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "weight": 35.0,
+              "assignments": {
+                "type": "ConstantAssignment",
+                "prop": {
+                  "type": "MaskProp",
+                  "requiredBlocks": ["minecraft:podzol", "minecraft:coarse_dirt"],
+                  "maxSlopeDegrees": 25.0,
+                  "child": {
+                    "type": "RandomRotatorProp",
+                    "horizontalRotations": true,
+                    "seed": "fallen_log",
+                    "child": {
+                      "type": "CuboidProp",
+                      "material": "minecraft:oak_log",
+                      "radiusX": 2,
+                      "height": 1,
+                      "radiusZ": 0,
+                      "yOffset": 0
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

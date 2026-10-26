@@ -2,31 +2,30 @@
 
 ## 1. Directory & Asset Layout
 
-In Hytale server asset packs, the world generation definitions reside within standard directory hierarchies:
+In Minecraft Worldgen V2, assets are structured to support both standard datapack locations and an auto-mounted instance `config/worldgenv2/` hierarchy tailored for modpack creators:
 
 ```
-Server/HytaleGenerator/
-├── Biomes/
-│   ├── Forest/
-│   │   ├── VerdantForest.json
-│   │   ├── DeeprootWoods.json
-│   │   └── WhisperingGrove.json
-│   ├── Mountains/
-│   │   ├── AlpinePeaks.json
-│   │   └── GlacialChasm.json
-│   └── Examples/
-├── Materials/
-│   ├── SpaceAndDepth/
-│   │   ├── StandardTemperateCover.json
-│   │   └── AridDesertCover.json
-│   └── Providers/
-├── Props/
-│   ├── Trees/
-│   ├── Foliage/
-│   └── Dungeons/
-└── Instances/
-    └── DefaultOrbis.bson
+# Modpack Customization Directory (Auto-Mounted Synthetic Datapack)
+minecraft-instance/config/worldgenv2/
+├── worlds/
+│   └── default_world.json         # Master world configuration & Voronoi settings
+├── biomes/
+│   ├── temperate_forest.json      # Biome density graphs, materials & props
+│   ├── alpine_peaks.json
+│   └── crystal_chasm.json
+├── prefabs/
+│   ├── watchtower_01.prefab.json  # Native structure prefabs with adaptive foundation plinths
+│   └── ancient_shrine.prefab.json
+└── presets/                       # Seeded templates (template_mountain.json, etc.)
+
+# Built-in Mod Resources (Fallback)
+src/main/resources/data/worldgenv2/
+├── biomes/
+└── prefabs/
 ```
+
+> [!NOTE]
+> When Minecraft boots, `worldgenv2` auto-mounts `config/worldgenv2/` as a dynamic synthetic datapack with top override priority. Modpack creators can tweak, duplicate, or delete these JSON files directly without ever needing to compile a mod or package a zip archive.
 
 ---
 

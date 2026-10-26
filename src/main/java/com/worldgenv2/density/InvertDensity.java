@@ -1,0 +1,34 @@
+package com.worldgenv2.density;
+
+import java.util.Objects;
+
+/**
+ * Negates a density field: f(x, y, z) = -g(x, y, z).
+ * Inverts solid matter and negative air space.
+ */
+public final class InvertDensity implements DensityFunction {
+
+    private final DensityFunction input;
+
+    public InvertDensity(DensityFunction input) {
+        this.input = Objects.requireNonNull(input, "input");
+    }
+
+    public DensityFunction input() {
+        return input;
+    }
+
+    @Override
+    public float compute(float x, float y, float z) {
+        return -input.compute(x, y, z);
+    }
+
+    @Override
+    public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        input.computeColumn(x, z, minY, maxY, out);
+        int height = maxY - minY;
+        for (int i = 0; i < height; i++) {
+            out[i] = -out[i];
+        }
+    }
+}
