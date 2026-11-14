@@ -258,6 +258,12 @@ public final class WorldStructure {
     public long seed() { return worldSeed; }
 
     private volatile DensityBiomeMap biomeMap;
+    private volatile com.worldgenv2.positions.PositionsProvider spawnPositions;
+
+    /** Hytale's SpawnPositions: where the world's spawn may be (the first one in reading order from the origin is used). */
+    public WorldStructure withSpawnPositions(com.worldgenv2.positions.PositionsProvider p) { this.spawnPositions = p; return this; }
+
+    public com.worldgenv2.positions.PositionsProvider getSpawnPositions() { return spawnPositions; }
 
     /** Hytale-style biome distribution: one density field with biome delimiters replaces the Voronoi map. Pass null to go back. */
     public WorldStructure withBiomeMap(DensityBiomeMap map) { this.biomeMap = map; return this; }

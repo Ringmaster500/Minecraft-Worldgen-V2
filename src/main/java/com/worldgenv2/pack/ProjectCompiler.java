@@ -181,7 +181,14 @@ public final class ProjectCompiler {
         }
 
         WorldStructure structure = new WorldStructure(tiles, customs, cellSize, r.seed);
-        if (wsJson != null) applyBiomeMap(wsJson, structure, ctx, r);
+        if (wsJson != null) {
+            applyBiomeMap(wsJson, structure, ctx, r);
+            var sp = ciGet(wsJson, "spawnPositions");
+            if (sp != null && sp.isJsonObject()) {
+                try { structure.withSpawnPositions(JsonAstCompiler.compilePositionsProvider(parsed(sp), ctx)); }
+                catch (Throwable ex) { r.warnings.add("World structure spawn positions failed: " + ex.getMessage()); }
+            }
+        }
         if (J.bool(d, "rivers", true)) {
             JsonObject rs = J.obj(d, "riverSettings");
             RiverCarver.Settings def = RiverCarver.Settings.defaults();

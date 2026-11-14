@@ -294,7 +294,7 @@ public final class HytaleDialect {
 
     /** True for a Props entry written in Hytale's form (no Type, but a PropDistribution, or Positions and Assignments). */
     static boolean isHytaleBiomeProp(Map<String, Object> entry) {
-        return !entry.containsKey("type") && (entry.containsKey("positions") || entry.containsKey("assignments") || entry.containsKey("propdistribution"));
+        return (!entry.containsKey("type") || "Runtime".equalsIgnoreCase(String.valueOf(entry.get("type")))) && (entry.containsKey("positions") || entry.containsKey("assignments") || entry.containsKey("propdistribution"));
     }
 
     /** A Prop Distribution node: Constant, Positions, Assigned, Union, Anchor, Imported. */

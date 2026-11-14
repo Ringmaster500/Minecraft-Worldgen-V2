@@ -105,6 +105,11 @@ final class GraphEditor extends Widget {
             r.kind = "zone";
             addSlot(r, "mask", "Shape mask", "density", false);
             addSlot(r, "terrain", "Terrain", "density", false);
+        } else if (a.type == com.worldgenv2.studio.project.AssetType.DIMENSION) {
+            // A dimension: its world structure (the density that places biomes) is the one thing built as a graph.
+            r.type = "Dimension";
+            r.kind = "dimension";
+            addSlot(r, "worldStructure", "World structure", "worldstructure", false);
         } else if (a.type == com.worldgenv2.studio.project.AssetType.RULE) {
             // A placement rule: where to look (finder), what must hold (conditions), what to build (actions).
             r.type = "Rule";
@@ -145,8 +150,10 @@ final class GraphEditor extends Widget {
         JsonObject o = n.json;
 
         if (!n.virtualRoot) {
+            normalizeKeys(o, n.kind);
             n.type = J.str(o, "type", "?");
             n.schema = NodeSchemas.find(n.kind, n.type);
+            if (n.schema != null) normalizeKeys(o, n.schema);
             Set<String> declared = new HashSet<>();
             if (n.schema != null) {
                 for (NodeSchemas.Slot s : n.schema.slots()) {
@@ -165,8 +172,10 @@ final class GraphEditor extends Widget {
             }
             // params: schema params first (explicit value or default), then unknown primitives
             Set<String> shown = new HashSet<>();
+            Set<String> shownLower = new HashSet<>();
             if (n.schema != null) {
                 for (NodeSchemas.Param p : n.schema.params()) {
+                    if (!shownLower.add(p.key().toLowerCase(Locale.ROOT))) continue;   // the engine accepts both spellings; show one
                     String key = o.has(p.key()) ? p.key() : (p.alias() != null && o.has(p.alias()) ? p.alias() : p.key());
                     shown.add(key);
                     if (!o.has(key) && (p.def() == null || p.def().isJsonNull())) continue;
@@ -175,7 +184,7 @@ final class GraphEditor extends Widget {
                 }
             }
             for (Map.Entry<String, JsonElement> e : o.entrySet()) {
-                if (e.getKey().equals("type") || shown.contains(e.getKey())) continue;
+                if (e.getKey().equals("type") || shown.contains(e.getKey()) || shownLower.contains(e.getKey().toLowerCase(Locale.ROOT))) continue;
                 if (e.getValue().isJsonPrimitive()) n.params.add(new String[]{e.getKey(), e.getValue().getAsString(), "1"});
                 else if (isStringList(e.getValue())) n.params.add(new String[]{e.getKey(), joinStrings(e.getValue()), "1"});
             }
@@ -205,7 +214,26 @@ final class GraphEditor extends Widget {
         }
     }
 
+    /** Hytale's files write "Type" and PascalCase keys; the editor addresses keys exactly, so fold them to the schema's spelling. */
+    private static void normalizeKeys(JsonObject o, String kind) {
+        for (String k : new ArrayList<>(o.keySet())) {
+            if (!k.equals("type") && k.equalsIgnoreCase("type") && !o.has("type")) { o.add("type", o.remove(k)); }
+        }
+        if (!o.has("type") && o.keySet().stream().anyMatch(k -> k.equalsIgnoreCase("propdistribution"))) o.addProperty("type", "Runtime");
+    }
+
+    private static void normalizeKeys(JsonObject o, NodeSchemas.NodeType schema) {
+        List<String> want = new ArrayList<>();
+        for (NodeSchemas.Param p : schema.params()) want.add(p.key());
+        for (NodeSchemas.Slot s : schema.slots()) want.add(s.key());
+        for (String w : want) {
+            if (o.has(w)) continue;
+            for (String k : new ArrayList<>(o.keySet())) if (k.equalsIgnoreCase(w)) { o.add(w, o.remove(k)); break; }
+        }
+    }
+
     private GNode makeChild(GNode parent, GSlot slot, List<Object> path, JsonObject json, int depth) {
+        normalizeKeys(json, slot.kind);
         GNode c = new GNode();
         c.path = path;
         c.json = json;
@@ -605,6 +633,11 @@ final class GraphEditor extends Widget {
                     form.note("Place: what to build. Later actions can refer to earlier", Ui.TEXT_DIM);
                     form.note("ones by name, e.g. at = log.socket.root.", Ui.TEXT_DIM);
                     form.note("Cell size and chance are in the Form view.", Ui.TEXT_FAINT);
+                } else if (n.kind.equals("dimension")) {
+                    form.section("Dimension");
+                    form.note("Add a World structure to place biomes with one", Ui.TEXT_DIM);
+                    form.note("density field and biome delimiters (like Hytale).", Ui.TEXT_DIM);
+                    form.note("Without one, biomes come from the layout.", Ui.TEXT_FAINT);
                 } else if (n.kind.equals("zone")) {
                     form.section("Zone output");
                     form.note("Shape mask: where the zone is. Its value is read", Ui.TEXT_DIM);
@@ -683,6 +716,20 @@ final class GraphEditor extends Widget {
                         try { v = Double.parseDouble(s.trim()); } catch (NumberFormatException e) { f.invalid(true); return; }
                         f.invalid(false);
                         edit("Node " + key, j -> setNum(j, path, key, integer ? Math.rint(v) : v));
+                    };
+                    return f;
+                }
+                case "json" -> {
+                    // vectors, bounds, ranges and lists of entries: edited as JSON text
+                    TextField f = new TextField();
+                    f.setText(cur == null ? "" : cur.toString());
+                    f.placeholder("{ ... } or [ ... ]");
+                    f.onChange = s -> {
+                        try {
+                            JsonElement parsed = s.isBlank() ? null : com.google.gson.JsonParser.parseString(s);
+                            f.invalid(false);
+                            edit("Node " + key, j -> { JsonObject n = GraphOps.nodeAt(j, path); if (n != null) { if (parsed == null) n.remove(key); else n.add(key, parsed); } });
+                        } catch (RuntimeException e) { f.invalid(true); }
                     };
                     return f;
                 }

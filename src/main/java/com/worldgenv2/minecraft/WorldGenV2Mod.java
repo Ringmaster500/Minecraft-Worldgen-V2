@@ -66,9 +66,11 @@ public final class WorldGenV2Mod {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         if (!(level.getChunkSource().getGenerator() instanceof WorldGenV2ChunkGenerator v2Gen)) return;
         var spawnMgr = v2Gen.getActiveWorldStructure().getSpawnAnchorManager();
-        if (spawnMgr == null) return;
-        var rule = spawnMgr.getActiveRule();
-        if (rule == null || !rule.lockPlayerSpawn()) return;
+        var rule = spawnMgr == null ? null : spawnMgr.getActiveRule();
+        if (rule == null || !rule.lockPlayerSpawn()) {
+            applySpawnPositions(event, level, v2Gen);
+            return;
+        }
 
         int sx = rule.originX() + rule.spawnOffsetX();
         int sz = rule.originZ() + rule.spawnOffsetZ();
@@ -81,6 +83,23 @@ public final class WorldGenV2Mod {
         event.getSettings().setSpawn(net.minecraft.world.level.storage.LevelData.RespawnData.of(level.dimension(), spawnPos, 0.0f, 0.0f));
         event.setCanceled(true);
         LOGGER.info("[Worldgen V2] Locked world spawn to anchor '{}' at {}", rule.id(), spawnPos);
+    }
+
+    /** The World Structure's SpawnPositions: the position nearest the origin becomes the world spawn. */
+    private void applySpawnPositions(net.neoforged.neoforge.event.level.LevelEvent.CreateSpawnPosition event, ServerLevel level, WorldGenV2ChunkGenerator v2Gen) {
+        var ws = v2Gen.getActiveWorldStructure();
+        var provider = ws.getSpawnPositions();
+        if (provider == null) return;
+        var points = provider.getPositions(-1024, -512, -1024, 1024, 512, 1024);
+        if (points.isEmpty()) return;
+        var best = points.stream().min(java.util.Comparator.comparingDouble(p -> p.x() * p.x() + p.z() * p.z())).get();
+        int minY = v2Gen.getMinY();
+        int sx = (int) Math.floor(best.x()), sz = (int) Math.floor(best.z());
+        int sy = ws.sampleSurfaceY(sx, sz, minY, minY + v2Gen.getGenDepth()) + 1;
+        BlockPos spawnPos = new BlockPos(sx, sy, sz);
+        event.getSettings().setSpawn(net.minecraft.world.level.storage.LevelData.RespawnData.of(level.dimension(), spawnPos, 0.0f, 0.0f));
+        event.setCanceled(true);
+        LOGGER.info("[Worldgen V2] World spawn set from the world structure's SpawnPositions at {}", spawnPos);
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {

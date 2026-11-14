@@ -39,7 +39,8 @@ public final class NodeSchemas {
     }
 
     public static final List<String> KINDS = List.of("density", "curve", "vector", "material", "pattern", "prop",
-            "positions", "scanner", "assignments", "mask", "propruntime", "finder", "condition", "action");
+            "positions", "scanner", "assignments", "mask", "propruntime", "finder", "condition", "action",
+            "worldstructure", "propdistribution", "graphgenerator", "graphpass", "nodeselector", "nodeaction", "edgeselector", "edgeaction", "contentsupplier", "contentpredicate");
 
     private static Map<String, Map<String, NodeType>> byKind;
     private static final Map<String, String> DOCS = new HashMap<>();
@@ -60,6 +61,10 @@ public final class NodeSchemas {
         } catch (Exception e) {
             // schema is an aid, not a requirement: the graph still works generically from the JSON
         }
+        // Hytale's own nodes, generated from its documentation; a Hytale name offers Hytale's parameters.
+        try (InputStream in = NodeSchemas.class.getClassLoader().getResourceAsStream("assets/worldgenv2/hytale_node_schema.json")) {
+            if (in != null) mergeSchema(JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject());
+        } catch (Exception ignored) { }
         // Placement pieces come from the live registry, so addon-registered finders/conditions/actions appear automatically.
         try { mergeSchema(com.worldgenv2.placement.Placement.schemaJson()); } catch (Exception ignored) { }
         // Addons ship worldgenv2_node_schemas.json (same format) to add their own node types to the palette.
@@ -198,6 +203,12 @@ public final class NodeSchemas {
             case "finder" -> 0xFF3FC8B0;
             case "condition" -> 0xFFE0707A;
             case "action" -> 0xFFE8A23C;
+            case "worldstructure" -> 0xFF60B0C0;
+            case "propdistribution" -> 0xFFB8A030;
+            case "graphgenerator", "graphpass" -> 0xFF50B070;
+            case "nodeselector", "nodeaction" -> 0xFF70A0E0;
+            case "edgeselector", "edgeaction" -> 0xFFE09070;
+            case "contentsupplier", "contentpredicate" -> 0xFFC070D0;
             default -> 0xFF8A90A0;
         };
     }

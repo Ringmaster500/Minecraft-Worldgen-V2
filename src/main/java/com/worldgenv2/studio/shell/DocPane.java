@@ -54,7 +54,7 @@ final class DocPane extends Widget {
     }
 
     private Widget makeBody(Asset a) {
-        if (app.viewOf(a.path) == StudioApp.View.GRAPH && (a.type == AssetType.BIOME || a.type == AssetType.ZONE || a.type == AssetType.RULE) && a.parseError == null) {
+        if (app.viewOf(a.path) == StudioApp.View.GRAPH && (a.type == AssetType.BIOME || a.type == AssetType.ZONE || a.type == AssetType.RULE || a.type == AssetType.DIMENSION) && a.parseError == null) {
             return graphs.computeIfAbsent(a.path, k -> new GraphEditor(app, a));
         }
         if (app.viewOf(a.path) == StudioApp.View.JSON || a.parseError != null || a.type == AssetType.PREFAB) {
@@ -114,8 +114,8 @@ final class DocPane extends Widget {
         }
         StudioApp.View vw = a == null ? StudioApp.View.FORM : app.viewOf(a.path);
         boolean json = a != null && vw == StudioApp.View.JSON;
-        boolean graph = a != null && vw == StudioApp.View.GRAPH && (a.type == AssetType.BIOME || a.type == AssetType.ZONE || a.type == AssetType.RULE);
-        graphBtn.visible = a != null && (a.type == AssetType.BIOME || a.type == AssetType.ZONE || a.type == AssetType.RULE) && a.parseError == null;
+        boolean graph = a != null && vw == StudioApp.View.GRAPH && (a.type == AssetType.BIOME || a.type == AssetType.ZONE || a.type == AssetType.RULE || a.type == AssetType.DIMENSION);
+        graphBtn.visible = a != null && (a.type == AssetType.BIOME || a.type == AssetType.ZONE || a.type == AssetType.RULE || a.type == AssetType.DIMENSION) && a.parseError == null;
         graphBtn.selected = graph;
         mapBtn.visible = a != null && a.type == AssetType.DIMENSION && !json;
         mapBtn.selected = app.previewOpen;
