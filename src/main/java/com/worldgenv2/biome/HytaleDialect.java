@@ -515,7 +515,8 @@ final class HytaleDialect {
         R.register("Scale", (j, ctx) -> HDensity.scale(input(j, 0, ctx), (float) dnum(get(j, "x"), 1), (float) dnum(get(j, "y"), 1), (float) dnum(get(j, "z"), 1)));
         R.register("Normalizer", (j, ctx) -> HDensity.normalizer(input(j, 0, ctx), (float) dnum(get(j, "frommin"), 0), (float) dnum(get(j, "frommax"), 1), (float) dnum(get(j, "tomin"), 0), (float) dnum(get(j, "tomax"), 1)));
         R.register("Slider", (j, ctx) -> HDensity.slider(input(j, 0, ctx), (float) dnum(get(j, "slidex"), 0), (float) dnum(get(j, "slidey"), 0), (float) dnum(get(j, "slidez"), 0)));
-        R.register("Selector", (j, ctx) -> HDensity.selector(inputs(j, ctx)));
+        var legacySelector = R.get("Selector");
+        R.register("Selector", (j, ctx) -> legacySelector != null && !j.containsKey("inputs") ? legacySelector.deserialize(j, ctx) : HDensity.selector(inputs(j, ctx)));
         R.register("BaseHeight", (j, ctx) -> {
             String name = String.valueOf(get(j, "baseheightname"));
             return HDensity.baseHeight(() -> ctx.decimalConstants().getOrDefault(name, 0.0), flag(get(j, "distance"), false));
