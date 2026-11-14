@@ -39,7 +39,6 @@ public final class StructureNearProp<T> implements Prop<T> {
 
     public static Ref current() { return COMPILING.get(); }
 
-    static int DBG = 0;
     private final Ref ref;
     private final String filter;
     private final int radius, yMin, yMax;
@@ -54,14 +53,12 @@ public final class StructureNearProp<T> implements Prop<T> {
         this.yMax = yMax;
         this.invert = invert;
         this.child = Objects.requireNonNull(child, "child");
-        try { java.nio.file.Files.writeString(java.nio.file.Path.of("snp.log"), "[SNP] constructed ref=" + (ref != null) + " filter=" + filter + "\n", java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND); } catch (Exception e) { }
     }
 
     @Override
     public boolean generate(Context<T> c) {
         Query q = ref == null ? null : ref.get();
         boolean near = q != null && q.near(c.worldX(), c.worldY(), c.worldZ(), filter, radius, yMin, yMax);
-        if (DBG++ < 8) { try { java.nio.file.Files.writeString(java.nio.file.Path.of("snp.log"), "[SNP] ref=" + (ref != null) + " q=" + (q != null) + " near=" + near + " at " + c.worldX() + "," + c.worldY() + "," + c.worldZ() + "\n", java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND); } catch (Exception e) { } }
         if (near == invert) return false;
         return child.generate(c);
     }
