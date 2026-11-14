@@ -3031,6 +3031,7 @@ public final class JsonAstCompiler {
             return new ConstantDensity(0.0f);
         }
         String type = getString(json, "type", "ConstantDensity");
+        HytaleDialect.adaptDensityInputs(type, json);
         WorldGenV2Registries.DensityNodeDeserializer deserializer =
             WorldGenV2Registries.DENSITY_NODE_TYPE.getOrThrow(type);
         DensityFunction rawNode = deserializer.deserialize(json, context);
@@ -4697,6 +4698,35 @@ public final class JsonAstCompiler {
     }
 
     /**
+     * A JSON object whose keys are matched without regard to case, in insertion order. Hytale's assets use PascalCase keys
+     * ({@code "Type"}, {@code "Inputs"}) while ours use camelCase; either spelling reads the same parameter.
+     */
+    public static final class CaseInsensitiveMap extends LinkedHashMap<String, Object> {
+        private final Map<String, String> actual = new java.util.HashMap<>();
+
+        private static String lc(Object k) { return k == null ? "" : k.toString().toLowerCase(java.util.Locale.ROOT); }
+
+        @Override public Object put(String key, Object value) {
+            String l = lc(key);
+            String prev = actual.get(l);
+            if (prev != null && !prev.equals(key)) super.remove(prev);
+            actual.put(l, key);
+            return super.put(key, value);
+        }
+
+        @Override public Object get(Object key) {
+            Object v = super.get(key);
+            if (v != null || super.containsKey(key)) return v;
+            String a = actual.get(lc(key));
+            return a == null ? null : super.get(a);
+        }
+
+        @Override public boolean containsKey(Object key) { return super.containsKey(key) || actual.containsKey(lc(key)); }
+
+        @Override public Object getOrDefault(Object key, Object def) { return containsKey(key) ? get(key) : def; }
+    }
+
+    /**
      * Lightweight, zero-dependency recursive JSON parser.
      */
     public static final class SimpleJsonParser {
@@ -4725,7 +4755,7 @@ public final class JsonAstCompiler {
         }
 
         private Map<String, Object> parseObject() {
-            Map<String, Object> map = new LinkedHashMap<>();
+            Map<String, Object> map = new CaseInsensitiveMap();
             pos++;
             skipWhitespace();
             if (pos < src.length() && src.charAt(pos) == '}') {

@@ -1,0 +1,191 @@
+# Hytale parity
+
+Goal: match Hytale's world generator wherever it has an answer, so anything that works there works here the same way, then build our extras on top. Reference: `docs/research/hytale_generator_docs/` (scraped from docs.hytale.com/hytale-generator).
+
+## Principle
+A node name that exists in Hytale must mean exactly what it means there: same parameters (PascalCase in Hytale JSON; we read keys case-insensitively), same inputs, same semantics. Our own nodes that Hytale does not have stay, under their own names, and are clearly extras. Where one of our nodes shares a name with a Hytale node but behaves differently, Hytale's behaviour wins and ours is renamed.
+
+## Status (node level, from `tools`-style audit of the docs against `node_schema.json`)
+
+| Category | Matches Hytale | Differs (params/inputs) | Missing |
+|---|---|---|---|
+| assignments | 0 | 5 | 0 |
+| curve | 17 | 2 | 0 |
+| density | 32 | 28 | 11 |
+| material | 2 | 9 | 2 |
+| pattern | 3 | 9 | 3 |
+| positions | 4 | 16 | 2 |
+| prop | 0 | 16 | 0 |
+| scanner | 1 | 5 | 0 |
+| vector | 13 | 4 | 0 |
+
+(Some 'differs' entries are only naming, for example ours takes a child under a different key. Counts are for nodes documented by Hytale; our extra nodes are not counted.)
+
+## Done
+- Keys are matched without regard to case (`Type`/`type`), as are type names.
+- Hytale's positional `Inputs` list works for every density node (mapped onto the node's slots).
+
+## Structural gaps (bigger than single nodes)
+1. **Prop Runtime context.** Hytale generates earlier stages over a margin big enough for later stages' reach, so props near a chunk edge see the real terrain and each other. Ours reads neighbours from a cache filled only when they happen to be generated, so props clip or see air at borders. Needs deterministic neighbour terrain and evaluation of props whose anchors lie within reach of the chunk; Context Precision (Biome / Chunk / Prop) as in Hytale's docs.
+2. **World Structure asset.** Hytale: `DefaultBiome`, a `Density` plus a list of Biome delimiters (value ranges), `DefaultTransitionDistance`, `MaxBiomeEdgeDistance`, `SpawnPositions`, `Framework` (named Positions and DecimalConstants shared across biomes). Ours: Voronoi cells with climate selection (BiCarta) configured from dimension JSON.
+3. **Biome owns its content.** Hytale biomes hold terrain Density, MaterialProvider and a list of Prop Runtimes. Our biomes have the same fields, but dimension-level things (placement rules, ores, structures) live outside the biome.
+4. **Graph Generator** (node graphs carrying content: roads, rivers, caves, connected structures; passes, node/edge selectors, actions, content layers). Ours has a graph package and a macro feature graph with different shape; spawn, landmarks and points of interest are bespoke sections instead of graph content.
+5. **Prop vocabulary.** Hytale's Locator / Orienter / Queue / Mask / Offset / Weighted / PondFiller... with Pattern + Scanner reading real blocks. Ours has same-named props with different parameter shapes (0 of 16 match).
+
+## Order of work
+1. Prop Runtime context (fixes clipping; unblocks real Locator/Orienter use).
+2. Prop, Pattern, Scanner, Assignments, Positions Provider conformance (the five categories with the lowest match).
+3. Density and Material Provider conformance (missing: CellWallDistance, Axis, BaseHeight, Distance, material Condition...).
+4. World Structure asset and Framework; biome-owned content.
+5. Graph Generator conformance, then re-express spawn / landmarks / points of interest / rivers / caves as graph content.
+6. Our extras (placement rules, Studio, addons) sit on top and must keep working through the Hytale-shaped core.
+
+## Node differences (generated)
+
+### assignments
+| Node | Status | Detail |
+|---|---|---|
+| Constant | DIFFERS | doc params not found: Prop |
+| FieldFunction | DIFFERS | doc params not found: FieldFunction,Delimiters |
+| Sandwich | DIFFERS | doc params not found: Delimiters |
+| Weighted | DIFFERS | doc params not found: Seed,SkipChance,WeightedAssignments,Assignments |
+| Imported | DIFFERS | doc params not found: Name |
+
+### curve
+| Node | Status | Detail |
+|---|---|---|
+| Manual | DIFFERS | doc params not found: Points |
+| Imported | DIFFERS | doc params not found: Name |
+
+### density
+| Node | Status | Detail |
+|---|---|---|
+| CellNoise2D | DIFFERS | doc params not found: Jitter,CellType,ScaleX,ScaleZ,Octaves,Seed |
+| CellNoise3D | DIFFERS | doc params not found: Jitter,CellType,ScaleX,ScaleY,ScaleZ,Octaves,Seed |
+| PositionsCellNoise | DIFFERS | doc params not found: ReturnType,DistanceFunction,Density,DefaultValue,ChoiceDensity,Delimiters,DefaultValue,Curve |
+| CellWallDistance | MISSING |  |
+| Distance | MISSING | Curve |
+| Ellipsoid | DIFFERS | doc params not found: Curve,Scale,NewYAxis,Spin |
+| Cube | DIFFERS | doc params not found: Curve |
+| Cuboid | DIFFERS | doc params not found: Curve,Scale,Spin,NewYAxis |
+| Cylinder | DIFFERS | doc params not found: AxialCurve,RadialCurve,Spin,NewYAxis |
+| Axis | MISSING | Axis,Curve,IsAnchored |
+| Plane | DIFFERS | doc params not found: PlaneNormal,Curve |
+| Shell | DIFFERS | doc params not found: Axis,Mirror,AngleCurve,DistanceCurve |
+| Multiplier | MISSING |  |
+| SmoothMax | MISSING | Range |
+| SmoothMin | MISSING | Range |
+| Clamp | DIFFERS | doc params not found: WallA,WallB |
+| SmoothClamp | MISSING | WallA,WallB,Range |
+| Equal | DIFFERS | doc params not found: Epsilon |
+| YSampled | DIFFERS | doc params not found: SampleDistance,SampleOffset,Interpolate |
+| Cache | DIFFERS | doc params not found: Capacity |
+| Angle | MISSING | Vector,VectorProvider |
+| Inverter | MISSING |  |
+| Trig | DIFFERS | doc params not found: InputScale |
+| Scale | DIFFERS | doc params not found: X,Y,Z |
+| Terrain | MISSING |  |
+| Rotator | DIFFERS | doc params not found: NewYAxis,SpinAngle |
+| Slider | DIFFERS | doc params not found: SlideX,SlideY,SlideZ |
+| PositionsPinch | DIFFERS | doc params not found: Positions,PinchCurve,MaxDistance,NormalizeDistance,HorizontalPinch,PositionsMaxY,PositionsMinY |
+| PositionsTwist | DIFFERS | doc params not found: Positions,TwistCurve,TwistAxis,MaxDistance,NormalizeDistance,ZeroPositionsY |
+| GradientWarp | DIFFERS | doc params not found: SampleRange,WarpFactor,2D,YFor2D |
+| FastGradientWarp | DIFFERS | doc params not found: WarpScale,WarpLacunarity,WarpPersistence,WarpOctaves,WarpFactor |
+| VectorWarp | DIFFERS | doc params not found: WarpFactor,WarpVector |
+| Anchor | DIFFERS | doc params not found: Reverse |
+| BaseHeight | MISSING | BaseHeightName,Distance |
+| Switch | DIFFERS | doc params not found: SwitchCases |
+| SwitchState | DIFFERS | doc params not found: SwitchState |
+| Graph | DIFFERS | doc params not found: GraphGenerator,ContentLayer,BackgroundValue,TransitionSlope,TransitionOffset,TransitionSmooth,QueryBufferCapacity |
+| Imported | DIFFERS | doc params not found: Name |
+| Exported | DIFFERS | doc params not found: SingleInstance |
+
+### material
+| Node | Status | Detail |
+|---|---|---|
+| Solidity | DIFFERS | doc params not found: Empty |
+| Queue | DIFFERS | doc params not found: Queue |
+| SimpleHorizontal | DIFFERS | doc params not found: TopY,BottomY,Material |
+| Striped | DIFFERS | doc params not found: Stripes,Material |
+| Weighted | DIFFERS | doc params not found: SkipChance,WeightedMaterials |
+| FieldFunction | MISSING | FieldFunction,Delimiters |
+| SpaceAndDepth | DIFFERS | doc params not found: LayerContext,MaxExpectedDepth,Condition,Layers |
+| Condition | MISSING | ContextToCheck,Value,ContextToCheck,Threshold,ContextToCheck,Threshold,Conditions,Conditions,Condition |
+| Layer | DIFFERS | doc params not found: Material,Thickness,Material,RangeMin,RangeMax,Seed,Material,PossibleThicknesses,Seed,Material,ThicknessFunctionXZ |
+| Graph | DIFFERS | doc params not found: GraphGenerator,ContentLayer,QueryBufferCapacity |
+| Imported | DIFFERS | doc params not found: Name |
+
+### pattern
+| Node | Status | Detail |
+|---|---|---|
+| Constant | MISSING | Value |
+| BlockSet | DIFFERS | doc params not found: BlockSet |
+| Offset | DIFFERS | doc params not found: Pattern,Offset |
+| Rotator | DIFFERS | doc params not found: Pattern,Rotation |
+| Floor | MISSING | Floor,Origin |
+| Ceiling | DIFFERS | doc params not found: Ceiling,Origin |
+| Wall | DIFFERS | doc params not found: Wall,Origin,Directions,RequireAllDirections |
+| Surface | DIFFERS | doc params not found: Surface,Medium,SurfaceRadius,MediumRadius,SurfaceGap,MediumGap,Facings,RequireAllFacings |
+| Cuboid | DIFFERS | doc params not found: Min,Max,SubPattern |
+| Not | DIFFERS | doc params not found: Pattern |
+| FieldFunction | MISSING | FieldFunction,Delimiters |
+| Imported | DIFFERS | doc params not found: Name |
+
+### positions
+| Node | Status | Detail |
+|---|---|---|
+| Scaler | DIFFERS | doc params not found: Positions,Scale |
+| Jitter2d | DIFFERS | doc params not found: Positions,Magnitude,Seed |
+| Jitter3d | DIFFERS | doc params not found: Positions,Magnitude,Seed |
+| DirectionalJitter | DIFFERS | doc params not found: Positions,Magnitude,Direction,IsBidirectional,Seed |
+| Clusters | DIFFERS | doc params not found: Cluster,Distributor,ClusterBounds |
+| List | DIFFERS | doc params not found: Positions |
+| Anchor | DIFFERS | doc params not found: Positions,Reversed |
+| Bound | DIFFERS | doc params not found: Bounds,Positions |
+| FieldFunction | DIFFERS | doc params not found: Density,Delimiters,Positions |
+| Occurrence | DIFFERS | doc params not found: FieldFunction,Seed,Positions |
+| Offset | DIFFERS | doc params not found: Offset,Positions |
+| VectorOffset | DIFFERS | doc params not found: Positions,VectorProvider,MovementBounds |
+| BaseHeight | MISSING | BaseHeightName,Positions |
+| Union | DIFFERS | doc params not found: Positions |
+| SimpleHorizontal | DIFFERS | doc params not found: RangeY,Positions |
+| Cache | MISSING | SectionSize,CacheSize,Positions |
+| Graph | DIFFERS | doc params not found: GraphGenerator,ContentLayer |
+| Imported | DIFFERS | doc params not found: Name |
+
+### prop
+| Node | Status | Detail |
+|---|---|---|
+| Cuboid | DIFFERS | doc params not found: Bounds,Material |
+| Manual | DIFFERS | doc params not found: Blocks |
+| Locator | DIFFERS | doc params not found: Prop,Pattern,Scanner,PlacementCap |
+| Orienter | DIFFERS | doc params not found: Prop,Rotations,Pattern,Scanner,SelectionMode,Seed |
+| Queue | DIFFERS | doc params not found: Props |
+| Mask | DIFFERS | doc params not found: Prop,Mask |
+| StaticRotator | DIFFERS | doc params not found: Prop,Rotation |
+| RandomRotator | DIFFERS | doc params not found: Prop,Rotations,HorizontalRotations,Seed |
+| DensitySelector | DIFFERS | doc params not found: Delimiters,Density |
+| Density | DIFFERS | doc params not found: Bounds,Density,Material |
+| Prefab | DIFFERS | doc params not found: WeightedPrefabPaths |
+| Union | DIFFERS | doc params not found: Props |
+| Offset | DIFFERS | doc params not found: Offset,Prop |
+| Weighted | DIFFERS | doc params not found: Entries,Seed |
+| PondFiller | DIFFERS | doc params not found: Bounds,BarrierBlockSet,FillMaterial |
+| Imported | DIFFERS | doc params not found: Name |
+
+### scanner
+| Node | Status | Detail |
+|---|---|---|
+| Linear | DIFFERS | doc params not found: Scanner,Range,Axis |
+| Random | DIFFERS | doc params not found: Scanner,Range,Axis,Seed |
+| Radial | DIFFERS | doc params not found: Scanner,Bounds |
+| Queue | DIFFERS | doc params not found: Scanners |
+| Imported | DIFFERS | doc params not found: Name |
+
+### vector
+| Node | Status | Detail |
+|---|---|---|
+| Constant | DIFFERS | doc params not found: Vector |
+| Normalizer | DIFFERS | doc params not found: Vector,Magnitude |
+| Exported | DIFFERS | doc params not found: SingleInstance,VectorProvider |
+| Imported | DIFFERS | doc params not found: Name |

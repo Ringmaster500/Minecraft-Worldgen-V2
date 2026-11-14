@@ -147,10 +147,17 @@ tasks.register('verifyPhase16', JavaExec) {
     mainClass = 'com.worldgenv2.Phase16VerificationTest'
 }
 
+tasks.register('verifyPhase17', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Hytale-style JSON reads through the compiler'
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.worldgenv2.Phase17VerificationTest'
+}
+
 tasks.register('verifyEngine', JavaExec) {
     group = 'verification'
     description = 'Runs the standalone verification suites'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.worldgenv2.Phase2VerificationTest'
-    finalizedBy('verifyPhase3And4', 'verifyPhase7', 'verifyPhase8', 'verifyPhase9', 'verifyPhase10', 'verifyPhase11', 'verifyPhase12', 'verifyPhase13', 'verifyPhase14', 'verifyPhase15', 'verifyPhase16', 'verifyWorldHeight')
+    finalizedBy('verifyPhase3And4', 'verifyPhase7', 'verifyPhase8', 'verifyPhase9', 'verifyPhase10', 'verifyPhase11', 'verifyPhase12', 'verifyPhase13', 'verifyPhase14', 'verifyPhase15', 'verifyPhase16', 'verifyPhase17', 'verifyWorldHeight')
 }
