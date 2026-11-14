@@ -75,6 +75,11 @@ public final class Phase22VerificationTest {
         check(mx <= 1.0001 && mn >= -1.0001 && mx > 0.2 && mn < -0.2, "noise stays within [-1, 1] and uses the range");
         check(at(n("SimplexNoise3D", "\"Lacunarity\":2,\"Persistence\":0.5,\"ScaleXZ\":50,\"ScaleY\":10,\"Octaves\":1,\"Seed\":\"s\""), 1, 2, 3) != 0f, "SimplexNoise3D loads with separate XZ and Y scales");
 
+        check(Math.abs(at("{\"Type\":\"Angle\",\"Vector\":{\"X\":1,\"Y\":0,\"Z\":0},\"VectorProvider\":{\"Type\":\"Constant\",\"Vector\":{\"X\":0,\"Y\":1,\"Z\":0}}}", 0, 0, 0) - 90f) < 1e-3
+                && Math.abs(at("{\"Type\":\"Angle\",\"Vector\":{\"X\":1,\"Y\":0,\"Z\":0},\"VectorProvider\":{\"Type\":\"Constant\",\"Vector\":{\"X\":-2,\"Y\":0,\"Z\":0}}}", 0, 0, 0) - 180f) < 1e-3, "Angle gives the degrees between a reference vector and a provided vector");
+        JsonAstCompiler.CompileContext tctx = new JsonAstCompiler.CompileContext(1L);
+        tctx.setTerrain((x, y, z) -> y * 2f);
+        check(d("{\"Type\":\"Terrain\"}", tctx).compute(0, 10, 0) == 20f, "Terrain reads the world's terrain density (for material providers)");
         System.out.println("Phase 22 verification: ALL " + passed + " TESTS PASSED!");
     }
 }

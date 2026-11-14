@@ -123,7 +123,11 @@ public final class ProjectCompiler {
                 nextId++;
             }
         }
-        JsonAstCompiler.CompileContext ctx = new JsonAstCompiler.CompileContext(r.seed);
+        final Map<String, com.worldgenv2.prefab.Prefab> ctxPrefabs = new HashMap<>();
+        JsonAstCompiler.CompileContext ctx = new JsonAstCompiler.CompileContext(r.seed, null,
+                id -> projectPrefab(project, id, ctxPrefabs, r),
+                name -> projectAssetJson(project, name));
+        ctx.setPrefabFolders(path -> projectPrefabFolder(project, path));
         JsonObject wsJson = ci(d, "worldStructure");
         if (wsJson != null) applyFramework(wsJson, ctx, r);
         for (Object[] p : pending) {
@@ -181,6 +185,7 @@ public final class ProjectCompiler {
         }
 
         WorldStructure structure = new WorldStructure(tiles, customs, cellSize, r.seed);
+        ctx.setTerrain((x, y, z) -> structure.queryBiome(x, z).computeBlendedPoint(x, y, z));
         if (wsJson != null) {
             applyBiomeMap(wsJson, structure, ctx, r);
             var sp = ciGet(wsJson, "spawnPositions");
@@ -859,4 +864,39 @@ public final class ProjectCompiler {
         } catch (Throwable ex) {
             r.warnings.add("World structure failed to compile: " + ex.getMessage());
         }
+    }
+
+    /** A prefab asset of this project by id (an optional namespace, `prefabs/` folder and `.json` are ignored); null when it is not one. */
+    private static com.worldgenv2.prefab.Prefab projectPrefab(StudioProject project, String id, Map<String, com.worldgenv2.prefab.Prefab> cache, Result r) {
+        String bare = bareAssetId(id, "prefabs");
+        if (project.get("prefabs/" + bare + ".json") == null) return null;
+        return loadPrefab(project, bare, cache, r);
+    }
+
+    private static String bareAssetId(String id, String folder) {
+        if (id == null) return "";
+        String s = id.contains(":") ? id.substring(id.indexOf(':') + 1) : id;
+        if (s.startsWith(folder + "/")) s = s.substring(folder.length() + 1);
+        if (s.endsWith(".json")) s = s.substring(0, s.length() - 5);
+        return s;
+    }
+
+    /**
+     * Hytale lets a prefab path name a folder. A world setup's prefabs are flat, so a folder is a name prefix: the prefabs
+     * {@code trees_oak} and {@code trees_birch} are the folder {@code trees} (written {@code trees} or {@code trees/}).
+     */
+    private static List<String> projectPrefabFolder(StudioProject project, String path) {
+        String bare = bareAssetId(path, "prefabs");
+        if (bare.endsWith("/")) bare = bare.substring(0, bare.length() - 1);
+        if (bare.isEmpty() || project.get("prefabs/" + bare + ".json") != null) return List.of();
+        List<String> out = new ArrayList<>();
+        for (Asset a : project.assetsOf(AssetType.PREFAB)) if (a.id().startsWith(bare + "_")) out.add(a.id());
+        return out;
+    }
+
+    /** The JSON of an asset an Imported node names (by id, in any asset folder), or null. */
+    private static String projectAssetJson(StudioProject project, String name) {
+        String bare = bareAssetId(name, "");
+        for (Asset a : project.assets()) if (a.id().equals(bare)) return a.json.toString();
+        return null;
     }}

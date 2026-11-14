@@ -66,6 +66,11 @@ public final class JsonAstCompiler {
 
         private volatile java.util.function.DoubleBinaryOperator edgeDistance = (x, z) -> Double.MAX_VALUE;
         private volatile int maxBiomeEdgeDistance = 0;
+        private volatile DensityFunction terrain = (x, y, z) -> 0f;
+
+        /** The world's blended terrain density, for the Terrain node (biome material providers read it). */
+        public void setTerrain(DensityFunction terrain) { this.terrain = terrain; }
+        public DensityFunction terrain() { return terrain; }
 
         /** Installed once the World Structure exists; DistanceFromBiomeEdge reads it. */
         public void setBiomeEdge(java.util.function.DoubleBinaryOperator distance, int maxDistance) { this.edgeDistance = distance; this.maxBiomeEdgeDistance = maxDistance; }
@@ -117,6 +122,17 @@ public final class JsonAstCompiler {
 
         public BiCarta<TileBiome> biCarta() {
             return biCarta;
+        }
+
+        private volatile Function<String, List<String>> prefabFolders;
+
+        /** How a Prefab path that names a folder is expanded into the prefab ids inside it (null: no folders). */
+        public void setPrefabFolders(Function<String, List<String>> folders) { this.prefabFolders = folders; }
+
+        /** The prefab ids inside a folder path, or empty when the path is not a folder. */
+        public List<String> prefabFolder(String path) {
+            Function<String, List<String>> f = prefabFolders;
+            return f == null ? List.of() : f.apply(path);
         }
 
         public Prefab resolvePrefab(String prefabId) {

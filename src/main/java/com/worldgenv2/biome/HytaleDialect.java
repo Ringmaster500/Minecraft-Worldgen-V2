@@ -7,6 +7,7 @@ import com.worldgenv2.hytale.HProps;
 import com.worldgenv2.hytale.HDensity;
 import com.worldgenv2.hytale.HMaterials;
 import com.worldgenv2.hytale.HMoreProps;
+import com.worldgenv2.hytale.HPondFiller;
 import com.worldgenv2.hytale.HPositions;
 import com.worldgenv2.material.ConstantMaterialProvider;
 import com.worldgenv2.material.MaterialProvider;
@@ -513,13 +514,35 @@ public final class HytaleDialect {
             }
             return new HMoreProps.Manual(out);
         });
+        over("RandomRotator", j -> j.containsKey("rotations") || j.containsKey("horizontalrotations"), (j, ctx, r) -> {
+            List<com.worldgenv2.props.StaticRotatorProp.CardinalRotation> rots = new ArrayList<>();
+            if (flag(get(j, "horizontalrotations"), false)) rots.addAll(List.of(com.worldgenv2.props.StaticRotatorProp.CardinalRotation.values()));
+            else if (get(j, "rotations") instanceof List<?> l) for (Object o : l) rots.add(com.worldgenv2.props.StaticRotatorProp.CardinalRotation.values()[Math.floorMod(turns(o), 4)]);
+            return new com.worldgenv2.props.RandomRotatorProp(child(j, ctx, r), rots, String.valueOf(get(j, "seed")));
+        });
+        over("PondFiller", j -> j.containsKey("barrierblockset") || j.containsKey("fillmaterial"), (j, ctx, r) -> {
+            double[][] b = boundsD(get(j, "bounds"), 8.0);
+            return new HPondFiller(
+                    (int) Math.floor(b[0][0]), (int) Math.floor(b[0][1]), (int) Math.floor(b[0][2]), (int) Math.ceil(b[1][0]), (int) Math.ceil(b[1][1]), (int) Math.ceil(b[1][2]),
+                    blockSet(get(j, "barrierblockset"), r), JsonAstCompiler.compileMaterialProvider(obj(get(j, "fillmaterial")), ctx, r));
+        });
         over("Prefab", j -> j.containsKey("weightedprefabpaths"), (j, ctx, r) -> {
             List<WeightedProp.Entry> entries = new ArrayList<>();
             if (get(j, "weightedprefabpaths") instanceof List<?> l) for (Object o : l) {
                 Map<String, Object> m = obj(o);
                 if (m == null) continue;
-                var pf = ctx.resolvePrefab(String.valueOf(get(m, "path")));
-                if (pf != null) entries.add(new WeightedProp.Entry(new PrefabProp(pf, r, false, true, List.of(), 0, null), (float) dnum(get(m, "weight"), 1.0)));
+                String path = String.valueOf(get(m, "path"));
+                float weight = (float) dnum(get(m, "weight"), 1.0);
+                List<String> inside = ctx.prefabFolder(path);
+                if (!inside.isEmpty()) {
+                    // a folder: the weight is for picking the folder, then every prefab inside is equally likely
+                    List<WeightedProp.Entry> each = new ArrayList<>();
+                    for (String id : inside) { var fp = ctx.resolvePrefab(id); if (fp != null) each.add(new WeightedProp.Entry(new PrefabProp(fp, r, false, true, List.of(), 0, null), 1.0f)); }
+                    if (!each.isEmpty()) entries.add(new WeightedProp.Entry(new WeightedProp(each), weight));
+                    continue;
+                }
+                var pf = ctx.resolvePrefab(path);
+                if (pf != null) entries.add(new WeightedProp.Entry(new PrefabProp(pf, r, false, true, List.of(), 0, null), weight));
             }
             return entries.isEmpty() ? (c -> false) : new WeightedProp(entries);
         });
@@ -564,6 +587,19 @@ public final class HytaleDialect {
         R.register("DistanceFromBiomeEdge", (j, ctx) -> (x, y, z) -> {
             double d = ctx.biomeEdgeDistance(x, z);
             return d > ctx.maxBiomeEdgeDistance() ? -1f : (float) d;
+        });
+        R.register("Terrain", (j, ctx) -> (x, y, z) -> ctx.terrain().compute(x, y, z));
+        R.register("Angle", (j, ctx) -> {
+            double[] ref = vecD(get(j, "vector"), 0.0);
+            var vp = JsonAstCompiler.compileVectorProvider(get(j, "vectorprovider"), ctx);
+            double rl = Math.sqrt(ref[0] * ref[0] + ref[1] * ref[1] + ref[2] * ref[2]);
+            return (x, y, z) -> {
+                Vec3d v = vp.getVector(x, y, z);
+                double vl = Math.sqrt(v.x() * v.x() + v.y() * v.y() + v.z() * v.z());
+                if (rl == 0 || vl == 0) return 0f;
+                double c = (ref[0] * v.x() + ref[1] * v.y() + ref[2] * v.z()) / (rl * vl);
+                return (float) Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, c))));
+            };
         });
         R.register("BaseHeight", (j, ctx) -> {
             String name = String.valueOf(get(j, "baseheightname"));
