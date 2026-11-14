@@ -4,7 +4,14 @@ import com.worldgenv2.assignments.Assignments;
 import com.worldgenv2.density.DensityFunction;
 import com.worldgenv2.hytale.HPattern;
 import com.worldgenv2.hytale.HProps;
+import com.worldgenv2.hytale.HMoreProps;
+import com.worldgenv2.hytale.HPositions;
+import com.worldgenv2.material.ConstantMaterialProvider;
+import com.worldgenv2.material.MaterialProvider;
+import com.worldgenv2.props.WeightedProp;
+import com.worldgenv2.prefab.PrefabProp;
 import com.worldgenv2.hytale.HScanner;
+import com.worldgenv2.vector.Vec3d;
 import com.worldgenv2.hytale.HytaleDistribution;
 import com.worldgenv2.positions.PositionsProvider;
 import com.worldgenv2.props.Prop;
@@ -231,6 +238,8 @@ final class HytaleDialect {
 
     /** Registers Hytale's Locator and Orienter props under their Hytale names (the engine's own are the *Prop names). */
     static void register() {
+        registerPositions();
+        registerMoreProps();
         WorldGenV2Registries.PROP_TYPE.register("Locator", new WorldGenV2Registries.PropDeserializer() {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
@@ -272,5 +281,211 @@ final class HytaleDialect {
     /** True for a Props entry written in Hytale's form (no Type, but Positions and Assignments). */
     static boolean isHytaleBiomeProp(Map<String, Object> entry) {
         return !entry.containsKey("type") && (entry.containsKey("positions") || entry.containsKey("assignments"));
+    }
+
+    // ================================================================== Hytale positions providers
+
+    private static long seedOf(Object o, JsonAstCompiler.CompileContext ctx) {
+        return o == null ? ctx.worldSeed() : String.valueOf(o).hashCode() * 0x9E3779B97F4A7C15L ^ ctx.worldSeed();
+    }
+
+    /** A decimal 3D vector written {X, Y, Z}, [x, y, z] or a single number for all three. */
+    private static double[] vecD(Object o, double def) {
+        if (o instanceof Number n) return new double[]{n.doubleValue(), n.doubleValue(), n.doubleValue()};
+        if (o instanceof List<?> l && l.size() >= 3) return new double[]{dnum(l.get(0), def), dnum(l.get(1), def), dnum(l.get(2), def)};
+        Map<String, Object> m = obj(o);
+        return m == null ? new double[]{def, def, def} : new double[]{dnum(get(m, "x"), def), dnum(get(m, "y"), def), dnum(get(m, "z"), def)};
+    }
+
+    /** Bounds written {Min: {...}, Max: {...}}; returns {min[3], max[3]}. */
+    private static double[][] boundsD(Object o, double def) {
+        Map<String, Object> m = obj(o);
+        if (m == null) return new double[][]{{-def, -def, -def}, {def, def, def}};
+        return new double[][]{vecD(get(m, "min"), -def), vecD(get(m, "max"), def)};
+    }
+
+    private static PositionsProvider child(Map<String, Object> j, JsonAstCompiler.CompileContext ctx) {
+        return JsonAstCompiler.compilePositionsProvider(get(j, "positions"), ctx);
+    }
+
+    /** The engine's grids once took a spacing; Hytale's take none. A legacy spacing is still honoured as a Scaler on top. */
+    private static PositionsProvider withLegacySpacing(PositionsProvider grid, Map<String, Object> j, boolean threeD) {
+        Object s = get(j, "spacing", "scale");
+        double sp = s == null ? 1.0 : dnum(s, 1.0);
+        return sp == 1.0 ? grid : HPositions.scaler(grid, sp, threeD ? sp : 1.0, sp);
+    }
+
+    static void registerPositions() {
+        var R = WorldGenV2Registries.POSITIONS_PROVIDER_TYPE;
+        R.register("SquareGrid2d", (j, ctx) -> withLegacySpacing(HPositions.squareGrid2d(), j, false));
+        R.register("SquareGrid3d", (j, ctx) -> withLegacySpacing(HPositions.squareGrid3d(), j, true));
+        R.register("TriangularGrid2d", (j, ctx) -> withLegacySpacing(HPositions.triangularGrid2d(), j, false));
+        R.register("Scaler", (j, ctx) -> { double[] s = vecD(get(j, "scale"), 1.0); return HPositions.scaler(child(j, ctx), s[0], s[1], s[2]); });
+        R.register("Jitter2d", (j, ctx) -> HPositions.jitter(child(j, ctx), dnum(get(j, "magnitude"), 1.0), seedOf(get(j, "seed"), ctx), false));
+        R.register("Jitter3d", (j, ctx) -> HPositions.jitter(child(j, ctx), dnum(get(j, "magnitude"), 1.0), seedOf(get(j, "seed"), ctx), true));
+        R.register("DirectionalJitter", (j, ctx) -> {
+            double[] d = vecD(get(j, "direction"), 0.0);
+            return HPositions.directionalJitter(child(j, ctx), dnum(get(j, "magnitude"), 1.0), d[0], d[1], d[2], flag(get(j, "isbidirectional"), false), seedOf(get(j, "seed"), ctx));
+        });
+        R.register("Clusters", (j, ctx) -> {
+            double[][] b = boundsD(get(j, "clusterbounds"), 8.0);
+            double hx = Math.max(Math.abs(b[0][0]), Math.abs(b[1][0])), hy = Math.max(Math.abs(b[0][1]), Math.abs(b[1][1])), hz = Math.max(Math.abs(b[0][2]), Math.abs(b[1][2]));
+            return HPositions.clusters(JsonAstCompiler.compilePositionsProvider(get(j, "cluster"), ctx), JsonAstCompiler.compilePositionsProvider(get(j, "distributor"), ctx), hx, hy, hz);
+        });
+        R.register("List", (j, ctx) -> {
+            List<Vec3d> pts = new ArrayList<>();
+            if (get(j, "positions") instanceof List<?> l) for (Object o : l) { double[] v = vecD(o, 0.0); pts.add(new Vec3d(v[0], v[1], v[2])); }
+            return HPositions.list(pts);
+        });
+        R.register("Anchor", (j, ctx) -> HPositions.anchor(child(j, ctx), flag(get(j, "reversed"), false)));
+        R.register("Bound", (j, ctx) -> { double[][] b = boundsD(get(j, "bounds"), 1e9); return HPositions.bound(child(j, ctx), b[0], b[1]); });
+        R.register("FieldFunction", (j, ctx) -> {
+            DensityFunction d = JsonAstCompiler.compileDensity(obj(get(j, "density", "fieldfunction")), ctx);
+            List<double[]> ds = new ArrayList<>();
+            if (get(j, "delimiters") instanceof List<?> l) for (Object o : l) { Map<String, Object> m = obj(o); if (m != null) ds.add(new double[]{dnum(get(m, "min"), -1e9), dnum(get(m, "max"), 1e9)}); }
+            return HPositions.fieldFunction(child(j, ctx), d, ds.toArray(new double[0][]));
+        });
+        R.register("Occurrence", (j, ctx) -> HPositions.occurrence(child(j, ctx), JsonAstCompiler.compileDensity(obj(get(j, "fieldfunction", "density")), ctx), seedOf(get(j, "seed"), ctx)));
+        R.register("Offset", (j, ctx) -> { double[] o = vecD(get(j, "offset"), 0.0); return HPositions.offset(child(j, ctx), o[0], o[1], o[2]); });
+        R.register("VectorOffset", (j, ctx) -> {
+            double[][] b = boundsD(get(j, "movementbounds"), 1e9);
+            return HPositions.vectorOffset(child(j, ctx), JsonAstCompiler.compileVectorProvider(get(j, "vectorprovider"), ctx), b[0], b[1]);
+        });
+        R.register("BaseHeight", (j, ctx) -> {
+            String name = String.valueOf(get(j, "baseheightname"));
+            return HPositions.baseHeight(child(j, ctx), () -> ctx.decimalConstants().getOrDefault(name, 0.0));
+        });
+        R.register("Framework", (j, ctx) -> {
+            String name = String.valueOf(get(j, "name"));
+            return (x0, y0, z0, x1, y1, z1) -> {
+                PositionsProvider p = ctx.frameworkPositions().get(name);
+                return p == null ? List.of() : p.getPositions(x0, y0, z0, x1, y1, z1);
+            };
+        });
+        R.register("Union", (j, ctx) -> {
+            List<PositionsProvider> parts = new ArrayList<>();
+            if (get(j, "positions") instanceof List<?> l) for (Object o : l) parts.add(JsonAstCompiler.compilePositionsProvider(o, ctx));
+            return HPositions.union(parts);
+        });
+        R.register("SimpleHorizontal", (j, ctx) -> {
+            Object r = get(j, "rangey");
+            Map<String, Object> rm = obj(r);
+            double lo = rm != null ? dnum(get(rm, "min"), -1e9) : -Math.abs(dnum(r, 1e9)), hi = rm != null ? dnum(get(rm, "max"), 1e9) : Math.abs(dnum(r, 1e9));
+            return HPositions.simpleHorizontal(child(j, ctx), lo, hi);
+        });
+        R.register("Cache", (j, ctx) -> HPositions.cache(child(j, ctx), num(get(j, "sectionsize"), 32), num(get(j, "cachesize"), 50)));
+    }
+
+    // ================================================================== more Hytale props and the Constant material
+
+    /** Builds a prop from Hytale-shaped JSON (raw types: the JSON decides the block type at run time). */
+    @FunctionalInterface
+    @SuppressWarnings("rawtypes")
+    private interface HProp {
+        Prop make(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function r);
+    }
+
+    /** Registers a Hytale prop under its Hytale name; JSON that is not in Hytale's shape still goes to what was registered before. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void over(String name, java.util.function.Predicate<Map<String, Object>> isHytale, HProp hy) {
+        WorldGenV2Registries.PropDeserializer legacy = WorldGenV2Registries.PROP_TYPE.get(name);
+        WorldGenV2Registries.PROP_TYPE.register(name, new WorldGenV2Registries.PropDeserializer() {
+            @Override
+            public <T> Prop<T> deserialize(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> r) {
+                if (legacy == null || isHytale.test(j)) return (Prop<T>) hy.make(j, ctx, r);
+                return legacy.deserialize(j, ctx, r);
+            }
+        });
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Prop child(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function r) {
+        return JsonAstCompiler.compileProp(obj(get(j, "prop", "child")), ctx, r);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Set blockSet(Object o, Function r) {
+        Set out = new HashSet();
+        if (obj(o) != null) o = get(obj(o), "materials", "blocks", "include");
+        for (String id : strings(o)) { Object b = r.apply(id); if (b != null) out.add(b); }
+        return out;
+    }
+
+    /** A Material: a block id, or {Solid: id} / {Fluid: id}. */
+    private static String materialId(Object o) {
+        Map<String, Object> m = obj(o);
+        if (m != null) { Object v = get(m, "solid", "block", "name", "id", "fluid"); return v == null ? "minecraft:air" : String.valueOf(v); }
+        return String.valueOf(o);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static void registerMoreProps() {
+        over("Offset", j -> j.containsKey("offset"), (j, ctx, r) -> {
+            int[] v = vec(get(j, "offset"));
+            return new HMoreProps.Offset(child(j, ctx, r), v[0], v[1], v[2]);
+        });
+        over("Mask", j -> j.containsKey("prop") && !j.containsKey("requiredblock") && !j.containsKey("requiredblocks") && !j.containsKey("minslopedegrees") && !j.containsKey("maxslopedegrees"), (j, ctx, r) -> {
+            Map<String, Object> m = obj(get(j, "mask"));
+            Set dontPlace = m == null ? new HashSet() : blockSet(get(m, "dontplace"), r), dontReplace = m == null ? new HashSet() : blockSet(get(m, "dontreplace"), r);
+            List<HMoreProps.MaskRule> adv = new ArrayList<>();
+            if (m != null && get(m, "advanced") instanceof List<?> l) for (Object o : l) { Map<String, Object> rm = obj(o); if (rm != null) adv.add(new HMoreProps.MaskRule(blockSet(get(rm, "source"), r), blockSet(get(rm, "canreplace"), r))); }
+            return new HMoreProps.Mask(child(j, ctx, r), dontPlace, dontReplace, adv);
+        });
+        over("StaticRotator", j -> j.containsKey("prop"), (j, ctx, r) -> {
+            int t = turns(get(j, "rotation"));
+            Prop c = child(j, ctx, r);
+            return t == 0 ? c : new com.worldgenv2.props.StaticRotatorProp(c, com.worldgenv2.props.StaticRotatorProp.CardinalRotation.fromQuarterTurns(t));
+        });
+        over("DensitySelector", j -> j.containsKey("delimiters"), (j, ctx, r) -> {
+            DensityFunction d = JsonAstCompiler.compileDensity(obj(get(j, "density")), ctx);
+            List<HMoreProps.Delimiter> ds = new ArrayList<>();
+            if (get(j, "delimiters") instanceof List<?> l) for (Object o : l) {
+                Map<String, Object> m = obj(o);
+                if (m != null) ds.add(new HMoreProps.Delimiter(dnum(get(m, "min"), -1e9), dnum(get(m, "max"), 1e9), JsonAstCompiler.compileProp(obj(get(m, "prop")), ctx, r)));
+            }
+            return new HMoreProps.DensitySelector(d, ds);
+        });
+        over("Density", j -> j.containsKey("bounds"), (j, ctx, r) -> {
+            double[][] b = boundsD(get(j, "bounds"), 4.0);
+            MaterialProvider mat = JsonAstCompiler.compileMaterialProvider(get(j, "material"), ctx, r);
+            return new com.worldgenv2.props.DensityProp(JsonAstCompiler.compileDensity(obj(get(j, "density")), ctx), mat,
+                (int) b[0][0], (int) b[0][1], (int) b[0][2], (int) b[1][0], (int) b[1][1], (int) b[1][2], 0.0f);
+        });
+        over("Cuboid", j -> j.containsKey("bounds"), (j, ctx, r) -> {
+            double[][] b = boundsD(get(j, "bounds"), 1.0);
+            MaterialProvider mat = JsonAstCompiler.compileMaterialProvider(get(j, "material"), ctx, r);
+            return new HMoreProps.Cuboid(new int[]{(int) b[0][0], (int) b[0][1], (int) b[0][2]}, new int[]{(int) b[1][0], (int) b[1][1], (int) b[1][2]}, mat);
+        });
+        over("Manual", j -> j.containsKey("blocks"), (j, ctx, r) -> {
+            List<HMoreProps.Placed> out = new ArrayList<>();
+            if (get(j, "blocks") instanceof List<?> l) for (Object o : l) {
+                Map<String, Object> m = obj(o);
+                if (m == null) continue;
+                int[] v = vec(get(m, "offset", "position") != null ? get(m, "offset", "position") : m);
+                Object block = r.apply(materialId(get(m, "material", "block")));
+                if (block != null) out.add(new HMoreProps.Placed(v[0], v[1], v[2], block));
+            }
+            return new HMoreProps.Manual(out);
+        });
+        over("Prefab", j -> j.containsKey("weightedprefabpaths"), (j, ctx, r) -> {
+            List<WeightedProp.Entry> entries = new ArrayList<>();
+            if (get(j, "weightedprefabpaths") instanceof List<?> l) for (Object o : l) {
+                Map<String, Object> m = obj(o);
+                if (m == null) continue;
+                var pf = ctx.resolvePrefab(String.valueOf(get(m, "path")));
+                if (pf != null) entries.add(new WeightedProp.Entry(new PrefabProp(pf, r, false, true, List.of(), 0, null), (float) dnum(get(m, "weight"), 1.0)));
+            }
+            return entries.isEmpty() ? (c -> false) : new WeightedProp(entries);
+        });
+
+        // Hytale's Constant MaterialProvider provides one Material
+        WorldGenV2Registries.MaterialProviderDeserializer legacyMat = WorldGenV2Registries.MATERIAL_PROVIDER_TYPE.get("Constant");
+        WorldGenV2Registries.MATERIAL_PROVIDER_TYPE.register("Constant", new WorldGenV2Registries.MaterialProviderDeserializer() {
+            @Override
+            public <T> MaterialProvider<T> deserialize(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> r) {
+                if (!j.containsKey("material") && legacyMat != null) return legacyMat.deserialize(j, ctx, r);
+                return new ConstantMaterialProvider<>(r.apply(materialId(get(j, "material"))));
+            }
+        });
     }
 }

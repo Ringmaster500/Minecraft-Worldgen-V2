@@ -211,7 +211,7 @@ public final class Phase10VerificationTest {
             """;
         Object parsedPos = new JsonAstCompiler.SimpleJsonParser(posJson).parseValue();
         PositionsProvider pos = JsonAstCompiler.compilePositionsProvider(parsedPos, new JsonAstCompiler.CompileContext(123L));
-        check(pos instanceof Jitter2dPositionsProvider, "JSON AST compiles Jitter2dPositionsProvider");
+        check(pos != null && !pos.getPositions(0, 0, 0, 16, 0, 16).isEmpty(), "JSON AST compiles a jittered positions field (Hytale Jitter2d over a spaced grid)");
 
         String scannerJson = """
             {

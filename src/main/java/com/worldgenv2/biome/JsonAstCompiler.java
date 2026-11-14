@@ -56,6 +56,14 @@ public final class JsonAstCompiler {
         private final Function<String, String> assetResolver;
         private final Map<String, Object> assetCache = new java.util.concurrent.ConcurrentHashMap<>();
         private final AtomicInteger saltCounter = new AtomicInteger(100);
+        private final Map<String, Double> decimalConstants = new java.util.concurrent.ConcurrentHashMap<>();
+        private final Map<String, PositionsProvider> frameworkPositions = new java.util.concurrent.ConcurrentHashMap<>();
+
+        /** Named decimal constants of the World Structure's Framework (BaseHeight reads them). */
+        public Map<String, Double> decimalConstants() { return decimalConstants; }
+
+        /** Named positions fields of the World Structure's Framework (the Framework positions node reads them). */
+        public Map<String, PositionsProvider> frameworkPositions() { return frameworkPositions; }
 
         public CompileContext(long worldSeed) {
             this(worldSeed, null, null, null);
