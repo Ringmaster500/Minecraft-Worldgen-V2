@@ -185,9 +185,12 @@ public final class ProjectCompiler {
             RiverCarver.Settings st = rs == null ? def : new RiverCarver.Settings(
                     (float) J.num(rs, "spacing", def.spacing()), (float) J.num(rs, "channelWidth", def.channelWidth()),
                     (float) J.num(rs, "valleyWidth", def.valleyWidth()), J.integer(rs, "depth", def.depth()),
-                    (float) J.num(rs, "meander", def.meander()), (float) J.num(rs, "widthVariation", def.widthVariation()),
-                    (float) J.num(rs, "valleyRise", def.valleyRise()));
-            structure.withRiverCarver(new RiverCarver(r.seed, r.seaLevel, st))
+                    (float) J.num(rs, "meander", def.meander()), (float) J.num(rs, "widthVariation", def.widthVariation()));
+            RiverCarver carver = new RiverCarver(r.seed, r.seaLevel, st);
+            final WorldStructure ws = structure;
+            final int rMinY = r.minY, rMaxY = r.maxY;
+            carver.setHeightSampler((hx, hz) -> ws.sampleNativeSurfaceY(hx, hz, rMinY, rMaxY));
+            structure.withRiverCarver(carver)
                     .withRiverMaterialProvider(DefaultBiomeFactory.createRiverMaterialProvider());
         }
         JsonObject ocean = J.obj(d, "ocean");
@@ -381,10 +384,13 @@ public final class ProjectCompiler {
                     if (pa != null) for (JsonElement pe : pa) { var pf = loadPrefab(project, pe.getAsString(), prefabs, r); if (pf != null) pfs.add(pf); }
                     String single = J.str(s, "prefab", "");
                     if (!single.isBlank()) { var pf = loadPrefab(project, single, prefabs, r); if (pf != null) pfs.add(pf); }
+                    List<com.worldgenv2.prefab.Prefab> comp = new ArrayList<>();
+                    JsonArray ca = J.arr(s, "companions");
+                    if (ca != null) for (JsonElement ce : ca) { var pf = loadPrefab(project, ce.getAsString(), prefabs, r); if (pf != null) comp.add(pf); }
                     int minGap = J.integer(s, "minGap", 4), maxGap = J.integer(s, "maxGap", 14);
                     rules.add(new SpanPlacer.Rule(id, pfs, minGap, Math.max(minGap, maxGap), J.integer(s, "maxBankDiff", 3),
                             J.integer(s, "cell", 64), (float) J.num(s, "chance", 0.6), J.integer(s, "yOffset", 0), biomeNames(s, r),
-                            J.integer(s, "maxDrop", 3)));
+                            J.integer(s, "maxDrop", 3), comp, (float) J.num(s, "minTreeRatio", 1.0), J.integer(s, "companionCount", 2)));
                 }
                 structure.withSpanPlacer(new SpanPlacer(r.seed, r.minY, r.maxY, r.seaLevel, rules));
             } catch (Throwable ex) {
@@ -407,6 +413,11 @@ public final class ProjectCompiler {
         JsonArray pf = new JsonArray();
         for (String id : new String[]{"fallen_oak_a", "fallen_oak_b", "fallen_oak_c"}) if (project.hasAsset("prefabs/" + id + ".json")) pf.add(id);
         s.add("prefabs", pf);
+        JsonArray trees = new JsonArray();
+        for (String id : new String[]{"tall_oak_a", "tall_oak_b", "tall_oak_c", "tall_oak_d"}) if (project.hasAsset("prefabs/" + id + ".json")) trees.add(id);
+        s.add("companions", trees);
+        J.setNum(s, "minTreeRatio", 1.0);
+        J.setNum(s, "companionCount", 3);
         JsonArray forests = new JsonArray();
         for (Asset b : project.assetsOf(com.worldgenv2.studio.project.AssetType.BIOME)) {
             if ("forest".equals(J.str(b.json, "category", ""))) forests.add(b.id());
@@ -416,8 +427,8 @@ public final class ProjectCompiler {
         J.setNum(s, "maxGap", 12);
         J.setNum(s, "maxBankDiff", 2);
         J.setNum(s, "maxDrop", 3);
-        J.setNum(s, "cell", 48);
-        J.setNum(s, "chance", 0.8);
+        J.setNum(s, "cell", 112);
+        J.setNum(s, "chance", 0.6);
         JsonArray arr = new JsonArray();
         if (!pf.isEmpty()) arr.add(s);
         return arr;

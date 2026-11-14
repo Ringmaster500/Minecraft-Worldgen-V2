@@ -125,6 +125,9 @@ final class DimensionEditor extends Editor {
         block(new CardList(this, "spans", "bridge", List.of(
                 CardList.Field.str("id", "Name", "Unique name."),
                 CardList.Field.prefabs("prefabs", "Structures", "Candidates. The one that reaches both banks without overshooting is used, and it is turned to cross the gap. Build them with the long side along X."),
+                CardList.Field.prefabs("companions", "Nearby trees", "Optional standing trees placed beside the structure's 'root' end. Only trees tall enough to have made the span are used; if none is tall enough, no span is placed."),
+                CardList.Field.num("minTreeRatio", "Tree height x", 0.2, 5, 0.1, "A companion must be at least this many times the span's length tall (1 = as tall as the log is long)."),
+                CardList.Field.integer("companionCount", "Tree count", 1, 8, "How many companion trees stand beside it."),
                 CardList.Field.integer("minGap", "Min gap", 1, 200, "Shortest stretch of water to cross."),
                 CardList.Field.integer("maxGap", "Max gap", 1, 200, "Longest stretch of water to cross."),
                 CardList.Field.integer("maxBankDiff", "Bank height diff", 0, 32, "Largest height difference allowed between the two banks."),
@@ -202,9 +205,8 @@ final class DimensionEditor extends Editor {
         field("Rivers", toggle("rivers", true, "Rivers", "Carve rivers"), null);
         field("Spacing", num("riverSettings.spacing", 1000, 200, 6000, 50, false, "River spacing"), "Roughly how far apart rivers run. Bigger = fewer, longer rivers.");
         field("Water width", num("riverSettings.channelWidth", 30, 4, 200, 2, false, "River width"), "Width of the water surface, in blocks.");
-        field("Valley width", num("riverSettings.valleyWidth", 60, 8, 400, 4, false, "Valley width"), "Width of the gentle valley around the water.");
-        field("Bank gentleness", num("riverSettings.valleyRise", 14, 0, 80, 1, false, "River bank gentleness"), "Blocks of height that add one more valley width. Lower = wider, gentler banks on high ground; 0 = fixed width (cliffs on hills).");
-        field("Depth", num("riverSettings.depth", 6, 1, 40, 1, true, "River depth"), "How far the riverbed lies below sea level.");
+        field("Bank to bank", num("riverSettings.valleyWidth", 60, 8, 400, 4, false, "River bank width"), "Total width including the soft banks on both sides. The ground blends into the water over this distance.");
+        field("Depth", num("riverSettings.depth", 3, 1, 20, 1, true, "River depth"), "How deep the channel is below the water level at its centre. Rivers follow the land, so they stay flush with it.");
         field("Meander", num("riverSettings.meander", 96, 0, 400, 8, false, "River meander"), "How much rivers wander. 0 = straight.");
         field("Width variation", num("riverSettings.widthVariation", 0.22, 0, 1, 0.02, false, "River width variation"), "How much the width changes along a river.");
 

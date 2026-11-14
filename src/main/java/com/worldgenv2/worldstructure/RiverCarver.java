@@ -2,56 +2,62 @@ package com.worldgenv2.worldstructure;
 
 import com.worldgenv2.density.FastNoiseLite;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
- * Natural organic river network and valley sculpt engine.
+ * Rivers that follow the land instead of cutting through it.
+ *
+ * <p>A river is a winding line (a warped noise ridge). Its <b>water level is taken from the local valley floor</b> at the
+ * river's centerline, so a river in a lowland sits flush with the land and a river in higher country sits just as flush
+ * at its own height; it never digs a canyon down to sea level. Across any cross-section the water is flat, and along the
+ * river it steps down gently with the ground.
  *
  * <ul>
- *   <li><b>Wide Gentle Valleys (40–70 blocks)</b> - slopes the surrounding terrain gently down
- *       toward water level at mild angles (&lt; 22°), completely eliminating steep artificial quarry
- *       cliff walls and keeping rich biome vegetation (grass, savanna dirt, flowers) intact on banks.</li>
- *   <li><b>Parabolic U-Shaped Riverbed</b> - smoothly descends from water level (Y = 63) to bed
- *       depth (Y = 57) in a smooth concave basin rather than a sharp V-ditch.</li>
- *   <li><b>Meander & Width Modulation</b> - 2D domain warping combined with width noise makes rivers
- *       naturally meander, widen into scenic river pools, and narrow through canyons.</li>
- *   <li><b>River Sediment Bed</b> - identifies river channel and bank positions so the generator
- *       lines beds with natural sediments (gravel, sand, clay) rather than bare gray stone.</li>
+ *   <li><b>Channel</b>: a shallow, soft-bottomed trough a few blocks deep, filled with water up to the river level.</li>
+ *   <li><b>Banks</b>: the surrounding ground blends into the river level over the bank width. High ground is eased down a
+ *       little, low ground is raised to a beach, so the shore is flush with the water.</li>
+ *   <li><b>Meander and width</b>: domain warping and width noise make rivers wander and widen into pools.</li>
  * </ul>
  */
 public final class RiverCarver {
 
-    // Thresholds in absolute noise space (|N|)
     /**
      * Everything a creator can tune about rivers, in blocks.
      *
      * @param spacing        roughly how far apart river lines are (bigger = fewer, longer rivers)
      * @param channelWidth   water surface width
-     * @param valleyWidth    width of the gentle valley around the water
-     * @param depth          how far below sea level the riverbed sits
+     * @param valleyWidth    bank to bank width: the channel plus the soft banks on both sides
+     * @param depth          how deep the channel is below the water level at its centre
      * @param meander        how strongly the river wanders (domain warp amplitude, blocks)
      * @param widthVariation 0..1, how much the width changes along the river
      */
-    public record Settings(float spacing, float channelWidth, float valleyWidth, int depth, float meander, float widthVariation,
-                           float valleyRise) {
-        /** {@code valleyRise}: every this-many blocks the land stands above sea level adds one more valley width, so banks
-         *  slope gently down to the water instead of forming cliffs (0 = fixed width). */
-        public static Settings defaults() { return new Settings(1000f, 30f, 60f, 6, 96f, 0.22f, 14f); }
+    public record Settings(float spacing, float channelWidth, float valleyWidth, int depth, float meander, float widthVariation) {
+        public static Settings defaults() { return new Settings(1000f, 30f, 60f, 3, 96f, 0.22f); }
     }
 
-    private static final float MAX_RATIO = 3.6f;
-    private final float coreHalfWidth, channelHalfWidth, valleyHalfWidth, meanderAmp, widthVar, valleyRise;
+    /** Native (pre-river) surface height of the terrain at a block column. */
+    @FunctionalInterface
+    public interface HeightSampler {
+        float height(int x, int z);
+    }
 
-    private final FastNoiseLite riverNoise;
-    private final FastNoiseLite warpX;
-    private final FastNoiseLite warpZ;
-    private final FastNoiseLite widthNoise;
+    private static final int CELL = 16;
+    /** Rivers fade out and stop above this water level (mountains), rather than carving through them. */
+    private static final int ALPINE_START = 96, ALPINE_END = 124;
+
+    private final float channelHalfWidth, valleyHalfWidth, meanderAmp, widthVar;
+    private final FastNoiseLite riverNoise, warpX, warpZ, widthNoise;
     private final int seaLevel;
     private final int bedDepth;
     private com.worldgenv2.graph.ProceduralGraph riverGraph;
     private float graphValleyRadius = 50.0f;
 
+    private volatile HeightSampler sampler;
+    private final ConcurrentHashMap<Long, Float> rawCells = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Float> minCells = new ConcurrentHashMap<>();
+
     public RiverCarver(long seed, int seaLevel, int bedDepth) {
-        this(seed, seaLevel, Settings.defaults().depth() == bedDepth ? Settings.defaults()
-                : new Settings(1000f, 30f, 60f, bedDepth, 96f, 0.22f, 14f));
+        this(seed, seaLevel, new Settings(1000f, 30f, 60f, bedDepth, 96f, 0.22f));
     }
 
     public RiverCarver(long seed, int seaLevel, Settings st) {
@@ -62,26 +68,28 @@ public final class RiverCarver {
         float fScale = freq / 0.0010f;
         this.channelHalfWidth = 0.055f * (Math.max(2f, st.channelWidth()) / 30f) * fScale;
         this.valleyHalfWidth = Math.max(channelHalfWidth * 1.3f, 0.155f * (Math.max(4f, st.valleyWidth()) / 60f) * fScale);
-        this.coreHalfWidth = channelHalfWidth * (0.024f / 0.055f);
         this.meanderAmp = Math.max(0f, st.meander());
         this.widthVar = Math.clamp(st.widthVariation(), 0f, 1f);
-        this.valleyRise = Math.max(0f, st.valleyRise());
 
         this.riverNoise = new FastNoiseLite(s + 8101);
         this.riverNoise.setNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         this.riverNoise.setFrequency(freq);
-
         this.warpX = new FastNoiseLite(s + 8102);
         this.warpX.setNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         this.warpX.setFrequency(0.0032f);
-
         this.warpZ = new FastNoiseLite(s + 8103);
         this.warpZ.setNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         this.warpZ.setFrequency(0.0032f);
-
         this.widthNoise = new FastNoiseLite(s + 8104);
         this.widthNoise.setNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
         this.widthNoise.setFrequency(0.0040f);
+    }
+
+    /** Gives the carver a way to read the land's own height, so the river level can follow the ground. */
+    public void setHeightSampler(HeightSampler s) {
+        this.sampler = s;
+        rawCells.clear();
+        minCells.clear();
     }
 
     public void setRiverGraph(com.worldgenv2.graph.ProceduralGraph riverGraph, float valleyRadius) {
@@ -93,20 +101,21 @@ public final class RiverCarver {
         return riverGraph;
     }
 
-    /**
-     * Evaluates effective distance metric in normalized river space:
-     * 0.0 at the centerline, 1.0 at the outer edge of the valley basin.
-     */
-    public float riverDistance(float x, float z) {
+    // ------------------------------------------------------------------ river geometry
+
+    private float signedNoise(float x, float z) {
         float wx = x + warpX.getNoise(x, z) * meanderAmp;
         float wz = z + warpZ.getNoise(x, z) * meanderAmp;
-        float n = Math.abs(riverNoise.getNoise(wx, wz));
+        return riverNoise.getNoise(wx, wz);
+    }
 
-        // Modulate valley width organically along the river
+    /**
+     * Effective distance metric in normalized river space: 0.0 at the centerline, 1.0 at the outer edge of the banks.
+     */
+    public float riverDistance(float x, float z) {
+        float n = Math.abs(signedNoise(x, z));
         float wMod = 1.0f + widthNoise.getNoise(x, z) * widthVar;
-        float effectiveValley = valleyHalfWidth * wMod;
-
-        float noiseDist = Math.clamp(n / effectiveValley, 0.0f, MAX_RATIO);
+        float noiseDist = Math.clamp(n / (valleyHalfWidth * wMod), 0.0f, 1.0f);
 
         if (riverGraph != null && riverGraph.edgeCount() > 0) {
             float minGraphDist = Float.MAX_VALUE;
@@ -114,43 +123,26 @@ public final class RiverCarver {
                 com.worldgenv2.graph.GraphNode a = riverGraph.getNode(edge.nodeA());
                 com.worldgenv2.graph.GraphNode b = riverGraph.getNode(edge.nodeB());
                 if (a != null && b != null) {
-                    float ax = (float) a.getPosition().x();
-                    float az = (float) a.getPosition().z();
-                    float bx = (float) b.getPosition().x();
-                    float bz = (float) b.getPosition().z();
-
-                    float dx = bx - ax;
-                    float dz = bz - az;
+                    float ax = (float) a.getPosition().x(), az = (float) a.getPosition().z();
+                    float bx = (float) b.getPosition().x(), bz = (float) b.getPosition().z();
+                    float dx = bx - ax, dz = bz - az;
                     float lenSq = dx * dx + dz * dz;
-                    float t = 0.0f;
-                    if (lenSq > 1e-6f) {
-                        t = Math.clamp(((x - ax) * dx + (z - az) * dz) / lenSq, 0.0f, 1.0f);
-                    }
-                    float px = ax + t * dx;
-                    float pz = az + t * dz;
-                    float d = (float) Math.hypot(x - px, z - pz);
+                    float t = lenSq > 1e-6f ? Math.clamp(((x - ax) * dx + (z - az) * dz) / lenSq, 0.0f, 1.0f) : 0.0f;
+                    float d = (float) Math.hypot(x - (ax + t * dx), z - (az + t * dz));
                     minGraphDist = Math.min(minGraphDist, d);
                 }
             }
-            float graphDistNorm = Math.clamp(minGraphDist / graphValleyRadius, 0.0f, 1.0f);
-            return Math.min(noiseDist, graphDistNorm);
+            return Math.min(noiseDist, Math.clamp(minGraphDist / graphValleyRadius, 0.0f, 1.0f));
         }
-
         return noiseDist;
     }
 
-    /**
-     * True when (x, z) lies inside the water-filled river channel proper.
-     */
+    /** True when (x, z) lies inside the water-filled river channel proper. */
     public boolean isChannel(float x, float z) {
-        float dist = riverDistance(x, z);
-        float channelRatio = channelHalfWidth / valleyHalfWidth;
-        return dist <= channelRatio;
+        return riverDistance(x, z) <= channelHalfWidth / valleyHalfWidth;
     }
 
-    /**
-     * True when (x, z) lies on the immediate riparian shoreline (water's edge up to 4 blocks back).
-     */
+    /** True when (x, z) lies on the immediate riparian shoreline (water's edge and a few blocks back). */
     public boolean isRiparianBank(float x, float z) {
         float dist = riverDistance(x, z);
         float channelRatio = channelHalfWidth / valleyHalfWidth;
@@ -158,84 +150,116 @@ public final class RiverCarver {
         return dist > channelRatio && dist <= bankRatio;
     }
 
+    // ------------------------------------------------------------------ water level
+
+    private float rawCell(int cx, int cz) {
+        long key = ((long) cx << 32) ^ (cz & 0xFFFFFFFFL);
+        Float v = rawCells.get(key);
+        if (v == null) {
+            HeightSampler s = sampler;
+            v = s == null ? (float) seaLevel : s.height(cx * CELL + CELL / 2, cz * CELL + CELL / 2);
+            rawCells.put(key, v);
+        }
+        return v;
+    }
+
+    /** Lowest ground height among the four cells around a grid corner: the local valley floor. */
+    private float minCell(int cx, int cz) {
+        long key = ((long) cx << 32) ^ (cz & 0xFFFFFFFFL);
+        Float v = minCells.get(key);
+        if (v == null) {
+            v = Math.min(Math.min(rawCell(cx, cz), rawCell(cx + 1, cz)), Math.min(rawCell(cx, cz + 1), rawCell(cx + 1, cz + 1)));
+            minCells.put(key, v);
+        }
+        return v;
+    }
+
+    private float valleyFloor(float x, float z) {
+        float fx = x / CELL - 0.5f, fz = z / CELL - 0.5f;
+        int ix = (int) Math.floor(fx), iz = (int) Math.floor(fz);
+        float tx = fx - ix, tz = fz - iz;
+        float a = minCell(ix, iz), b = minCell(ix + 1, iz), c = minCell(ix, iz + 1), d = minCell(ix + 1, iz + 1);
+        return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
+    }
+
     /**
-     * Carves a natural U-shaped river valley with gentle slopes down to sea level, then
-     * hollows out the submerged riverbed below sea level.
+     * Water level of the river that passes near (x, z). Every point of a cross-section maps to the same centerline point,
+     * so the surface is flat across the river and follows the valley floor along it.
+     */
+    public int levelAt(float x, float z) {
+        if (sampler == null) return seaLevel;
+        float n = signedNoise(x, z);
+        float h = 3.0f;
+        float gx = (signedNoise(x + h, z) - signedNoise(x - h, z)) / (2 * h);
+        float gz = (signedNoise(x, z + h) - signedNoise(x, z - h)) / (2 * h);
+        float g2 = gx * gx + gz * gz;
+        float cx = x, cz = z;
+        if (g2 > 1e-10f) {
+            float k = n / g2;
+            float mx = k * gx, mz = k * gz;
+            float len = (float) Math.sqrt(mx * mx + mz * mz);
+            if (len > 40f) { mx *= 40f / len; mz *= 40f / len; }
+            cx = x - mx;
+            cz = z - mz;
+        }
+        return Math.max(seaLevel, (int) Math.floor(valleyFloor(cx, cz)) - 1);
+    }
+
+    /** Water level inside the river channel at (x, z), or {@link Integer#MIN_VALUE} when (x, z) is not river water. */
+    public int channelWaterLevel(float x, float z) {
+        if (!isChannel(x, z)) return Integer.MIN_VALUE;
+        int level = levelAt(x, z);
+        return level >= ALPINE_END ? Integer.MIN_VALUE : level;
+    }
+
+    // ------------------------------------------------------------------ carving
+
+    /**
+     * Shapes the density column: a shallow channel below the river level and banks that blend flush into the land.
      */
     public void carveColumn(float x, float z, int minY, int maxY, float[] col) {
-        float rawDist = riverDistance(x, z);
-        if (rawDist >= MAX_RATIO * 0.999f) {
-            return;
-        }
+        float dist = riverDistance(x, z);
+        if (dist >= 0.999f) return;
 
         int height = maxY - minY;
         int surfaceIdx = -1;
         for (int i = height - 1; i >= 0; i--) {
-            if (col[i] > 0.0f) {
-                surfaceIdx = i;
-                break;
-            }
+            if (col[i] > 0.0f) { surfaceIdx = i; break; }
         }
-        if (surfaceIdx < 0) {
-            return;
-        }
+        if (surfaceIdx < 0) return;
         int surfaceY = minY + surfaceIdx;
 
-        // Rivers do not cut across oceans or low shallows, and fade out before cutting extreme alpine peaks
-        float landFade = Math.clamp((surfaceY - (seaLevel - 1)) / 5.0f, 0.0f, 1.0f);
-        float alpineFade = 1.0f - Math.clamp((surfaceY - 96) / 24.0f, 0.0f, 1.0f);
-        float eligibility = landFade * alpineFade;
-        if (eligibility <= 0.001f) {
-            return;
-        }
+        int level = levelAt(x, z);
+        // rivers do not cut across open ocean, and fade out before reaching mountains
+        float landFade = Math.clamp((surfaceY - (seaLevel - 2)) / 4.0f, 0.0f, 1.0f);
+        float alpineFade = 1.0f - Math.clamp((level - ALPINE_START) / (float) (ALPINE_END - ALPINE_START), 0.0f, 1.0f);
+        float blendRate = Math.min(1.0f, landFade * alpineFade * 1.25f);
+        if (blendRate <= 0.001f) return;
 
         float channelRatio = channelHalfWidth / valleyHalfWidth;
-        float coreRatio = coreHalfWidth / valleyHalfWidth;
-
-        // The higher the land stands above the sea, the wider its valley, so banks stay gently sloped instead of
-        // turning into cliffs. Inside the channel the original distance is used, so the water keeps its width.
-        float widen = valleyRise > 0f ? 1.0f + Math.max(0, surfaceY - seaLevel) / valleyRise : 1.0f;
-        widen = Math.min(widen, MAX_RATIO);
-        if (rawDist >= widen * 0.999f) {
-            return;
-        }
-        float dist = rawDist <= channelRatio ? rawDist : Math.max(channelRatio, rawDist / widen);
-
-        // Smooth cubic Hermite profile for the valley basin:
-        // dist in [0.0, 1.0] -> valleyFactor in [1.0, 0.0]
-        float t = 1.0f - dist;
-        float valleyFactor = t * t * (3.0f - 2.0f * t) * eligibility;
-
-        // Target surface height in the valley
-        // In the outer valley: terrain slopes gently down toward seaLevel + 1
-        // In the channel: terrain dips in a smooth parabola down to bedY = seaLevel - bedDepth
         float targetY;
-        if (dist > channelRatio) {
-            // Outer valley: gentle transition from native hill height down to seaLevel + 1
-            float valleyT = (dist - channelRatio) / (1.0f - channelRatio);
-            float valleyCurve = valleyT * valleyT * (3.0f - 2.0f * valleyT);
-            targetY = (seaLevel + 1.2f) + (surfaceY - (seaLevel + 1.2f)) * valleyCurve;
+        if (dist <= channelRatio) {
+            // shallow trough: deepest in the middle, rising to the water level at the water's edge
+            float t = dist / channelRatio;
+            float bedY = level - bedDepth;
+            targetY = bedY + (level - bedY) * (t * t);
         } else {
-            // Inside the river channel: smooth parabolic bed from seaLevel down to bedY
-            float channelT = Math.clamp(dist / channelRatio, 0.0f, 1.0f);
-            float bedY = (float) (seaLevel - bedDepth);
-            // Parabola: at center (dist=0) -> bedY; at channel bank (dist=channelRatio) -> seaLevel
-            targetY = bedY + (seaLevel - bedY) * (channelT * channelT);
+            // banks: flush with the water at the edge, easing into the native ground at the outer edge
+            float vt = (dist - channelRatio) / (1.0f - channelRatio);
+            float curve = vt * vt * (3.0f - 2.0f * vt);
+            float shore = level + 1.0f;
+            targetY = shore + (surfaceY - shore) * curve;
         }
 
-        // Apply smooth vertical density pull toward the target surface
-        // Below targetY: positive (solid bed). Above targetY: negative (water or open sky).
-        float blendRate = Math.min(1.0f, valleyFactor * 1.35f);
-        int startY = Math.max(minY, (int) (seaLevel - bedDepth - 10));
-        int endY = Math.min(maxY - 1, surfaceY + 2);
-
+        int startY = Math.max(minY, level - bedDepth - 6);
+        int endY = Math.min(maxY - 1, Math.max(surfaceY, (int) Math.ceil(targetY)) + 2);
         for (int y = startY; y <= endY; y++) {
             int i = y - minY;
-            // Target density gradient: ~0.10 slope near the surface gives gentle ~15–20° bank angles
             float targetDensity = (targetY - y) * 0.12f;
-            // Smoothly blend native density toward target valley density
             if (col[i] > targetDensity) {
-                col[i] += (targetDensity - col[i]) * blendRate;
+                col[i] += (targetDensity - col[i]) * blendRate;          // ease high ground down
+            } else if (y <= targetY) {
+                col[i] += (targetDensity - col[i]) * blendRate;          // raise low ground up to the shore
             }
         }
     }

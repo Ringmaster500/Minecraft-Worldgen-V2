@@ -497,6 +497,12 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
                         effectiveFluid = resolveBlockState(tileBiome.fluidBlock(), effectiveFluid);
                     }
 
+                    // Rivers carry their own water level (flush with the land they run through), which can sit above sea level
+                    int riverLevel = structure.riverWaterLevel(worldX, worldZ);
+                    if (riverLevel != Integer.MIN_VALUE) {
+                        effectiveSeaLevel = Math.min(Math.max(effectiveSeaLevel, riverLevel), voxelSpace.getMaxY() - 1);
+                    }
+
                     // 3. Fill the air at and below sea level downward until the first solid block. Starting from the sea
                     // surface (rather than above the topmost solid) keeps water under anything that stands above it:
                     // a fallen-log bridge, an arch, a pier.

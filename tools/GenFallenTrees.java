@@ -23,6 +23,66 @@ public class GenFallenTrees {
         make("fallen_oak_a", 15, 11);
         make("fallen_oak_b", 19, 23);
         make("fallen_oak_c", 23, 37);
+        makeTall("tall_oak_a", 18, 5);
+        makeTall("tall_oak_b", 24, 17);
+        makeTall("tall_oak_c", 30, 29);
+        makeTall("tall_oak_d", 36, 41);
+    }
+
+    /** A tall standing oak: bare trunk below, a broad canopy with a few side lobes near the top. */
+    static void makeTall(String name, int height, int seed) throws IOException {
+        final int W = 13, C = 6;
+        boolean thick = height >= 24;
+        Map<String, int[]> set = new LinkedHashMap<>();
+        java.util.function.Consumer<int[]> put = v -> {
+            if (v[0] >= 0 && v[0] < W && v[1] >= 0 && v[1] < height && v[2] >= 0 && v[2] < W) set.put(v[0] + "," + v[1] + "," + v[2], v);
+        };
+        // trunk (leaves added first so logs always win)
+        double top = height - 6.0;
+        double rx = thick ? 5.2 : 4.4, ry = thick ? 4.6 : 4.0;
+        double[][] lobes = new double[4][];
+        for (int i = 0; i < 4; i++) {
+            double ang = (hash(i, 1, 1, seed) % 628) / 100.0;
+            double r = 3.0 + hash(i, 2, 2, seed) % 30 / 10.0;
+            lobes[i] = new double[]{C + Math.cos(ang) * r, top - 3 - hash(i, 3, 3, seed) % 40 / 10.0, C + Math.sin(ang) * r, 2.4};
+        }
+        for (int x = 0; x < W; x++) for (int z = 0; z < W; z++) for (int y = Math.max(0, (int) (top - 9)); y < height; y++) {
+            double main = Math.pow((x - C) / rx, 2) + Math.pow((y - top) / ry, 2) + Math.pow((z - C) / rx, 2);
+            boolean leaf = main <= 1.0;
+            for (double[] l : lobes) {
+                if (Math.pow((x - l[0]) / l[3], 2) + Math.pow((y - l[1]) / (l[3] * 0.8), 2) + Math.pow((z - l[2]) / l[3], 2) <= 1.0) leaf = true;
+            }
+            if (leaf && hash(x, y, z, seed) % 100 < 82) put.accept(new int[]{x, y, z, LEAVES});
+        }
+        int[][] trunk = thick ? new int[][]{{C, C}, {C + 1, C}, {C, C + 1}, {C + 1, C + 1}} : new int[][]{{C, C}};
+        for (int[] t : trunk) for (int y = 0; y < height - 3; y++) put.accept(new int[]{t[0], y, t[1], LOG_Y});
+        // a few branch stubs inside the canopy
+        for (int i = 0; i < 3; i++) {
+            int by = (int) (top - 2 - i * 2);
+            put.accept(new int[]{C + 1 + (thick ? 1 : 0), by, C, LOG_X});
+            put.accept(new int[]{C - 1, by - 1, C, LOG_X});
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"name\":\"worldgenv2:structures/").append(name).append("\",\"version\":2,");
+        sb.append("\"size\":{\"x\":").append(W).append(",\"y\":").append(height).append(",\"z\":").append(W).append("},");
+        sb.append("\"anchor\":{\"x\":").append(C).append(",\"y\":0,\"z\":").append(C).append("},");
+        sb.append("\"palette\":[{\"id\":0,\"name\":\"minecraft:air\"},");
+        sb.append("{\"id\":1,\"name\":\"minecraft:oak_log\",\"properties\":{\"axis\":\"x\"}},");
+        sb.append("{\"id\":2,\"name\":\"minecraft:oak_log\",\"properties\":{\"axis\":\"y\"}},");
+        sb.append("{\"id\":3,\"name\":\"minecraft:oak_log\",\"properties\":{\"axis\":\"z\"}},");
+        sb.append("{\"id\":4,\"name\":\"minecraft:oak_leaves\",\"properties\":{\"persistent\":\"true\"}}],");
+        sb.append("\"blocks\":[");
+        boolean first = true;
+        for (int[] v : set.values()) {
+            if (!first) sb.append(',');
+            first = false;
+            sb.append("{\"x\":").append(v[0]).append(",\"y\":").append(v[1]).append(",\"z\":").append(v[2]).append(",\"paletteIndex\":").append(v[3]).append('}');
+        }
+        sb.append("],\"sockets\":[],\"adaptiveFoundations\":[{\"minX\":").append(C - 1).append(",\"minZ\":").append(C - 1)
+          .append(",\"maxX\":").append(C + 2).append(",\"maxZ\":").append(C + 2).append(",\"fillMaterial\":\"minecraft:dirt\",\"maxDepth\":4}]}");
+        Path out = Path.of("src/main/resources/data/worldgenv2/prefabs/" + name + ".prefab.json");
+        Files.writeString(out, sb.toString(), StandardCharsets.UTF_8);
+        System.out.println(name + ": height " + height + ", " + set.size() + " blocks");
     }
 
     static void make(String name, int len, int seed) throws IOException {
@@ -90,7 +150,7 @@ public class GenFallenTrees {
             first = false;
             sb.append("{\"x\":").append(v[0]).append(",\"y\":").append(v[1]).append(",\"z\":").append(v[2]).append(",\"paletteIndex\":").append(v[3]).append('}');
         }
-        sb.append("],\"sockets\":[],\"adaptiveFoundations\":[");
+        sb.append("],\"sockets\":[{\"name\":\"root\",\"type\":\"MARKER\",\"gender\":\"ANY\",\"position\":{\"x\":1,\"y\":0,\"z\":4},\"facing\":\"WEST\",\"compatibleTags\":[]}],\"adaptiveFoundations\":[");
         sb.append("{\"minX\":0,\"minZ\":2,\"maxX\":4,\"maxZ\":5,\"fillMaterial\":\"minecraft:dirt\",\"maxDepth\":5},");
         sb.append("{\"minX\":").append(len - 5).append(",\"minZ\":2,\"maxX\":").append(len - 1).append(",\"maxZ\":5,\"fillMaterial\":\"minecraft:dirt\",\"maxDepth\":5}]}");
         Path out = Path.of("src/main/resources/data/worldgenv2/prefabs/" + name + ".prefab.json");

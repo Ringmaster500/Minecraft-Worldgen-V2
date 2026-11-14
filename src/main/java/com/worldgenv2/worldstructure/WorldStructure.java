@@ -528,6 +528,23 @@ public final class WorldStructure {
         return minY;
     }
 
+    /** Surface height as the biomes define it, before rivers, caves, zones and the spawn crater reshape it. */
+    public int sampleNativeSurfaceY(float x, float z, int minY, int maxY) {
+        float[] col = new float[Math.max(1, maxY - minY)];
+        float[] scratch = new float[col.length];
+        queryBiome(x, z).computeBlendedColumn(x, z, minY, maxY, col, scratch);
+        for (int y = maxY - 1; y >= minY; y--) {
+            if (col[y - minY] > 0.0f) return y;
+        }
+        return minY;
+    }
+
+    /** Water level of the river channel at (x, z), or {@link Integer#MIN_VALUE} when (x, z) is not river water. */
+    public int riverWaterLevel(int x, int z) {
+        RiverCarver rc = riverCarver;
+        return rc == null ? Integer.MIN_VALUE : rc.channelWaterLevel(x, z);
+    }
+
     public StructureBudgetManager getStructureBudgetManager() {
         return structureBudgetManager;
     }
