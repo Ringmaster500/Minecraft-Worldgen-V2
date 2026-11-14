@@ -188,7 +188,7 @@ public final class DefaultBiomeFactory {
      * Builds the 26 additional surface tile biomes (the original four tile biomes are declared in
      * {@link DefaultWorldFactory}).
      */
-    static List<TileBiome> createSurfaceTileBiomes(int s) {
+    public static List<TileBiome> createSurfaceTileBiomes(int s) {
         List<TileBiome> out = new ArrayList<>();
         for (Spec spec : specs()) {
             out.add(buildTile(s, spec));
@@ -270,7 +270,7 @@ public final class DefaultBiomeFactory {
      * Dedicated riverbed sediment material provider: produces gravel, sand, and clay on submerged
      * riverbeds (Y <= 63), and lush grass/soil on gentle riparian banks, never bare gray stone.
      */
-    static MaterialProvider<BlockState> createRiverMaterialProvider() {
+    public static MaterialProvider<BlockState> createRiverMaterialProvider() {
         BlockState sand = Blocks.SAND.defaultBlockState();
         BlockState gravel = Blocks.GRAVEL.defaultBlockState();
         BlockState clay = Blocks.CLAY.defaultBlockState();
@@ -400,7 +400,7 @@ public final class DefaultBiomeFactory {
      * The five underground 3D biome volumes. Lush and Dripstone caves require a land surface above,
      * Frozen Caverns require a cold land surface, Deep Dark lives beneath everything.
      */
-    static List<UndergroundBiome> createUndergroundBiomes() {
+    public static List<UndergroundBiome> createUndergroundBiomes() {
         Set<Integer> land = DefaultBiomeCatalog.landIds();
         Set<Integer> humidLand = Set.of(
             DefaultBiomeCatalog.TEMPERATE_FOREST, DefaultBiomeCatalog.FLOWER_FOREST, DefaultBiomeCatalog.BIRCH_FOREST,

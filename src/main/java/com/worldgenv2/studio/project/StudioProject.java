@@ -143,14 +143,14 @@ public final class StudioProject {
 
     public List<Asset.Problem> allProblems() {
         List<Asset.Problem> out = new ArrayList<>();
-        for (Asset a : assets.values()) out.addAll(a.problems);
+        for (Asset a : assets.values()) out.addAll(a.allProblems());
         out.sort(Comparator.comparingInt((Asset.Problem x) -> x.severity().ordinal()).thenComparing(Asset.Problem::assetPath));
         return out;
     }
 
     public int count(Asset.Severity s) {
         int n = 0;
-        for (Asset a : assets.values()) for (Asset.Problem pr : a.problems) if (pr.severity() == s) n++;
+        for (Asset a : assets.values()) for (Asset.Problem pr : a.allProblems()) if (pr.severity() == s) n++;
         return n;
     }
 

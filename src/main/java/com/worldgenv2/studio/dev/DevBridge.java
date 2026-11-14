@@ -205,6 +205,35 @@ public final class DevBridge {
                 q.getOrDefault("text", "").codePoints().forEach(cp -> scr.charTyped(new CharacterEvent(cp)));
                 return ok();
             });
+            case "/openproject" -> onRender(() -> {
+                var app = com.worldgenv2.studio.shell.StudioApp.get();
+                app.openProject(q.getOrDefault("name", ""));
+                return app.project == null ? "{\"error\":\"could not open\"}" : ok();
+            });
+            case "/doc" -> onRender(() -> {
+                var app = com.worldgenv2.studio.shell.StudioApp.get();
+                app.openDoc(q.getOrDefault("path", ""));
+                String v = q.get("view");
+                if (v != null && app.activeDoc != null) app.setView(app.activeDoc, com.worldgenv2.studio.shell.StudioApp.View.valueOf(v.toUpperCase()));
+                return ok();
+            });
+            case "/save" -> onRender(() -> {
+                com.worldgenv2.studio.shell.StudioApp.get().save();
+                return ok();
+            });
+            case "/apply" -> onRender(() -> {
+                com.worldgenv2.studio.shell.StudioApp.get().applyToWorld();
+                return ok();
+            });
+            case "/patch" -> onRender(() -> {
+                var app = com.worldgenv2.studio.shell.StudioApp.get();
+                if (app.project == null) return "{\"error\":\"no project\"}";
+                var asset = app.project.get(q.getOrDefault("path", ""));
+                if (asset == null) return "{\"error\":\"no such asset\"}";
+                var patch = com.google.gson.JsonParser.parseString(q.getOrDefault("json", "{}")).getAsJsonObject();
+                app.project.edit(asset, "Dev patch", j -> patch.entrySet().forEach(e -> j.add(e.getKey(), e.getValue())));
+                return ok();
+            });
             case "/guiscale" -> onRender(() -> {
                 Minecraft mc = Minecraft.getInstance();
                 mc.options.guiScale().set((int) d(q, "n", 0));

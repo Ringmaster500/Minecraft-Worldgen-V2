@@ -112,6 +112,7 @@ public class WorldGenStudioScreen extends Screen {
                 case 90 -> { if (shift) app.redo(); else app.undo(); return true; }  // Z
                 case 89 -> { app.redo(); return true; }                              // Y
                 case 87 -> { if (app.activeDoc != null) app.closeDoc(app.activeDoc); return true; } // W
+                case 257, 335 -> { app.applyToWorld(); return true; }                              // Enter: apply
                 case 74 -> { app.problemsOpen = !app.problemsOpen; app.uiRevision++; return true; } // J
                 case 61, 334 -> { app.uiScale = Math.min(4, app.uiScale + 1); return true; }        // + : bigger UI
                 case 45, 333 -> { app.uiScale = Math.max(1, app.uiScale - 1); return true; }        // - : smaller UI

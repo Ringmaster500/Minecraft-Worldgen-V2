@@ -24,6 +24,8 @@ final class BiomeEditor extends Editor {
         field("Category", choice("category", "plains", Templates.BIOME_CATEGORIES, s -> s, "Biome category"),
                 "Used for grouping, colours, and spawn rules.");
 
+        field("Minecraft biome", minecraftBiomeField(), "The vanilla or modded biome used for sky, water and foliage colour, mob spawns and music. Type any biome id.");
+
         section("Distribution", "how often and how large this biome appears");
         field("Weight", num("weight", 10, 0.01, 1000, 1, false, "Biome weight"), "Relative chance versus other biomes in the pool.");
         field("Size modifier", num("sizeModifier", 1, 0.1, 10, 0.1, false, "Biome size"), "1 = normal cell size. Bigger values make larger regions.");
@@ -39,6 +41,24 @@ final class BiomeEditor extends Editor {
         section("Terrain graph", "structure of this biome's density function");
         block(new Outline());
         note("Visual node editing arrives with the Graph view; JSON view shows the full tree.", Ui.TEXT_FAINT);
+    }
+
+    /** Text field for the Minecraft biome this biome presents as, with a picker of vanilla biomes. */
+    private Widget minecraftBiomeField() {
+        TextField f = str("minecraftBiome", "", "Minecraft biome");
+        f.placeholder = "auto: " + com.worldgenv2.pack.ProjectCompiler.defaultMinecraftBiome(getStr("category", "plains"));
+        Button pick = new Button("Pick", () -> {
+            if (root == null) return;
+            java.util.TreeSet<String> ids = new java.util.TreeSet<>();
+            for (com.worldgenv2.minecraft.DefaultBiomeCatalog.Entry e : com.worldgenv2.minecraft.DefaultBiomeCatalog.entries()) {
+                if (e.vanilla() != null) ids.add(e.vanilla().identifier().toString());
+            }
+            List<PopupMenu.Item> items = new ArrayList<>();
+            for (String id : ids) items.add(PopupMenu.Item.of(id, () -> edit("Minecraft biome", j -> j.addProperty("minecraftBiome", id))));
+            PopupMenu.open(root, f.x, f.y + f.h, 200, items, -1, 16);
+        });
+        pick.tooltip = "Choose a vanilla biome. Modded biome ids can be typed in directly.";
+        return new Pair(f, pick, 36);
     }
 
     /** 2D plot of temperature (x) against humidity (y) with this biome and its siblings marked. */

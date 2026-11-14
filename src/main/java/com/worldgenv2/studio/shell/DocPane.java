@@ -13,11 +13,13 @@ final class DocPane extends Widget {
 
     private final StudioApp app;
     private final TabBar tabs = add(new TabBar());
-    private final Button formBtn, jsonBtn;
+    private final Button formBtn, jsonBtn, mapBtn, graphBtn;
+    private final MapPreview preview;
     private String shownDoc;
     private Widget body;
     private final java.util.Map<String, Editor> editors = new java.util.HashMap<>();
     private final java.util.Map<String, JsonView> jsons = new java.util.HashMap<>();
+    private final java.util.Map<String, GraphEditor> graphs = new java.util.HashMap<>();
     private long builtStamp = -1;
 
     DocPane(StudioApp app) {
@@ -26,6 +28,16 @@ final class DocPane extends Widget {
         tabs.onClose = p -> app.closeDoc(p);
         formBtn = add(new Button("Form", () -> app.setView(app.activeDoc, StudioApp.View.FORM)));
         jsonBtn = add(new Button("JSON", () -> app.setView(app.activeDoc, StudioApp.View.JSON)));
+        graphBtn = add(new Button("Graph", () -> app.setView(app.activeDoc, StudioApp.View.GRAPH)));
+        mapBtn = add(new Button("Map", () -> { app.previewOpen = !app.previewOpen; app.uiRevision++; }));
+        mapBtn.tooltip = "Show / hide the live map preview";
+        preview = add(new MapPreview(app));
+    }
+
+    private boolean showMap() {
+        Asset a = app.activeAsset();
+        return a != null && a.type == AssetType.DIMENSION && app.previewOpen && body instanceof Editor
+                && "worldgenv2".equals(com.worldgenv2.studio.project.J.str(a.json, "generator", "worldgenv2"));
     }
 
     private void refreshTabs() {
@@ -42,6 +54,9 @@ final class DocPane extends Widget {
     }
 
     private Widget makeBody(Asset a) {
+        if (app.viewOf(a.path) == StudioApp.View.GRAPH && a.type == AssetType.BIOME && a.parseError == null) {
+            return graphs.computeIfAbsent(a.path, k -> new GraphEditor(app, a));
+        }
         if (app.viewOf(a.path) == StudioApp.View.JSON || a.parseError != null || a.type == AssetType.PREFAB) {
             return jsons.computeIfAbsent(a.path, k -> new JsonView(app, a));
         }
@@ -60,9 +75,15 @@ final class DocPane extends Widget {
     public void layout() {
         tabs.setBounds(x, y, w, Ui.TAB_H);
         int by = y + Ui.TAB_H + HEADER_H;
-        if (body != null) body.setBounds(x, by, w, Math.max(0, y + h - by));
+        boolean map = showMap();
+        int bodyW = map ? Math.max(260, w * 52 / 100) : w;
+        if (body != null) body.setBounds(x, by, bodyW, Math.max(0, y + h - by));
+        preview.visible = map;
+        if (map) preview.setBounds(x + bodyW, by, w - bodyW, Math.max(0, y + h - by));
+        graphBtn.setBounds(x + w - 136, y + Ui.TAB_H + 4, 42, 16);
         formBtn.setBounds(x + w - 90, y + Ui.TAB_H + 4, 40, 16);
         jsonBtn.setBounds(x + w - 46, y + Ui.TAB_H + 4, 40, 16);
+        mapBtn.setBounds(x + w - 128, y + Ui.TAB_H + 4, 34, 16);
     }
 
     @Override
@@ -71,6 +92,7 @@ final class DocPane extends Widget {
         // drop caches for deleted/renamed assets
         editors.keySet().removeIf(p -> app.project.get(p) == null);
         jsons.keySet().removeIf(p -> app.project.get(p) == null);
+        graphs.keySet().removeIf(p -> app.project.get(p) == null);
 
         long st = app.stamp();
         if (st != builtStamp || a == null || !a.path.equals(shownDoc)) {
@@ -88,10 +110,18 @@ final class DocPane extends Widget {
             }
             if (body instanceof Editor e) e.sync();
         }
-        boolean json = a != null && (app.viewOf(a.path) == StudioApp.View.JSON);
+        StudioApp.View vw = a == null ? StudioApp.View.FORM : app.viewOf(a.path);
+        boolean json = a != null && vw == StudioApp.View.JSON;
+        boolean graph = a != null && vw == StudioApp.View.GRAPH && a.type == AssetType.BIOME;
+        graphBtn.visible = a != null && a.type == AssetType.BIOME && a.parseError == null;
+        graphBtn.selected = graph;
+        mapBtn.visible = a != null && a.type == AssetType.DIMENSION && !json;
+        mapBtn.selected = app.previewOpen;
+        if (a != null && a.type == AssetType.DIMENSION) { preview.target(a.id()); layout(); }
+        else { preview.visible = false; }
         formBtn.visible = a != null && a.type != AssetType.PREFAB && a.parseError == null;
         jsonBtn.visible = a != null && a.type != AssetType.PREFAB;
-        formBtn.selected = !json;
+        formBtn.selected = !json && !graph;
         jsonBtn.selected = json;
         super.renderChildren(g, mx, my);
     }

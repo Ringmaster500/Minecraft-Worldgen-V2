@@ -35,8 +35,8 @@ public final class WorldGenV2BiomeSource extends BiomeSource {
     );
 
     private final HolderGetter<Biome> biomeLookup;
-    private final Holder<Biome>[] holdersById;
-    private final List<Holder<Biome>> distinctHolders;
+    private volatile Holder<Biome>[] holdersById;
+    private volatile List<Holder<Biome>> distinctHolders;
 
     private final int cellSize;
     private final String layoutPreset;
@@ -64,7 +64,25 @@ public final class WorldGenV2BiomeSource extends BiomeSource {
         this.holdersById = byId;
         this.distinctHolders = List.copyOf(distinct);
 
-        this.worldStructure = DefaultWorldFactory.createDefaultWorldStructure(seed, this.cellSize, this.layoutPreset);
+        this.worldStructure = buildStructure(seed);
+    }
+
+    /**
+     * Builds the world for this source. A layout preset of {@code project:<dimension>} compiles the active Studio
+     * project (and swaps in its biome-to-Minecraft-biome mapping); anything else, or a project that fails to load,
+     * uses the built-in factory so a broken pack never crashes world creation.
+     */
+    private WorldStructure buildStructure(long forSeed) {
+        if (this.layoutPreset.startsWith(com.worldgenv2.pack.ProjectRuntime.REF_PREFIX)) {
+            com.worldgenv2.pack.ProjectRuntime.Runtime rt =
+                com.worldgenv2.pack.ProjectRuntime.build(this.biomeLookup, forSeed, this.layoutPreset);
+            if (rt != null) {
+                this.holdersById = rt.holders();
+                this.distinctHolders = List.copyOf(rt.distinct());
+                return rt.structure();
+            }
+        }
+        return DefaultWorldFactory.createDefaultWorldStructure(forSeed, this.cellSize, this.layoutPreset);
     }
 
     /**
@@ -73,15 +91,16 @@ public final class WorldGenV2BiomeSource extends BiomeSource {
     public synchronized void ensureWorldSeed(long levelSeed) {
         if (this.seed != levelSeed || this.worldStructure == null) {
             this.seed = levelSeed;
-            this.worldStructure = DefaultWorldFactory.createDefaultWorldStructure(levelSeed, this.cellSize, this.layoutPreset);
+            this.worldStructure = buildStructure(levelSeed);
         }
     }
 
     /**
-     * Rebuilds the underlying WorldStructure (used by {@code /worldgenv2 reload}).
+     * Rebuilds the underlying WorldStructure (used by {@code /worldgenv2 reload} and Studio's Apply).
+     * Project worlds re-read the project from disk.
      */
     public synchronized void reload() {
-        this.worldStructure = DefaultWorldFactory.createDefaultWorldStructure(this.seed, this.cellSize, this.layoutPreset);
+        this.worldStructure = buildStructure(this.seed);
     }
 
     public String getLayoutPreset() {

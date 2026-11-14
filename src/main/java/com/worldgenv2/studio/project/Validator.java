@@ -3,7 +3,7 @@ package com.worldgenv2.studio.project;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.worldgenv2.studio.StudioNodeCatalog;
+import com.worldgenv2.studio.graph.NodeSchemas;
 import com.worldgenv2.studio.project.Asset.Severity;
 
 /** Rules that turn "the file is valid JSON" into "the asset will actually work". */
@@ -87,7 +87,7 @@ final class Validator {
         if (el.isJsonObject()) {
             JsonObject o = el.getAsJsonObject();
             String type = J.str(o, "type", null);
-            if (type != null && StudioNodeCatalog.getSchema(type) == null) {
+            if (type != null && !NodeSchemas.known(type)) {
                 warn(a, "Unknown node type '" + type + "' at " + where + ".");
             }
             for (var e : o.entrySet()) checkNodes(a, e.getValue(), where + "." + e.getKey());

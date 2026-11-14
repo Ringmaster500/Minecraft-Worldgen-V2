@@ -59,6 +59,8 @@ public abstract class Widget {
         return Gfx.in(px, py, x, y, w, h);
     }
 
+    public UiRoot uiRoot() { return root; }
+
     public boolean isFocused() {
         return root != null && root.focused() == this;
     }

@@ -18,7 +18,7 @@ import java.util.Map;
  */
 public final class StudioApp {
 
-    public enum View { FORM, JSON }
+    public enum View { FORM, GRAPH, JSON }
 
     private static final StudioApp INSTANCE = new StudioApp();
 
@@ -29,6 +29,7 @@ public final class StudioApp {
     public String activeDoc;
     public final Map<String, View> views = new HashMap<>();
     public boolean problemsOpen;
+    public boolean previewOpen = true;
     public int uiScale = 2;
     /** Bumped by app-level changes (doc open/close, status) so views know to refresh. */
     public int uiRevision;
@@ -173,6 +174,10 @@ public final class StudioApp {
         pruneDocs();
         say("Moved '" + a.id() + "' to .trash/ in the project folder");
     }
+
+    public void applyToWorld() { LiveWorld.apply(this); }
+
+    public void regenAroundPlayer() { LiveWorld.regenAround(this, 5); }
 
     /** Combined stamp: changes whenever either app state or project content changed. */
     public long stamp() {

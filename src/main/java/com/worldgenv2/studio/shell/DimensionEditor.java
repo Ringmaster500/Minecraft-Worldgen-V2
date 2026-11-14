@@ -36,23 +36,247 @@ final class DimensionEditor extends Editor {
             return;
         }
 
+        builtRefs = refSignature();
+
         section("Layout", "macro structure of the dimension");
-        field("Layout", choice("layout", "voronoi_continent", Templates.LAYOUTS, Templates::layoutLabel, "Layout"),
-                "How landmasses and zones are arranged.");
+        Dropdown layout = new Dropdown();
+        layout.options(Templates.LAYOUTS);
+        layout.display = Templates::layoutLabel;
+        layout.onSelect = this::chooseLayout;
+        bind(() -> layout.selected(getStr("layout", "voronoi_continent")));
+        field("Layout", layout, "A starting template. Picking one fills in the zones, rings and bounds below, which you can then edit freely.");
         TextField seed = num("seed", 1337, Integer.MIN_VALUE, Integer.MAX_VALUE, 1, true, "Seed");
         Button roll = new Button("Roll", () -> edit("Seed", j -> J.setNum(j, "seed", new Random().nextInt(900_000_000))));
         roll.tooltip = "Pick a random seed";
         field("Seed", new Pair(seed, roll, 36), "Seed for this dimension's layout. Biome noise also derives from it.");
+        field("Seed mode", choice("seedMode", "world", List.of("world", "fixed"),
+                s -> s.equals("fixed") ? "Fixed - always use this seed" : "Random per world", "Seed mode"),
+                "Per-world: each new world rolls its own layout (the seed above is only the preview). Fixed: every world is identical, e.g. a story map.");
         field("Cell size", num("cellSize", 192, 16, 4096, 16, true, "Cell size"), "Average Voronoi cell width in blocks.");
 
         section("Biome pool", "which biomes this dimension may generate");
         block(new PoolTable());
-        note("Zones, rings and landmarks editing arrives in the next milestone.", Ui.TEXT_FAINT);
+
+        // ---- spawn: the "start with a structure" workflow ----
+        section("Spawn structure", "a guaranteed structure where players start");
+        field("Enabled", toggle("spawn.enabled", false, "Spawn enabled", "Place a structure at spawn"), null);
+        field("Structure", choice("spawn.prefab", "", prefabOptions(), prefabLabel(), "Spawn prefab"),
+                "Which prefab to build. Add prefabs under Prefabs in the explorer.");
+        field("Position X", num("spawn.x", 0, -30000, 30000, 8, true, "Spawn X"), "World X of the structure's origin.");
+        field("Position Z", num("spawn.z", 0, -30000, 30000, 8, true, "Spawn Z"), "World Z of the structure's origin.");
+        field("Crater radius", num("spawn.craterRadius", 0, 0, 400, 2, false, "Crater radius"), "0 = no crater. A crash site excavates the ground around it.");
+        field("Crater depth", num("spawn.craterDepth", 0, 0, 64, 1, false, "Crater depth"), "How deep the crater is carved.");
+        field("Crater rim", num("spawn.rimHeight", 0, 0, 32, 1, false, "Crater rim"), "Height of the raised lip around the crater.");
+        field("Lock player spawn", toggle("spawn.lockSpawn", true, "Lock spawn", "New players always start here"), null);
+
+        // ---- landmarks: connected structures ----
+        section("Connected structures", "landmarks placed relative to each other, optionally joined by roads");
+        block(new CardList(this, "landmarks", "landmark", List.of(
+                CardList.Field.str("id", "Name", "Unique name; other landmarks refer to it."),
+                CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
+                CardList.Field.choice("parent", "Placed from", this::parentOptions,
+                        s -> s.isEmpty() ? "(world origin)" : s, "Root landmarks are placed from the origin; others around a root landmark."),
+                CardList.Field.num("minDistance", "Min distance", 0, 20000, 8, "Blocks from the origin (root) or from its parent."),
+                CardList.Field.num("maxDistance", "Max distance", 0, 20000, 8, "Maximum blocks away."),
+                CardList.Field.choice("direction", "Direction", () -> List.of("auto", "N", "NE", "E", "SE", "S", "SW", "W", "NW"),
+                        s -> s.equals("auto") ? "Automatic" : s, "Which side of its parent this landmark sits on.").when(o -> !J.str(o, "parent", "").isEmpty()),
+                CardList.Field.toggle("road", "Connect by road", "Build a road between this landmark and its parent.").when(o -> !J.str(o, "parent", "").isEmpty()),
+                CardList.Field.num("roadWidth", "Road width", 2, 16, 1, null).when(o -> !J.str(o, "parent", "").isEmpty() && J.bool(o, "road", true)),
+                CardList.Field.num("shoulderWidth", "Shoulder", 0, 12, 1, null).when(o -> !J.str(o, "parent", "").isEmpty() && J.bool(o, "road", true)),
+                CardList.Field.biomes("biomes", "Allowed in", "Biomes this landmark may be placed in. Empty = anywhere.")),
+                this::newLandmark, o -> J.str(o, "id", "landmark") + (J.str(o, "parent", "").isEmpty() ? "   (root)" : "   <- " + J.str(o, "parent", "")),
+                "None yet. Add a root landmark, then others that connect to it."));
+
+        // ---- budgets: finite points of interest ----
+        section("Points of interest", "a fixed number of structures scattered between two distances from spawn");
+        block(new CardList(this, "budgets", "point of interest", List.of(
+                CardList.Field.str("id", "Name", "Unique name."),
+                CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
+                CardList.Field.num("minRadius", "Min radius", 0, 30000, 50, "Closest distance from spawn."),
+                CardList.Field.num("maxRadius", "Max radius", 0, 30000, 50, "Farthest distance from spawn."),
+                CardList.Field.integer("minQuota", "Min count", 1, 256, "At least this many are placed."),
+                CardList.Field.integer("maxQuota", "Max count", 1, 256, "Never more than this many, anywhere in the world."),
+                CardList.Field.num("separation", "Spacing", 32, 5000, 16, "Minimum distance between two of them."),
+                CardList.Field.str("loot", "Loot table", "Optional loot table override for chests inside."),
+                CardList.Field.biomes("biomes", "Allowed in", "Empty = any biome.")),
+                this::newBudget, o -> J.str(o, "id", "poi") + "   " + J.integer(o, "minQuota", 1) + "-" + J.integer(o, "maxQuota", 1) + " total",
+                "None yet. Add one to scatter a finite set of structures."));
+
+        // ---- zones / rings / bounds ----
+        section("Zones", "circular regions that reshape terrain or force a biome");
+        block(new CardList(this, "zones", "zone", List.of(
+                CardList.Field.str("id", "Name", null),
+                CardList.Field.choice("mode", "Effect", () -> List.of("BIOME_OVERRIDE", "ISLAND_PLATEAU", "VOID_MOAT", "OUTER_ISLANDS"),
+                        DimensionEditor::zoneLabel, "What this zone does to terrain."),
+                CardList.Field.num("centerX", "Center X", -30000, 30000, 8, null),
+                CardList.Field.num("centerZ", "Center Z", -30000, 30000, 8, null),
+                CardList.Field.num("inner", "Inner radius", 0, 60000, 8, "Zone starts this far from its center."),
+                CardList.Field.num("outer", "Outer radius", 0, 60000, 8, "Zone ends this far from its center."),
+                CardList.Field.num("falloff", "Edge blend", 4, 500, 4, "Distance over which the effect fades."),
+                CardList.Field.choice("biome", "Biome", this::biomeOptions, s -> s.isEmpty() ? "(unchanged)" : s, "Biome forced inside the zone."),
+                CardList.Field.num("elevation", "Surface Y", -2048, 4096, 1, "Target ground height for plateau/island zones."),
+                CardList.Field.num("thickness", "Thickness", 8, 400, 4, null),
+                CardList.Field.toggle("floating", "Floating", "Round off the underside so it floats.")),
+                this::newZone, o -> J.str(o, "id", "zone") + "   " + zoneLabel(J.str(o, "mode", "")) + "  r " + J.integer(o, "inner", 0) + "-" + J.integer(o, "outer", 0),
+                "No zones. The dimension is one endless landmass."));
+
+        section("Pillar rings", "circular arrays of towers (e.g. the End's obsidian pillars)");
+        block(new CardList(this, "rings", "ring", List.of(
+                CardList.Field.str("id", "Name", null),
+                CardList.Field.integer("count", "Count", 1, 64, null),
+                CardList.Field.num("radius", "Ring radius", 8, 2000, 4, null),
+                CardList.Field.integer("pillarRadius", "Pillar radius", 1, 8, null),
+                CardList.Field.integer("minHeight", "Min height", 16, 400, null),
+                CardList.Field.integer("maxHeight", "Max height", 16, 400, null),
+                CardList.Field.str("block", "Block", "e.g. minecraft:obsidian"),
+                CardList.Field.str("cap", "Cap block", "e.g. minecraft:bedrock")),
+                this::newRing, o -> J.str(o, "id", "ring") + "   " + J.integer(o, "count", 0) + " pillars",
+                "None."));
+
+        section("World edge & materials", "what happens beyond a finite world, and the base blocks");
+        field("Outside bounds", choice("bounds.outside", "DEFAULT_BIOMES", List.of("DEFAULT_BIOMES", "VOID", "OCEAN", "VANILLA_DEFAULT"),
+                s -> switch (s) { case "VOID" -> "Void"; case "OCEAN" -> "Ocean"; case "VANILLA_DEFAULT" -> "Vanilla terrain"; default -> "Continue biomes"; },
+                "Outside bounds"), "What exists past the bounds radius.");
+        field("Bounds radius", num("bounds.radius", 0, 0, 100000, 16, false, "Bounds radius"), "0 = infinite.");
+        field("Edge blend", num("bounds.falloff", 64, 8, 2000, 8, false, "Bounds falloff"), "Blend distance at the bounds edge.");
+        field("Base block", str("defaultBlock", "minecraft:stone", "Base block"), "Solid fill used for terrain.");
+        field("Fluid", str("defaultFluid", "minecraft:water", "Fluid"), "Liquid for oceans and rivers. Use minecraft:air for none.");
+        field("Rivers", toggle("rivers", true, "Rivers", "Carve rivers"), null);
+        field("Caves", toggle("caves", true, "Caves", "Carve caves and underground biomes"), null);
+    }
+
+    // ---- option sources ----
+    private String builtRefs = "";
+
+    private String refSignature() {
+        StringBuilder sb = new StringBuilder();
+        for (Asset a : project().assetsOf(AssetType.PREFAB)) sb.append('p').append(a.id());
+        for (Asset a : project().assetsOf(AssetType.BIOME)) sb.append('b').append(a.id());
+        return sb.toString();
+    }
+
+    private List<String> prefabOptions() {
+        List<String> o = new ArrayList<>();
+        o.add("");
+        for (Asset a : project().assetsOf(AssetType.PREFAB)) o.add(a.id());
+        return o;
+    }
+
+    private java.util.function.Function<String, String> prefabLabel() {
+        return s -> s.isEmpty() ? "(none)" : s;
+    }
+
+    private List<String> biomeOptions() {
+        List<String> o = new ArrayList<>();
+        o.add("");
+        for (Asset a : project().assetsOf(AssetType.BIOME)) o.add(a.id());
+        return o;
+    }
+
+    private List<String> parentOptions() {
+        List<String> o = new ArrayList<>();
+        o.add("");
+        Asset a = asset();
+        JsonArray lms = a == null ? null : J.arr(a.json, "landmarks");
+        if (lms != null) for (JsonElement e : lms) {
+            if (e.isJsonObject() && J.str(e.getAsJsonObject(), "parent", "").isEmpty()) o.add(J.str(e.getAsJsonObject(), "id", ""));
+        }
+        return o;
+    }
+
+    private static String zoneLabel(String mode) {
+        return switch (mode) {
+            case "ISLAND_PLATEAU" -> "Island / plateau";
+            case "VOID_MOAT" -> "Void moat";
+            case "OUTER_ISLANDS" -> "Floating islands";
+            case "BIOME_OVERRIDE" -> "Force biome";
+            default -> mode;
+        };
+    }
+
+    // ---- new-entry factories ----
+    private int countOf(String key) {
+        Asset a = asset();
+        JsonArray arr = a == null ? null : J.arr(a.json, key);
+        return arr == null ? 0 : arr.size();
+    }
+
+    private JsonObject newLandmark(int n) {
+        JsonObject o = new JsonObject();
+        boolean first = parentOptions().size() == 1;
+        o.addProperty("id", first ? "central_site" : "outpost_" + n);
+        o.addProperty("prefab", "");
+        o.addProperty("parent", first ? "" : parentOptions().get(1));
+        J.setNum(o, "minDistance", first ? 48 : 120);
+        J.setNum(o, "maxDistance", first ? 140 : 240);
+        o.addProperty("direction", "auto");
+        o.addProperty("road", true);
+        J.setNum(o, "roadWidth", 5);
+        J.setNum(o, "shoulderWidth", 3);
+        o.addProperty("faceParent", true);
+        o.add("biomes", new JsonArray());
+        return o;
+    }
+
+    private JsonObject newBudget(int n) {
+        JsonObject o = new JsonObject();
+        o.addProperty("id", "poi_" + (n + 1));
+        o.addProperty("prefab", "");
+        J.setNum(o, "minRadius", 600);
+        J.setNum(o, "maxRadius", 2500);
+        J.setNum(o, "minQuota", 3);
+        J.setNum(o, "maxQuota", 5);
+        J.setNum(o, "separation", 300);
+        o.addProperty("loot", "");
+        o.add("biomes", new JsonArray());
+        return o;
+    }
+
+    private JsonObject newZone(int n) {
+        JsonObject o = new JsonObject();
+        o.addProperty("id", "zone_" + (n + 1));
+        o.addProperty("mode", "BIOME_OVERRIDE");
+        J.setNum(o, "centerX", 0);
+        J.setNum(o, "centerZ", 0);
+        J.setNum(o, "inner", 0);
+        J.setNum(o, "outer", 300);
+        J.setNum(o, "falloff", 32);
+        o.addProperty("biome", "");
+        J.setNum(o, "elevation", 70);
+        J.setNum(o, "thickness", 32);
+        o.addProperty("floating", false);
+        return o;
+    }
+
+    private JsonObject newRing(int n) {
+        JsonObject o = new JsonObject();
+        o.addProperty("id", "ring_" + (n + 1));
+        J.setNum(o, "centerX", 0);
+        J.setNum(o, "centerZ", 0);
+        J.setNum(o, "radius", 40);
+        J.setNum(o, "count", 8);
+        J.setNum(o, "pillarRadius", 3);
+        J.setNum(o, "minHeight", 70);
+        J.setNum(o, "maxHeight", 100);
+        o.addProperty("block", "minecraft:obsidian");
+        o.addProperty("cap", "minecraft:bedrock");
+        return o;
+    }
+
+    private void chooseLayout(String layoutId) {
+        if (layoutId.equals(getStr("layout", ""))) return;
+        Runnable apply = () -> edit("Layout template", j -> Templates.applyLayout(j, layoutId, project()));
+        if ((countOf("zones") > 0 || countOf("rings") > 0) && root != null) {
+            Modal.confirm(root, "Replace zones?", "Applying '" + Templates.layoutLabel(layoutId) + "' replaces this dimension's\nzones, pillar rings and world bounds with the template's.",
+                    "Apply template", true, apply);
+        } else {
+            apply.run();
+        }
     }
 
     @Override
     protected void onSynced() {
-        if (!getStr("generator", "worldgenv2").equals(builtGenerator)) rebuild();
+        if (!getStr("generator", "worldgenv2").equals(builtGenerator) || !refSignature().equals(builtRefs)) rebuild();
     }
 
     private JsonArray pool() {

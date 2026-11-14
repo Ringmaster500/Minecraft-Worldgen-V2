@@ -21,6 +21,14 @@ public final class Asset {
     public String parseError;
     public String rawText;
     public final List<Problem> problems = new ArrayList<>();
+    /** Problems discovered by the live preview compiler (not stored on disk). Replaced wholesale on each compile. */
+    public volatile List<Problem> live = List.of();
+
+    public List<Problem> allProblems() {
+        List<Problem> all = new ArrayList<>(problems);
+        all.addAll(live);
+        return all;
+    }
 
     public Asset(String path, AssetType type, JsonObject json) {
         this.path = path;
@@ -50,7 +58,7 @@ public final class Asset {
 
     public int worstSeverityColor() {
         boolean warn = false;
-        for (Problem p : problems) {
+        for (Problem p : allProblems()) {
             if (p.severity() == Severity.ERROR) return 0xFFE5534B;
             if (p.severity() == Severity.WARNING) warn = true;
         }

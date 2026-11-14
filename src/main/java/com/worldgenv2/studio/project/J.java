@@ -9,6 +9,10 @@ import com.google.gson.JsonPrimitive;
 public final class J {
     private J() {}
 
+    public static boolean has(JsonObject o, String k) {
+        return o != null && o.has(k) && !o.get(k).isJsonNull();
+    }
+
     public static String str(JsonObject o, String k, String def) {
         JsonElement e = o == null ? null : o.get(k);
         return e != null && e.isJsonPrimitive() ? e.getAsString() : def;

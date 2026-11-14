@@ -84,6 +84,76 @@ public final class Templates {
         return o;
     }
 
+    /**
+     * Replaces zones, rings and bounds on a dimension with a layout template. Templates are plain data so
+     * the creator can edit every number afterwards; they mirror the engine's built-in layouts.
+     */
+    public static void applyLayout(JsonObject d, String layout, StudioProject p) {
+        d.addProperty("layout", layout);
+        JsonArray zones = new JsonArray();
+        JsonArray rings = new JsonArray();
+        JsonObject bounds = new JsonObject();
+        J.setNum(bounds, "radius", 0);
+        J.setNum(bounds, "falloff", 64);
+        bounds.addProperty("outside", "DEFAULT_BIOMES");
+        d.addProperty("defaultBlock", "minecraft:stone");
+        d.addProperty("defaultFluid", "minecraft:water");
+        String ocean = "";
+        if (p != null) for (Asset a : p.assetsOf(AssetType.BIOME)) {
+            if ("ocean".equals(J.str(a.json, "category", ""))) { ocean = a.id(); break; }
+        }
+        switch (layout) {
+            case "spawn_island_landmarks", "bounded_skyblock" -> {
+                boolean sky = layout.equals("bounded_skyblock");
+                zones.add(zone("spawn_island_core", "ISLAND_PLATEAU", 0, sky ? 180 : 220, 36, "", 72, 40, false));
+                if (!sky) zones.add(zone("spawn_ocean_ring", "BIOME_OVERRIDE", 220, 520, 40, ocean, 45, 24, false));
+                J.setNum(bounds, "radius", sky ? 380 : 640);
+                bounds.addProperty("outside", sky ? "VOID" : "DEFAULT_BIOMES");
+            }
+            case "end_rings_archipelago" -> {
+                zones.add(zone("central_end_island", "ISLAND_PLATEAU", 0, 190, 32, "", 62, 38, true));
+                zones.add(zone("end_void_moat", "VOID_MOAT", 190, 960, 36, "", 0, 16, true));
+                zones.add(zone("outer_end_islands", "OUTER_ISLANDS", 960, 30000, 64, "", 60, 28, true));
+                JsonObject ring = new JsonObject();
+                ring.addProperty("id", "obsidian_towers");
+                J.setNum(ring, "centerX", 0);
+                J.setNum(ring, "centerZ", 0);
+                J.setNum(ring, "radius", 43);
+                J.setNum(ring, "count", 10);
+                J.setNum(ring, "pillarRadius", 3);
+                J.setNum(ring, "minHeight", 76);
+                J.setNum(ring, "maxHeight", 103);
+                ring.addProperty("block", "minecraft:obsidian");
+                ring.addProperty("cap", "minecraft:bedrock");
+                rings.add(ring);
+                bounds.addProperty("outside", "VOID");
+                d.addProperty("defaultBlock", "minecraft:end_stone");
+                d.addProperty("defaultFluid", "minecraft:air");
+            }
+            default -> {}
+        }
+        d.add("zones", zones);
+        d.add("rings", rings);
+        d.add("bounds", bounds);
+    }
+
+    private static JsonObject zone(String id, String mode, double inner, double outer, double falloff, String biome,
+                                   double elevation, double thickness, boolean floating) {
+        JsonObject z = new JsonObject();
+        z.addProperty("id", id);
+        z.addProperty("mode", mode);
+        J.setNum(z, "centerX", 0);
+        J.setNum(z, "centerZ", 0);
+        J.setNum(z, "inner", inner);
+        J.setNum(z, "outer", outer);
+        J.setNum(z, "falloff", falloff);
+        z.addProperty("biome", biome);
+        J.setNum(z, "elevation", elevation);
+        J.setNum(z, "thickness", thickness);
+        z.addProperty("floating", floating);
+        return z;
+    }
+
     /** A dimension pool entry seeded from the biome's own defaults. */
     public static JsonObject poolEntry(String biomeId, JsonObject biome) {
         JsonObject e = new JsonObject();
@@ -120,10 +190,10 @@ public final class Templates {
         JsonObject end = new JsonObject();
         end.addProperty("id", "minecraft:the_end");
         end.addProperty("generator", "worldgenv2");
-        end.addProperty("layout", "end_rings_archipelago");
         end.addProperty("seed", 1337);
         end.addProperty("cellSize", 192);
         end.add("biomes", new JsonArray());
+        applyLayout(end, "end_rings_archipelago", p);
         for (var d : new Object[][]{{"overworld", ow}, {"the_nether", nether}, {"the_end", end}}) {
             Asset a = new Asset("dimensions/" + d[0] + ".json", AssetType.DIMENSION, (JsonObject) d[1]);
             a.dirty = true;
