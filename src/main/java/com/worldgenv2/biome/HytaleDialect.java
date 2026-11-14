@@ -572,6 +572,11 @@ public final class HytaleDialect {
         return out;
     }
 
+    /** Registers a density node under a Hytale name, keeping the previously registered form for JSON that is not in Hytale's shape. */
+    private static void overD(WorldGenV2Registries.Registry<WorldGenV2Registries.DensityNodeDeserializer> R, String name, java.util.function.Predicate<Map<String, Object>> isHytale, WorldGenV2Registries.DensityNodeDeserializer hy) {
+        WorldGenV2Registries.DensityNodeDeserializer legacy = R.get(name);
+        R.register(name, (j, ctx) -> legacy == null || isHytale.test(j) ? hy.deserialize(j, ctx) : legacy.deserialize(j, ctx));
+    }
     static void registerDensity() {
         var R = WorldGenV2Registries.DENSITY_NODE_TYPE;
         R.register("Multiplier", (j, ctx) -> HDensity.multiplier(inputs(j, ctx)));
@@ -601,7 +606,68 @@ public final class HytaleDialect {
                 return (float) Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, c))));
             };
         });
-        R.register("BaseHeight", (j, ctx) -> {
+        // Hytale's shapes, rotation, trig, warps and switches (an older-shaped JSON keeps loading as before)
+        overD(R, "Ellipsoid", j -> j.containsKey("scale") || j.containsKey("newyaxis") || j.containsKey("spin"), (j, ctx) -> {
+            double[] s = vecD(get(j, "scale"), 1.0), y = vecD(get(j, "newyaxis"), 0.0);
+            return HDensity.ellipsoid(JsonAstCompiler.compileCurve(get(j, "curve"), ctx), s[0], s[1], s[2], HDensity.Frame.of(y[0], y[1] == 0 && y[0] == 0 && y[2] == 0 ? 1 : y[1], y[2], dnum(get(j, "spin"), 0)));
+        });
+        overD(R, "Cuboid", j -> j.containsKey("scale") || j.containsKey("newyaxis") || j.containsKey("spin"), (j, ctx) -> {
+            double[] s = vecD(get(j, "scale"), 1.0), y = vecD(get(j, "newyaxis"), 0.0);
+            return HDensity.cuboid(JsonAstCompiler.compileCurve(get(j, "curve"), ctx), s[0], s[1], s[2], HDensity.Frame.of(y[0], y[1] == 0 && y[0] == 0 && y[2] == 0 ? 1 : y[1], y[2], dnum(get(j, "spin"), 0)));
+        });
+        overD(R, "Cube", j -> j.containsKey("curve") && !j.containsKey("size") && !j.containsKey("halfx"), (j, ctx) ->
+                HDensity.cuboid(JsonAstCompiler.compileCurve(get(j, "curve"), ctx), 1, 1, 1, HDensity.Frame.of(0, 1, 0, 0)));
+        overD(R, "Cylinder", j -> j.containsKey("axialcurve") || j.containsKey("radialcurve"), (j, ctx) -> {
+            double[] y = vecD(get(j, "newyaxis"), 0.0);
+            return HDensity.cylinder(JsonAstCompiler.compileCurve(get(j, "axialcurve"), ctx), JsonAstCompiler.compileCurve(get(j, "radialcurve"), ctx),
+                    HDensity.Frame.of(y[0], y[1] == 0 && y[0] == 0 && y[2] == 0 ? 1 : y[1], y[2], dnum(get(j, "spin"), 0)));
+        });
+        overD(R, "Rotator", j -> j.containsKey("newyaxis") || j.containsKey("spinangle"), (j, ctx) -> {
+            double[] y = vecD(get(j, "newyaxis"), 0.0);
+            return HDensity.rotator(input(j, 0, ctx), HDensity.Frame.of(y[0], y[1] == 0 && y[0] == 0 && y[2] == 0 ? 1 : y[1], y[2], dnum(get(j, "spinangle"), 0)));
+        });
+        overD(R, "Trig", j -> j.containsKey("inputscale") || j.containsKey("inputs"), (j, ctx) ->
+                HDensity.trig(input(j, 0, ctx), HDensity.TrigFn.valueOf(String.valueOf(get(j, "function") == null ? "Sin" : get(j, "function")).toUpperCase(Locale.ROOT)), dnum(get(j, "inputscale"), 6.28)));
+        overD(R, "VectorWarp", j -> j.containsKey("warpvector") || j.containsKey("warpfactor"), (j, ctx) -> {
+            double[] v = vecD(get(j, "warpvector"), 0.0);
+            return HDensity.vectorWarp(input(j, 0, ctx), input(j, 1, ctx), dnum(get(j, "warpfactor"), 1.0), v[0], v[1], v[2]);
+        });
+        overD(R, "GradientWarp", j -> j.containsKey("samplerange") || j.containsKey("warpfactor"), (j, ctx) ->
+                HDensity.gradientWarp(input(j, 0, ctx), input(j, 1, ctx), dnum(get(j, "samplerange"), 1.0), dnum(get(j, "warpfactor"), 1.0), flag(get(j, "2d"), false), dnum(get(j, "yfor2d"), 0.0)));
+        overD(R, "FastGradientWarp", j -> j.containsKey("warpscale") || j.containsKey("warpfactor"), (j, ctx) ->
+                HDensity.fastGradientWarp(input(j, 0, ctx), dnum(get(j, "warpscale"), 50.0), dnum(get(j, "warplacunarity"), 2.0), dnum(get(j, "warppersistence"), 0.5), num(get(j, "warpoctaves"), 1), dnum(get(j, "warpfactor"), 10.0), ctx.nextSeedSalt(0)));
+        overD(R, "SwitchState", j -> j.containsKey("switchstate"), (j, ctx) -> HDensity.switchState(input(j, 0, ctx), String.valueOf(get(j, "switchstate"))));
+        overD(R, "Switch", j -> j.containsKey("switchcases"), (j, ctx) -> {
+            Map<String, DensityFunction> cases = new HashMap<>();
+            if (get(j, "switchcases") instanceof List<?> l) for (Object o : l) {
+                Map<String, Object> m = obj(o);
+                if (m == null) continue;
+                Object st = get(m, "casestate", "state", "name");
+                cases.put(st == null ? "Default" : String.valueOf(st), JsonAstCompiler.compileDensity(obj(get(m, "density")), ctx));
+            }
+            return HDensity.switchCases(cases);
+        });        overD(R, "Anchor", j -> j.containsKey("reverse") || j.containsKey("inputs"), (j, ctx) -> HDensity.anchor(input(j, 0, ctx), flag(get(j, "reverse"), false)));
+        overD(R, "PositionsCellNoise", j -> get(j, "returntype") instanceof Map, (j, ctx) -> {
+            Map<String, Object> rt = obj(get(j, "returntype"));
+            String type = String.valueOf(get(rt, "type"));
+            HDensity.ReturnType ret;
+            switch (type) {
+                case "CellValue" -> ret = HDensity.cellValueReturn(JsonAstCompiler.compileDensity(obj(get(rt, "density")), ctx), dnum(get(rt, "defaultvalue"), 0.0));
+                case "Curve" -> ret = HDensity.curveReturn(JsonAstCompiler.compileCurve(get(rt, "curve"), ctx));
+                case "Density" -> {
+                    List<HDensity.Delimiter> ds = new ArrayList<>();
+                    if (get(rt, "delimiters") instanceof List<?> l) for (Object o : l) {
+                        Map<String, Object> m = obj(o);
+                        if (m != null) ds.add(new HDensity.Delimiter(dnum(get(m, "min", "from"), -1e9), dnum(get(m, "max", "to"), 1e9), JsonAstCompiler.compileDensity(obj(get(m, "density")), ctx)));
+                    }
+                    ret = HDensity.densityReturn(JsonAstCompiler.compileDensity(obj(get(rt, "choicedensity")), ctx), ds, dnum(get(rt, "defaultvalue"), 0.0));
+                }
+                default -> ret = HDensity.distanceReturn(type);
+            }
+            Map<String, Object> df = obj(get(j, "distancefunction"));
+            boolean manhattan = df != null && "Manhattan".equalsIgnoreCase(String.valueOf(get(df, "type")));
+            return HDensity.positionsCellNoise(JsonAstCompiler.compilePositionsProvider(get(j, "positions"), ctx), ret, manhattan, dnum(get(j, "maxdistance"), 50.0));
+        });        R.register("BaseHeight", (j, ctx) -> {
             String name = String.valueOf(get(j, "baseheightname"));
             return HDensity.baseHeight(() -> ctx.decimalConstants().getOrDefault(name, 0.0), flag(get(j, "distance"), false));
         });
