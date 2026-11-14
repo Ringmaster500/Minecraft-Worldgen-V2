@@ -62,4 +62,9 @@ public final class StructureNearProp<T> implements Prop<T> {
         if (near == invert) return false;
         return child.generate(c);
     }
+
+    @Override
+    public int horizontalReach() {
+        return child.horizontalReach();
+    }
 }

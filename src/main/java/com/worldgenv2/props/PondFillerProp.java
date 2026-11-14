@@ -77,4 +77,9 @@ public final class PondFillerProp<T> implements Prop<T> {
         }
         return true;
     }
+
+    @Override
+    public int horizontalReach() {
+        return radius;
+    }
 }

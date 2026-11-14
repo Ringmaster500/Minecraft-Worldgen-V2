@@ -43,4 +43,11 @@ public final class FieldFunctionAssignment<T> implements Assignments<T> {
     public List<Delimiter<T>> getDelimiters() {
         return delimiters;
     }
+
+    @Override
+    public int horizontalReach() {
+        int r = 0;
+        for (Delimiter<T> d : delimiters) r = Math.max(r, d.assignments().horizontalReach());
+        return r;
+    }
 }

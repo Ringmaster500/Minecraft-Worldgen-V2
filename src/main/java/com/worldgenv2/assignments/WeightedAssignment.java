@@ -68,4 +68,11 @@ public final class WeightedAssignment<T> implements Assignments<T> {
     public double getSkipChance() {
         return skipChance;
     }
+
+    @Override
+    public int horizontalReach() {
+        int r = 0;
+        for (Entry<T> e : entries) r = Math.max(r, e.assignment().horizontalReach());
+        return r;
+    }
 }

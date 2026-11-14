@@ -37,4 +37,11 @@ public final class QueueScanner implements Scanner {
     public List<Scanner> getScanners() {
         return scanners;
     }
+
+    @Override
+    public int horizontalReach() {
+        int r = 0;
+        for (Scanner s : scanners) r = Math.max(r, s.horizontalReach());
+        return r;
+    }
 }

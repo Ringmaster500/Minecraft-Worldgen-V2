@@ -68,4 +68,11 @@ public final class WeightedProp<T> implements Prop<T> {
         h = h ^ (h >>> 31);
         return ((h >>> 40) & 0xFFFFFF) / (float) (1 << 24);
     }
+
+    @Override
+    public int horizontalReach() {
+        int r = 0;
+        for (Entry<T> e : entries) r = Math.max(r, e.prop().horizontalReach());
+        return r;
+    }
 }

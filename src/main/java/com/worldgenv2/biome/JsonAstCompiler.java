@@ -2318,13 +2318,13 @@ public final class JsonAstCompiler {
         WorldGenV2Registries.PROP_TYPE.register("PropRuntime", new WorldGenV2Registries.PropDeserializer() {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
-                return compilePropRuntime(json, context, blockResolver).prop();
+                return compilePropRuntime(json, context, blockResolver);
             }
         });
         WorldGenV2Registries.PROP_TYPE.register("Runtime", new WorldGenV2Registries.PropDeserializer() {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
-                return compilePropRuntime(json, context, blockResolver).prop();
+                return compilePropRuntime(json, context, blockResolver);
             }
         });
 
@@ -3093,7 +3093,7 @@ public final class JsonAstCompiler {
         }
         String type = getString(json, "type", "BlockProp");
         if (WorldGenV2Registries.PROP_RUNTIME_TYPE.contains(type)) {
-            return compilePropRuntime(json, context, blockResolver).prop();
+            return compilePropRuntime(json, context, blockResolver);
         }
         WorldGenV2Registries.PropDeserializer deserializer =
             WorldGenV2Registries.PROP_TYPE.getOrThrow(type);

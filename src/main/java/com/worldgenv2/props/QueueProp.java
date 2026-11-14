@@ -33,4 +33,11 @@ public final class QueueProp<T> implements Prop<T> {
         }
         return false;
     }
+
+    @Override
+    public int horizontalReach() {
+        int r = 0;
+        for (Prop<T> p : props) r = Math.max(r, p.horizontalReach());
+        return r;
+    }
 }

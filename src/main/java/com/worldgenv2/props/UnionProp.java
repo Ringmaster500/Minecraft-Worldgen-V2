@@ -33,4 +33,11 @@ public final class UnionProp<T> implements Prop<T> {
         }
         return placedAny;
     }
+
+    @Override
+    public int horizontalReach() {
+        int r = 0;
+        for (Prop<T> p : props) r = Math.max(r, p.horizontalReach());
+        return r;
+    }
 }

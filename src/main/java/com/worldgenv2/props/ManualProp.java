@@ -45,4 +45,11 @@ public final class ManualProp<T> implements Prop<T> {
         }
         return placed;
     }
+
+    @Override
+    public int horizontalReach() {
+        int r = 0;
+        for (Entry<T> e : entries) r = Math.max(r, Math.max(Math.abs(e.offsetX()), Math.abs(e.offsetZ())));
+        return r;
+    }
 }

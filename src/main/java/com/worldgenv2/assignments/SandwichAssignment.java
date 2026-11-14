@@ -38,4 +38,11 @@ public final class SandwichAssignment<T> implements Assignments<T> {
     public List<HeightDelimiter<T>> getDelimiters() {
         return delimiters;
     }
+
+    @Override
+    public int horizontalReach() {
+        int r = 0;
+        for (HeightDelimiter<T> d : delimiters) r = Math.max(r, d.assignments().horizontalReach());
+        return r;
+    }
 }

@@ -260,7 +260,10 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
             this.defaultBlockState,
             ROAD_DECK,
             ROAD_SHOULDER
-        ).withPrefabResolver(id -> resolveBlockState(id, null));
+        ).withPrefabResolver(id -> resolveBlockState(id, null))
+         // bedrock and water belong to the terrain stage: props, and neighbours reading context, must see the finished terrain
+         .withFluidTest(state -> !state.getFluidState().isEmpty())
+         .withTerrainFinisher((cx, cz, space) -> applyBedrockAndSeaWater(new ChunkPos(cx, cz), space));
     }
 
     /**
@@ -306,7 +309,6 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
             voxelSpace.clearAllToAir();
 
             this.stagedGenerator.generateChunk(chunkPos.x(), chunkPos.z(), voxelSpace);
-            applyBedrockAndSeaWater(chunkPos, voxelSpace);
 
             Heightmap.primeHeightmaps(chunk, java.util.EnumSet.of(
                 Heightmap.Types.MOTION_BLOCKING,
@@ -447,8 +449,6 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
                 // Execute Worldgen V2 StagedChunkGenerator (Biome Halo -> 3D Density + Beardifier -> SpaceAndDepth Materials -> Props -> Landmarks)
                 this.stagedGenerator.generateChunk(chunkPos.x(), chunkPos.z(), voxelSpace, beardifierDensity);
 
-                // Apply bedrock floor and fill sea-level water basins
-                applyBedrockAndSeaWater(chunkPos, voxelSpace);
             } finally {
                 for (LevelChunkSection section : lockedSections) {
                     section.release();
@@ -459,7 +459,7 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
         }, Util.backgroundExecutor().forName("worldgen_v2_staged_gen"));
     }
 
-    private void applyBedrockAndSeaWater(ChunkPos chunkPos, MinecraftVoxelSpace voxelSpace) {
+    private void applyBedrockAndSeaWater(ChunkPos chunkPos, com.worldgenv2.api.VoxelSpace<BlockState> voxelSpace) {
         int minBlockX = chunkPos.getMinBlockX();
         int minBlockZ = chunkPos.getMinBlockZ();
         int floorY = voxelSpace.getMinY();
@@ -545,7 +545,7 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
 
     private void stampRingPillarsInChunk(
         ChunkPos chunkPos,
-        MinecraftVoxelSpace voxelSpace,
+        com.worldgenv2.api.VoxelSpace<BlockState> voxelSpace,
         List<com.worldgenv2.worldstructure.DimensionLayoutConfig.PlacedRingPillar> pillars
     ) {
         int minBlockX = chunkPos.getMinBlockX();

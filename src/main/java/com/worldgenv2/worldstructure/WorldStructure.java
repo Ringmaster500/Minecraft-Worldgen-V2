@@ -545,6 +545,31 @@ public final class WorldStructure {
         return rc == null ? Integer.MIN_VALUE : rc.channelWaterLevel(x, z);
     }
 
+    /** A biome's prop with a stable identity (derived from the biome's name and the prop's position in its list). */
+    public record BiomeProp<T>(com.worldgenv2.props.Prop<T> prop, long salt) {}
+
+    /**
+     * Every prop of every biome in this world, in a fixed order, each with a salt that is the same in every run. The salt
+     * seeds a prop's decisions, so the same tree grows in the same place whichever session generated the chunk.
+     */
+    public <T> java.util.List<BiomeProp<T>> allBiomeProps() {
+        java.util.List<BiomeProp<T>> out = new java.util.ArrayList<>();
+        java.util.List<TileBiome> tiles = new java.util.ArrayList<>(biCarta.getTileBiomes());
+        tiles.sort(java.util.Comparator.comparing(TileBiome::name));
+        for (TileBiome tb : tiles) {
+            java.util.List<com.worldgenv2.props.Prop<T>> props = tb.typedProps();
+            for (int i = 0; i < props.size(); i++) out.add(new BiomeProp<>(props.get(i), tb.name().hashCode() * 31L + i));
+        }
+        java.util.List<CustomBiome> customs = new java.util.ArrayList<>(customBiomes);
+        customs.sort(java.util.Comparator.comparing(CustomBiome::name));
+        for (CustomBiome cb : customs) {
+            java.util.List<com.worldgenv2.props.Prop<T>> props = cb.typedProps();
+            for (int i = 0; i < props.size(); i++) out.add(new BiomeProp<>(props.get(i), cb.name().hashCode() * 31L + 7919 + i));
+        }
+        return out;
+    }
+
+
     public StructureBudgetManager getStructureBudgetManager() {
         return structureBudgetManager;
     }

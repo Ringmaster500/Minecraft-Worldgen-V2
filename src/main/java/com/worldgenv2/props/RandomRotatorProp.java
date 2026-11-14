@@ -65,4 +65,9 @@ public final class RandomRotatorProp<T> implements Prop<T> {
         Prop<T> rotator = new StaticRotatorProp<>(childProp, rotation);
         return rotator.generate(context);
     }
+
+    @Override
+    public int horizontalReach() {
+        return childProp.horizontalReach();
+    }
 }

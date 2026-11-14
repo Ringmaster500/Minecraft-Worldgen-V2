@@ -66,4 +66,9 @@ public final class RadialScanner implements Scanner {
     public int getMaxReach() {
         return maxReach;
     }
+
+    @Override
+    public int horizontalReach() {
+        return maxReach + (childScanner == null ? 0 : childScanner.horizontalReach());
+    }
 }

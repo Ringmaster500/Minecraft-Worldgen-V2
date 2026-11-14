@@ -120,6 +120,14 @@ public final class AssignmentsProp<T> implements Prop<T> {
         return ((long) x << 32) ^ (z & 0xFFFFFFFFL);
     }
 
+    /** Highest block the predicate calls solid (with air above) in a column, or Integer.MIN_VALUE when there is none. */
+    private int surfaceY(com.worldgenv2.api.VoxelSpace<T> space, int x, int z, int minY, int maxY, Predicate<T> solid) {
+        for (int y = maxY - 2; y >= minY + 1; y--) {
+            if (space.isAir(x, y + 1, z) && solid.test(space.getBlock(x, y, z))) return y;
+        }
+        return Integer.MIN_VALUE;
+    }
+
     /** Highest solid block (with air above) in a column, or Integer.MIN_VALUE when the column is empty. */
     private int surfaceY(com.worldgenv2.api.VoxelSpace<T> space, int x, int z, int minY, int maxY) {
         for (int y = maxY - 2; y >= minY + 1; y--) {
@@ -138,5 +146,66 @@ public final class AssignmentsProp<T> implements Prop<T> {
 
     public Assignments<T> getAssignments() {
         return assignments;
+    }
+
+    @Override
+    public int horizontalReach() {
+        return scanner.horizontalReach() + assignments.horizontalReach();
+    }
+
+    /**
+     * Hytale-style distribution over a whole region: every position the provider yields inside
+     * [minX, maxX) x [minZ, maxZ) is scanned and assigned, in a fixed global order (by x, then z, then y).
+     *
+     * <p>The seed for each anchor depends only on {@code seedBase} (world seed and a stable id for this prop) and the anchor's
+     * own coordinates, never on the chunk doing the work. Two chunks that both evaluate an anchor therefore make the same
+     * decision, which is what lets a prop that overlaps a chunk border be built identically from both sides.
+     *
+     * @param accept says whether this prop owns the column (its biome); null accepts every column
+     */
+    public int generateInRegion(int minX, int minZ, int maxX, int maxZ, com.worldgenv2.api.VoxelSpace<T> space, long seedBase,
+                                java.util.function.BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
+        int minWorldY = space.getMinY(), maxWorldY = space.getMaxY();
+        List<Vec3d> points = new java.util.ArrayList<>(positionsProvider.getPositions(
+            minX, Math.min(0, minWorldY), minZ, maxX, maxWorldY, maxZ));
+        points.sort((a, b) -> {
+            int c = Double.compare(a.x(), b.x());
+            if (c != 0) return c;
+            c = Double.compare(a.z(), b.z());
+            return c != 0 ? c : Double.compare(a.y(), b.y());
+        });
+
+        java.util.Map<Long, Integer> perColumn = new java.util.HashMap<>();
+        for (Vec3d p : points) {
+            perColumn.merge(columnKey((int) Math.floor(p.x()), (int) Math.floor(p.z())), 1, Integer::sum);
+        }
+
+        int placed = 0;
+        for (Vec3d p : points) {
+            int px = (int) Math.floor(p.x()), pz = (int) Math.floor(p.z());
+            if (px < minX || px >= maxX || pz < minZ || pz >= maxZ) continue;
+            if (accept != null && !accept.test(px, pz)) continue;
+
+            Vec3d origin = p;
+            if (Math.abs(p.y()) < 1e-6 && perColumn.getOrDefault(columnKey(px, pz), 1) == 1) {
+                int surf = surfaceY(space, px, pz, minWorldY, maxWorldY, solid);
+                if (surf == Integer.MIN_VALUE) continue;
+                origin = new Vec3d(p.x(), surf, p.z());
+            }
+
+            for (Vec3d anchor : scanner.scan(origin, space, solid)) {
+                int ax = (int) Math.floor(anchor.x()), ay = (int) Math.floor(anchor.y()), az = (int) Math.floor(anchor.z());
+                long seed = seedBase ^ (ax * 0x9E3779B97F4A7C15L) ^ (az * 0xC2B2AE3D27D4EB4FL) ^ (ay * 0x165667B19E3779F9L);
+                seed ^= seed >>> 29;
+                Prop<T> chosen = assignments.assign(anchor, seed);
+                if (chosen != null && chosen.generate(new Context<>(ax, ay, az, 0.0f, 1.0f, 0.0f, space, seed))) placed++;
+            }
+        }
+        return placed;
+    }
+
+    /** Reach of what this prop builds, without the scanner: how far its content extends from an anchor. */
+    public int contentReach() {
+        return assignments.horizontalReach();
     }
 }

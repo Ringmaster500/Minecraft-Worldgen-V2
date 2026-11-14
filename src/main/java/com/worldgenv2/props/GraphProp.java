@@ -62,4 +62,9 @@ public final class GraphProp<T> implements Prop<T> {
     public double getMaxSearchRadius() {
         return maxSearchRadius;
     }
+
+    @Override
+    public int horizontalReach() {
+        return (int) Math.ceil(maxSearchRadius);
+    }
 }

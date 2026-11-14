@@ -64,4 +64,9 @@ public final class LocatorProp<T> implements Prop<T> {
         }
         return false;
     }
+
+    @Override
+    public int horizontalReach() {
+        return childProp.horizontalReach();
+    }
 }

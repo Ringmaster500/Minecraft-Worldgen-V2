@@ -97,4 +97,9 @@ public final class ImmutableChunkSnapshot<T> implements VoxelSpace<T> {
     public int getMaxY() {
         return maxY;
     }
+
+    /** Copies one column (all heights) into dst starting at dstOffset; used to assemble context regions without per-block calls. */
+    public void copyColumn(int lx, int lz, Object[] dst, int dstOffset, int count) {
+        System.arraycopy(blocks, ((lx << 4) | lz) * height, dst, dstOffset, Math.min(count, height));
+    }
 }

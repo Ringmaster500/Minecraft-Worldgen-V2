@@ -166,4 +166,9 @@ public final class OrienterProp<T> implements Prop<T> {
             return delegate.getMaxY();
         }
     }
+
+    @Override
+    public int horizontalReach() {
+        return childProp.horizontalReach();
+    }
 }

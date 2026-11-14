@@ -17,4 +17,9 @@ public record ConstantAssignment<T>(Prop<T> prop) implements Assignments<T> {
     public Prop<T> assign(Vec3d position, long seed) {
         return prop;
     }
+
+    @Override
+    public int horizontalReach() {
+        return prop.horizontalReach();
+    }
 }

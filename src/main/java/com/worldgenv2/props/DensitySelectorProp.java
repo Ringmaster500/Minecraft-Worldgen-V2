@@ -78,4 +78,9 @@ public final class DensitySelectorProp<T> implements Prop<T> {
         h = h ^ (h >>> 31);
         return ((h >>> 40) & 0xFFFFFF) / (float) (1 << 24);
     }
+
+    @Override
+    public int horizontalReach() {
+        return childProp.horizontalReach();
+    }
 }

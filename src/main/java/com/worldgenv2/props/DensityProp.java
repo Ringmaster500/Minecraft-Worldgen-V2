@@ -110,4 +110,9 @@ public final class DensityProp<T> implements Prop<T> {
         }
         return placed;
     }
+
+    @Override
+    public int horizontalReach() {
+        return Math.max(Math.max(Math.abs(minX), Math.abs(maxX)), Math.max(Math.abs(minZ), Math.abs(maxZ)));
+    }
 }

@@ -66,6 +66,27 @@ public final class StagedChunkGenerator<T> {
     private final StageContextCache<T> contextCache;
     private final PropRuntimePipeline<T> propRuntimePipeline;
     private java.util.function.Function<String, T> prefabBlockResolver;
+    private TerrainFinisher<T> terrainFinisher;
+    private java.util.function.Predicate<T> fluidTest = b -> false;
+    private final PropContextPass<T> propPass;
+    private final ThreadLocal<ColumnScratch> tileScratch = ThreadLocal.withInitial(ColumnScratch::new);
+
+    /** Finishes a chunk's terrain (bedrock, water) as part of the terrain stage, so every consumer of terrain sees the same world. */
+    @FunctionalInterface
+    public interface TerrainFinisher<T> {
+        void finish(int chunkX, int chunkZ, VoxelSpace<T> space);
+    }
+
+    /** Tells the generator which blocks are fluids, so props treat water as something to build under, not on. */
+    public StagedChunkGenerator<T> withFluidTest(java.util.function.Predicate<T> fluid) {
+        this.fluidTest = fluid == null ? b -> false : fluid;
+        return this;
+    }
+
+    public StagedChunkGenerator<T> withTerrainFinisher(TerrainFinisher<T> finisher) {
+        this.terrainFinisher = finisher;
+        return this;
+    }
 
     /** Enables stamping of {@link com.worldgenv2.worldstructure.StructurePlacement}s (spawn structure, landmarks, POIs). */
     public StagedChunkGenerator<T> withPrefabResolver(java.util.function.Function<String, T> resolver) {
@@ -113,6 +134,7 @@ public final class StagedChunkGenerator<T> {
         this.roadDeckBlock = roadDeckBlock;
         this.roadShoulderBlock = roadShoulderBlock;
 
+        this.propPass = new PropContextPass<>(worldStructure, this.surfaceProps, airBlock);
         this.contextCache = propRuntimePipeline != null && propRuntimePipeline.getContextCache() != null
             ? propRuntimePipeline.getContextCache()
             : new StageContextCache<>();
@@ -148,15 +170,11 @@ public final class StagedChunkGenerator<T> {
     }
 
     /**
-     * Executes the complete staged generation pipeline on a chunk volume, with an optional
-     * structure terrain-adaptation density field (e.g., Minecraft's Beardifier) applied before TerrainStage.
+     * The terrain stage: biomes, the density halo, volumetric sculpting, materials, underground biomes, then the terrain finisher
+     * (bedrock and water). It depends only on the chunk's coordinates, so it can be run for any chunk, including a neighbour that
+     * has not been generated, and always gives the same blocks.
      */
-    public void generateChunk(
-        int chunkX,
-        int chunkZ,
-        VoxelSpace<T> voxelSpace,
-        DensityFunction structureAdaptationDensity
-    ) {
+    private void terrainStage(int chunkX, int chunkZ, VoxelSpace<T> voxelSpace, DensityFunction structureAdaptationDensity, ColumnScratch scratch) {
         int originX = chunkX * CHUNK_SIZE_X;
         int originZ = chunkZ * CHUNK_SIZE_Z;
         int minY = voxelSpace.getMinY();
@@ -166,8 +184,6 @@ public final class StagedChunkGenerator<T> {
             return;
         }
 
-        ColumnScratch scratch = threadScratch.get();
-        scratch.ensureCapacity(height);
         float[] densityVolume = scratch.densityVolume;
         float[] colBuffer = scratch.colBuffer;
         float[] blendScratch = scratch.blendScratch;
@@ -312,6 +328,36 @@ public final class StagedChunkGenerator<T> {
             applyUndergroundBiomes(originX, originZ, minY, maxY, voxelSpace);
         }
 
+        if (terrainFinisher != null) {
+            terrainFinisher.finish(chunkX, chunkZ, voxelSpace);
+        }
+    }
+
+    /**
+     * Executes the complete staged generation pipeline on a chunk volume, with an optional
+     * structure terrain-adaptation density field (e.g., Minecraft's Beardifier) applied before TerrainStage.
+     */
+    public void generateChunk(
+        int chunkX,
+        int chunkZ,
+        VoxelSpace<T> voxelSpace,
+        DensityFunction structureAdaptationDensity
+    ) {
+        int originX = chunkX * CHUNK_SIZE_X;
+        int originZ = chunkZ * CHUNK_SIZE_Z;
+        int minY = voxelSpace.getMinY();
+        int maxY = voxelSpace.getMaxY();
+        int height = maxY - minY;
+        if (height <= 0) {
+            return;
+        }
+
+        ColumnScratch scratch = threadScratch.get();
+        scratch.ensureCapacity(height);
+        terrainStage(chunkX, chunkZ, voxelSpace, structureAdaptationDensity, scratch);
+        float[] densityVolume = scratch.densityVolume;
+        WorldStructure.BiomeQueryResult[] chunkBiomes = scratch.chunkBiomes;
+
         // Capture immutable baseline terrain snapshot at stage 0 into contextCache
         ImmutableChunkSnapshot<T> stage0Snapshot = ImmutableChunkSnapshot.capture(chunkX, chunkZ, voxelSpace, airBlock);
         contextCache.putSnapshot(chunkX, chunkZ, 0, stage0Snapshot);
@@ -381,19 +427,14 @@ public final class StagedChunkGenerator<T> {
             }
         }
 
-        // Distribution-driven props (positions -> scanner -> assignments): once per chunk, not once per column
-        generateDistributedProps(chunkX, chunkZ, originX, originZ, stage1Space, chunkBiomes, chunkSeed);
+        // Distribution props (positions -> scanner -> assignments) run as Prop Runtime stages over a context region:
+        // every anchor that can reach this chunk is evaluated against deterministic neighbour terrain, so nothing clips at a border.
+        final int ctxMinY = minY, ctxMaxY = maxY;
+        propPass.run(chunkX, chunkZ, voxelSpace, b -> b != null && !b.equals(airBlock) && !fluidTest.test(b), (cx, cz) -> getTerrainTile(cx, cz, ctxMinY, ctxMaxY));
 
         // Capture immutable snapshot at stage 1
         ImmutableChunkSnapshot<T> stage1Snapshot = ImmutableChunkSnapshot.capture(chunkX, chunkZ, voxelSpace, airBlock);
         contextCache.putSnapshot(chunkX, chunkZ, 1, stage1Snapshot);
-
-        // Execute any higher-order stages in propRuntimePipeline (stages >= 2)
-        for (int stageIdx : propRuntimePipeline.getStageIndices()) {
-            if (stageIdx >= 2) {
-                propRuntimePipeline.executeStage(stageIdx, chunkX, chunkZ, voxelSpace, chunkSeed, null);
-            }
-        }
 
         // =====================================================================
         // Stage 4a: Ore veins (declarative OreRules; vanilla feature generation is never used)
@@ -435,31 +476,26 @@ public final class StagedChunkGenerator<T> {
         if (all.isEmpty()) return all;
         return columnarCache.computeIfAbsent(all, list -> {
             List<Prop<T>> out = new ArrayList<>();
-            for (Prop<T> p : list) if (!(p instanceof com.worldgenv2.props.AssignmentsProp<?>)) out.add(p);
+            for (Prop<T> p : list) if (!PropContextPass.isDistribution(p)) out.add(p);
             return out;
         });
     }
 
     /**
-     * Runs every AssignmentsProp of the biomes present in this chunk exactly once, limited to the columns each
-     * biome actually owns (so a forest's trees never spill into the neighbouring desert).
+     * Terrain for any chunk, computed on demand and cached. The chunk being generated stores its own terrain here right after its
+     * terrain stage; a neighbour that has not been generated is computed the same way, so context never depends on order.
      */
-    @SuppressWarnings("unchecked")
-    private void generateDistributedProps(int chunkX, int chunkZ, int originX, int originZ, VoxelSpace<T> space,
-                                          WorldStructure.BiomeQueryResult[] chunkBiomes, long chunkSeed) {
-        java.util.IdentityHashMap<com.worldgenv2.props.AssignmentsProp<T>, boolean[]> owners = new java.util.IdentityHashMap<>();
-        for (int i = 0; i < chunkBiomes.length; i++) {
-            for (Prop<T> p : chunkBiomes[i].resolveProps(surfaceProps)) {
-                if (p instanceof com.worldgenv2.props.AssignmentsProp<?> ap) {
-                    owners.computeIfAbsent((com.worldgenv2.props.AssignmentsProp<T>) ap, k -> new boolean[chunkBiomes.length])[i] = true;
-                }
-            }
-        }
-        for (var e : owners.entrySet()) {
-            boolean[] mask = e.getValue();
-            e.getKey().generateInChunk(originX, originZ, space, chunkSeed,
-                (x, z) -> mask[((x - originX) << 4) | (z - originZ)], b -> b != null && !b.equals(airBlock));
-        }
+    private ImmutableChunkSnapshot<T> getTerrainTile(int cx, int cz, int minY, int maxY) {
+        ImmutableChunkSnapshot<T> snap = contextCache.getSnapshot(cx, cz, 0);
+        if (snap != null && snap.getMinY() == minY && snap.getMaxY() == maxY) return snap;
+        int height = maxY - minY;
+        ColumnScratch scratch = tileScratch.get();
+        scratch.ensureCapacity(height);
+        TerrainTileSpace<T> space = new TerrainTileSpace<>(cx, cz, minY, maxY, airBlock);
+        terrainStage(cx, cz, space, null, scratch);
+        snap = ImmutableChunkSnapshot.capture(cx, cz, space, airBlock);
+        contextCache.putSnapshot(cx, cz, 0, snap);
+        return snap;
     }
 
     private record ResolvedOre<B>(B ore, java.util.Set<B> replaceable) {}

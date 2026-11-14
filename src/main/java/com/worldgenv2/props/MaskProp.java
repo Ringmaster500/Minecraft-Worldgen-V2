@@ -110,4 +110,9 @@ public final class MaskProp<T> implements Prop<T> {
 
         return childProp.generate(context);
     }
+
+    @Override
+    public int horizontalReach() {
+        return childProp.horizontalReach();
+    }
 }

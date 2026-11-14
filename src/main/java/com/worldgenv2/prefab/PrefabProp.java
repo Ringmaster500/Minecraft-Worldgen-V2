@@ -227,4 +227,9 @@ public final class PrefabProp<T> implements Prop<T> {
             || id.endsWith("shulker_box") || id.endsWith(":dispenser") || id.endsWith(":dropper")
             || id.endsWith(":hopper");
     }
+
+    @Override
+    public int horizontalReach() {
+        return Math.max(prefab.size().x(), prefab.size().z());
+    }
 }

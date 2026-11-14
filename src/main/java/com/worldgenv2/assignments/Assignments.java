@@ -19,4 +19,9 @@ public interface Assignments<T> {
      * @return selected prop, or null if no prop should be placed
      */
     Prop<T> assign(Vec3d position, long seed);
+
+    /** Largest horizontal reach of any prop this assignment can hand out. */
+    default int horizontalReach() {
+        return 0;
+    }
 }

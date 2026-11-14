@@ -9,7 +9,7 @@ import java.util.function.BiPredicate;
  * Encapsulates a prop distribution within a numbered generation stage and defines its
  * horizontal context requirements and precision calculation mode.
  */
-public final class PropRuntime<T> {
+public final class PropRuntime<T> implements Prop<T> {
 
     private final int runtimeIndex;
     private final ContextPrecision precision;
@@ -121,5 +121,38 @@ public final class PropRuntime<T> {
 
     public static <T> PropRuntime<T> of(int runtimeIndex, ContextPrecision precision, Prop<T> prop, int maxReach) {
         return new PropRuntime<>(runtimeIndex, precision, prop, maxReach, maxReach, maxReach);
+    }
+
+    /** A runtime is itself a prop: placing it places what it wraps. The generator reads its stage and reach before that. */
+    @Override
+    public boolean generate(Context<T> context) {
+        return prop.generate(context);
+    }
+
+    /**
+     * Horizontal context this runtime needs: whatever its prop can reach (scanner, pattern, content size), or the reach the
+     * asset states explicitly, whichever is larger.
+     */
+    @Override
+    public int horizontalReach() {
+        return Math.max(maxReach, prop.horizontalReach());
+    }
+
+    /** The prop inside a runtime wrapper (or the prop itself when it is not wrapped). */
+    @SuppressWarnings("unchecked")
+    public static <T> Prop<T> unwrap(Prop<T> p) {
+        while (p instanceof PropRuntime<?> r) p = (Prop<T>) r.prop();
+        return p;
+    }
+
+    /** The stage a prop runs in: its runtime index, or 1 for a prop with no runtime wrapper. */
+    public static int stageOf(Prop<?> p) {
+        return p instanceof PropRuntime<?> r ? Math.max(1, r.getRuntimeIndex()) : 1;
+    }
+
+    @Override
+    public int contentReach() {
+        Prop<T> inner = unwrap(prop);
+        return inner instanceof com.worldgenv2.props.AssignmentsProp<?> ap ? ap.contentReach() : horizontalReach();
     }
 }

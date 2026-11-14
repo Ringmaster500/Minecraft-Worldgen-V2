@@ -22,6 +22,7 @@ A node name that exists in Hytale must mean exactly what it means there: same pa
 (Some 'differs' entries are only naming, for example ours takes a child under a different key. Counts are for nodes documented by Hytale; our extra nodes are not counted.)
 
 ## Done
+- **Prop Runtime context** (item 1 below): terrain is a deterministic per-chunk stage (bedrock and water included); distribution props run as staged runtimes over a context region sized from the props' reach, every anchor that can reach a chunk is evaluated with seeds that depend only on the anchor, only the chunk's own cells are committed. Proven by Phase18VerificationTest.
 - Keys are matched without regard to case (`Type`/`type`), as are type names.
 - Hytale's positional `Inputs` list works for every density node (mapped onto the node's slots).
 

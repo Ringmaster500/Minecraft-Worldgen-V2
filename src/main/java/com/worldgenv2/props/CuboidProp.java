@@ -106,4 +106,9 @@ public final class CuboidProp<T> implements Prop<T> {
         }
         return true;
     }
+
+    @Override
+    public int horizontalReach() {
+        return Math.max(radiusX, radiusZ) + 1;
+    }
 }

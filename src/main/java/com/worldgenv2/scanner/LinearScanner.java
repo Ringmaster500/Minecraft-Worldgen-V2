@@ -81,4 +81,10 @@ public final class LinearScanner implements Scanner {
     public Scanner getChildScanner() {
         return childScanner;
     }
+
+    @Override
+    public int horizontalReach() {
+        int own = axis == Axis.Y ? 0 : Math.max(Math.abs(minOffset), Math.abs(maxOffset));
+        return own + (childScanner == null ? 0 : childScanner.horizontalReach());
+    }
 }

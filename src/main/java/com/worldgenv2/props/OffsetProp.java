@@ -49,4 +49,9 @@ public final class OffsetProp<T> implements Prop<T> {
         );
         return childProp.generate(offsetContext);
     }
+
+    @Override
+    public int horizontalReach() {
+        return Math.max(Math.abs(offsetX), Math.abs(offsetZ)) + childProp.horizontalReach();
+    }
 }
