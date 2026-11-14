@@ -131,6 +131,13 @@ tasks.register('verifyPhase15', JavaExec) {
     mainClass = 'com.worldgenv2.Phase15VerificationTest'
 }
 
+tasks.register('verifyGemini', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Gemini additions (scorch blending, container loot tables, prefab loot)'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.worldgenv2.GeminiFeaturesVerificationTest'
+}
+
 tasks.register('verifyEngine', JavaExec) {
     group = 'verification'
     description = 'Runs the standalone verification suites'

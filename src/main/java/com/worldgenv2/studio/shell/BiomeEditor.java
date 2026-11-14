@@ -22,9 +22,19 @@ final class BiomeEditor extends Editor {
         section("Identity");
         field("Name", str("name", "", "Biome name"), "Namespaced id, e.g. worldgenv2:alpine_peaks");
         field("Category", choice("category", "plains", Templates.BIOME_CATEGORIES, s -> s, "Biome category"),
-                "Used for grouping, colours, and spawn rules.");
+                "Used for grouping, colours, and spawn rules. 'cave' biomes become 3D underground volumes.");
 
         field("Minecraft biome", minecraftBiomeField(), "The vanilla or modded biome used for sky, water and foliage colour, mob spawns and music. Type any biome id.");
+
+        if ("cave".equals(getStr("category", "plains"))) {
+            section("Underground Volume", "3D cave floor & ceiling decoration");
+            field("Min Y", num("underground.minY", -64, -2048, 2048, 4, true, "Underground minY"), "Lowest Y for this cave biome.");
+            field("Max Y", num("underground.maxY", 48, -2048, 2048, 4, true, "Underground maxY"), "Highest Y for this cave biome.");
+            field("Floor block", str("underground.floorBlock", "minecraft:moss_block", "Floor block"), "Block replacing exposed cave floors.");
+            field("Floor chance", num("underground.floorChance", 0.35, 0, 1, 0.05, false, "Floor chance"), "Probability (0..1) on cave floors.");
+            field("Ceiling block", str("underground.ceilingBlock", "minecraft:amethyst_block", "Ceiling block"), "Block replacing exposed cave ceilings.");
+            field("Ceiling chance", num("underground.ceilingChance", 0.25, 0, 1, 0.05, false, "Ceiling chance"), "Probability (0..1) on cave ceilings.");
+        }
 
         section("Distribution", "how often and how large this biome appears");
         field("Weight", num("weight", 10, 0.01, 1000, 1, false, "Biome weight"), "Relative chance versus other biomes in the pool.");

@@ -144,6 +144,28 @@ public final class SpawnAnchorManager {
         return distSq <= maxRadius * maxRadius;
     }
 
+    /**
+     * Returns the scorched block ID for a near-surface block inside the crater blast perimeter,
+     * or {@code null} when outside the scorch zone or deeper than the scorched topsoil layer.
+     */
+    public String getScorchBlockId(int x, int z, int depth) {
+        if (!hasActiveRule() || depth < 0 || depth > 2) return null;
+        int dx = x - activeRule.originX();
+        int dz = z - activeRule.originZ();
+        float maxRadius = activeRule.craterRadius() * 1.15f;
+        float distSq = dx * dx + dz * dz;
+        if (distSq > maxRadius * maxRadius) return null;
+
+        float dist = (float) Math.sqrt(distSq);
+        float noise = craterWarpNoise.getNoise(x * 2.1f, z * 2.1f);
+        float norm = (dist / Math.max(1.0f, maxRadius)) + noise * 0.18f;
+        if (depth == 0 && norm < 0.72f) {
+            return activeRule.scorchBlockId();
+        }
+        String secondary = activeRule.secondaryScorchBlockId();
+        return (secondary != null && !secondary.isBlank()) ? secondary : activeRule.scorchBlockId();
+    }
+
     public BlockPos getResolvedSpawnPos() {
         return resolvedSpawnPos;
     }

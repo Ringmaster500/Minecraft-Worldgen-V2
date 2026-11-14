@@ -6,7 +6,11 @@ import com.worldgenv2.prefab.Prefab;
  * A prefab pinned to world coordinates. {@code (x, y, z)} is where the prefab's anchor goes; the chunk generator
  * stamps the part of the prefab that falls inside each chunk it generates.
  */
-public record StructurePlacement(String id, Prefab prefab, int x, int y, int z) {
+public record StructurePlacement(String id, Prefab prefab, int x, int y, int z, String lootTableOverride) {
+
+    public StructurePlacement(String id, Prefab prefab, int x, int y, int z) {
+        this(id, prefab, x, y, z, null);
+    }
 
     /** True when any part of this prefab can fall inside the chunk (with a margin for foundations). */
     public boolean touchesChunk(int chunkX, int chunkZ) {

@@ -280,6 +280,15 @@ public final class StagedChunkGenerator<T> {
                                 worldX, worldY, worldZ, depth, material, roadDeckBlock, roadShoulderBlock
                             );
                         }
+                        if (!underground && depth <= 2 && prefabBlockResolver != null
+                            && worldStructure.getSpawnAnchorManager() != null
+                            && worldStructure.getSpawnAnchorManager().hasActiveRule()) {
+                            String scorchId = worldStructure.getSpawnAnchorManager().getScorchBlockId(worldX, worldZ, depth);
+                            if (scorchId != null && !scorchId.isBlank()) {
+                                T scorch = prefabBlockResolver.apply(scorchId);
+                                if (scorch != null) material = scorch;
+                            }
+                        }
                         voxelSpace.setBlock(worldX, worldY, worldZ, material != null ? material : baseSolidBlock);
 
                         depth++;
@@ -400,7 +409,7 @@ public final class StagedChunkGenerator<T> {
             for (com.worldgenv2.worldstructure.StructurePlacement placement : worldStructure.placementsForChunk(chunkX, chunkZ)) {
                 if (!placement.touchesChunk(chunkX, chunkZ)) continue;
                 long seed = chunkSeed ^ placement.id().hashCode();
-                new com.worldgenv2.prefab.PrefabProp<T>(placement.prefab(), prefabBlockResolver, false, true, List.of(), 0, null)
+                new com.worldgenv2.prefab.PrefabProp<T>(placement.prefab(), prefabBlockResolver, false, true, List.of(), 0, null, placement.lootTableOverride())
                     .generate(new Prop.Context<>(placement.x(), placement.y(), placement.z(), 0.0f, 1.0f, 0.0f, voxelSpace, seed));
             }
         }

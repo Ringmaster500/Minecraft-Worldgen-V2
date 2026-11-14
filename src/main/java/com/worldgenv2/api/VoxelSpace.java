@@ -32,4 +32,10 @@ public interface VoxelSpace<T> {
      * Maximum valid Y level in this space.
      */
     int getMaxY();
+
+    /**
+     * Optional hook to attach a loot table to a container block entity at (x, y, z).
+     * Pure-Java test spaces ignore this by default.
+     */
+    default void setBlockLoot(int x, int y, int z, String lootTableId, long seed) {}
 }

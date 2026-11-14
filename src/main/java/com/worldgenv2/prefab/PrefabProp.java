@@ -32,9 +32,10 @@ public final class PrefabProp<T> implements Prop<T> {
     private final List<Prefab> socketPool;
     private final int maxSocketDepth;
     private final BlockMask<T> mask;
+    private final String lootTableOverride;
 
     public PrefabProp(Prefab prefab, Function<String, T> blockResolver) {
-        this(prefab, blockResolver, false, false, List.of(), 0, null);
+        this(prefab, blockResolver, false, false, List.of(), 0, null, null);
     }
 
     public PrefabProp(
@@ -45,7 +46,7 @@ public final class PrefabProp<T> implements Prop<T> {
         List<Prefab> socketPool,
         int maxSocketDepth
     ) {
-        this(prefab, blockResolver, checkCollisions, useFormattedBlockState, socketPool, maxSocketDepth, null);
+        this(prefab, blockResolver, checkCollisions, useFormattedBlockState, socketPool, maxSocketDepth, null, null);
     }
 
     public PrefabProp(
@@ -57,6 +58,19 @@ public final class PrefabProp<T> implements Prop<T> {
         int maxSocketDepth,
         BlockMask<T> mask
     ) {
+        this(prefab, blockResolver, checkCollisions, useFormattedBlockState, socketPool, maxSocketDepth, mask, null);
+    }
+
+    public PrefabProp(
+        Prefab prefab,
+        Function<String, T> blockResolver,
+        boolean checkCollisions,
+        boolean useFormattedBlockState,
+        List<Prefab> socketPool,
+        int maxSocketDepth,
+        BlockMask<T> mask,
+        String lootTableOverride
+    ) {
         this.prefab = Objects.requireNonNull(prefab, "prefab");
         this.blockResolver = Objects.requireNonNull(blockResolver, "blockResolver");
         this.checkCollisions = checkCollisions;
@@ -64,6 +78,7 @@ public final class PrefabProp<T> implements Prop<T> {
         this.socketPool = socketPool == null ? List.of() : List.copyOf(socketPool);
         this.maxSocketDepth = Math.max(0, maxSocketDepth);
         this.mask = mask;
+        this.lootTableOverride = (lootTableOverride != null && !lootTableOverride.isBlank()) ? lootTableOverride : null;
     }
 
     public Prefab prefab() {
@@ -153,7 +168,17 @@ public final class PrefabProp<T> implements Prop<T> {
                 : paletteEntry.blockId();
             T resolvedBlock = blockResolver.apply(blockKey);
             if (resolvedBlock != null) {
-                space.setBlock(baseX + voxel.x(), baseY + voxel.y(), baseZ + voxel.z(), resolvedBlock);
+                int wx = baseX + voxel.x();
+                int wy = baseY + voxel.y();
+                int wz = baseZ + voxel.z();
+                space.setBlock(wx, wy, wz, resolvedBlock);
+                String loot = voxel.lootTable();
+                if ((loot == null || loot.isBlank()) && lootTableOverride != null && isLootContainerBlock(paletteEntry.blockId())) {
+                    loot = lootTableOverride;
+                }
+                if (loot != null && !loot.isBlank()) {
+                    space.setBlockLoot(wx, wy, wz, loot, seed ^ (wx * 31L + wy * 17L + wz * 13L));
+                }
             }
         }
 
@@ -193,5 +218,13 @@ public final class PrefabProp<T> implements Prop<T> {
         }
 
         return true;
+    }
+
+    private static boolean isLootContainerBlock(String blockId) {
+        if (blockId == null) return false;
+        String id = blockId.toLowerCase();
+        return id.endsWith(":chest") || id.endsWith(":trapped_chest") || id.endsWith(":barrel")
+            || id.endsWith("shulker_box") || id.endsWith(":dispenser") || id.endsWith(":dropper")
+            || id.endsWith(":hopper");
     }
 }

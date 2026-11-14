@@ -83,7 +83,8 @@ public final class PrefabLoader {
                     int y = getInt(b, "y", 0);
                     int z = getInt(b, "z", 0);
                     int paletteIndex = getInt(b, "paletteIndex", 0);
-                    blocks.add(new VoxelEntry(x, y, z, paletteIndex));
+                    String lootTable = b.containsKey("lootTable") ? getString(b, "lootTable", null) : null;
+                    blocks.add(new VoxelEntry(x, y, z, paletteIndex, lootTable));
                 }
             }
         }

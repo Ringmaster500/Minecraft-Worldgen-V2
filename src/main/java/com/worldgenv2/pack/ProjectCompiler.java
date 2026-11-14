@@ -104,6 +104,7 @@ public final class ProjectCompiler {
         // ---- biomes (pool order defines numeric ids) ----
         List<TileBiome> tiles = new ArrayList<>();
         List<CustomBiome> customs = new ArrayList<>();
+        List<UndergroundBiome> undergrounds = new ArrayList<>();
         Map<String, Integer> nameToId = new LinkedHashMap<>();
         JsonArray pool = J.arr(d, "biomes");
         int nextId = FIRST_BIOME_ID;
@@ -129,11 +130,28 @@ public final class ProjectCompiler {
             Asset b = (Asset) p[2];
             JsonObject entry = (JsonObject) p[3];
             try {
+                String category = J.str(b.json, "category", "plains");
+                String mc = J.str(b.json, "minecraftBiome", defaultMinecraftBiome(category));
+                if ("cave".equalsIgnoreCase(category)) {
+                    String name = J.str(b.json, "name", "worldgenv2:" + assetId);
+                    r.biomes.add(new BiomeBinding(id, assetId, name, mc, category));
+                    r.biomeNameToAsset.put(name, assetId);
+                    JsonObject ug = J.obj(b.json, "underground");
+                    String fId = ug != null ? J.str(ug, "floorBlock", "") : "";
+                    String cId = ug != null ? J.str(ug, "ceilingBlock", "") : "";
+                    BlockState floor = fId.isBlank() ? null : WorldGenV2ChunkGenerator.resolveBlockState(fId, null);
+                    BlockState ceil = cId.isBlank() ? null : WorldGenV2ChunkGenerator.resolveBlockState(cId, null);
+                    int uMinY = ug != null ? J.integer(ug, "minY", r.minY) : r.minY;
+                    int uMaxY = ug != null ? J.integer(ug, "maxY", Math.min(r.seaLevel - 16, 48)) : Math.min(r.seaLevel - 16, 48);
+                    float fChance = ug != null ? (float) J.num(ug, "floorChance", 0.35) : 0.35f;
+                    float cChance = ug != null ? (float) J.num(ug, "ceilingChance", 0.25) : 0.25f;
+                    float wt = (float) J.num(entry, "weight", J.num(b.json, "weight", 10.0));
+                    undergrounds.add(new UndergroundBiome(id, name, uMinY, uMaxY, wt, Set.of(), floor, fChance, ceil, cChance));
+                    continue;
+                }
                 JsonAstCompiler.CompiledBiome<BlockState> cb = JsonAstCompiler.compileBiome(
                         id, b.json.toString(), ctx, nameToId,
                         blockId -> WorldGenV2ChunkGenerator.resolveBlockState(blockId, Blocks.STONE.defaultBlockState()));
-                String category = J.str(b.json, "category", "plains");
-                String mc = J.str(b.json, "minecraftBiome", defaultMinecraftBiome(category));
                 r.biomes.add(new BiomeBinding(id, assetId, cb.name(), mc, category));
                 r.biomeNameToAsset.put(cb.name(), assetId);
                 if (cb.customBiome() != null) {
@@ -175,7 +193,7 @@ public final class ProjectCompiler {
         if (ocean != null) structure.withOceanDepth((float) J.num(ocean, "depthScale", 1.0), r.seaLevel);
         if (J.bool(d, "caves", true)) {
             structure.withCaveCarver(new CaveCarver(r.seed))
-                    .withUndergroundBiomes(DefaultBiomeFactory.createUndergroundBiomes(), r.seed);
+                    .withUndergroundBiomes(undergrounds.isEmpty() ? DefaultBiomeFactory.createUndergroundBiomes() : undergrounds, r.seed);
         }
         structure.withDimensionLayout(buildLayout(d, r));
         r.zones = on(d, "zones", nonEmpty(J.arr(d, "zones"))) ? buildZones(d, r, project) : null;
@@ -309,7 +327,7 @@ public final class ProjectCompiler {
                 if (pf != null) {
                     int sy = structure.sampleSurfaceY(r.spawn.originX(), r.spawn.originZ(), r.minY, r.maxY) + 1;
                     JsonObject sp = J.obj(d, "spawn");
-                    placements.add(new StructurePlacement("spawn", turned(pf, sp, "spawn", r.seed), r.spawn.originX(), sy - Math.max(0, J.integer(sp, "depth", 0)), r.spawn.originZ()));
+                    placements.add(new StructurePlacement("spawn", turned(pf, sp, "spawn", r.seed), r.spawn.originX(), sy - Math.max(0, J.integer(sp, "depth", 0)), r.spawn.originZ(), J.str(sp, "loot", null)));
                 }
             }
             Map<String, JsonObject> itemById = new HashMap<>();
@@ -322,7 +340,10 @@ public final class ProjectCompiler {
                 for (MacroFeatureGraph.PlacedLandmark l : graph.getPlacedLandmarks().values()) {
                     if (l.id().equals("spawn")) continue; // the spawn structure is stamped above
                     var pf = loadPrefab(project, l.prefabId(), prefabs, r);
-                    if (pf != null) placements.add(new StructurePlacement(l.id(), turned(pf, itemById.get(l.id()), l.id(), r.seed), l.x(), l.y() - Math.max(0, J.integer(itemById.get(l.id()), "depth", 0)), l.z()));
+                    if (pf != null) {
+                        JsonObject item = itemById.get(l.id());
+                        placements.add(new StructurePlacement(l.id(), turned(pf, item, l.id(), r.seed), l.x(), l.y() - Math.max(0, J.integer(item, "depth", 0)), l.z(), J.str(item, "loot", null)));
+                    }
                 }
             }
             StructureBudgetManager bm = structure.getStructureBudgetManager();
@@ -332,7 +353,7 @@ public final class ProjectCompiler {
                     var pf = loadPrefab(project, f.prefabId(), prefabs, r);
                     if (pf != null) {
                         String pid = f.ruleId() + "_" + (n++);
-                        placements.add(new StructurePlacement(pid, turned(pf, itemById.get(f.ruleId()), pid, r.seed), f.x(), f.y() - Math.max(0, J.integer(itemById.get(f.ruleId()), "depth", 0)), f.z()));
+                        placements.add(new StructurePlacement(pid, turned(pf, itemById.get(f.ruleId()), pid, r.seed), f.x(), f.y() - Math.max(0, J.integer(itemById.get(f.ruleId()), "depth", 0)), f.z(), f.lootTableOverride()));
                     }
                 }
             }

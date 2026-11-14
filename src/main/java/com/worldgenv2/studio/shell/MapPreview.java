@@ -38,8 +38,9 @@ final class MapPreview extends Widget {
     private long lastRequestTime;
     private boolean dragged;
 
-    private final Button zoomIn, zoomOut, home, fitBtn, zonesBtn;
+    private final Button zoomIn, zoomOut, home, fitBtn, zonesBtn, sliceBtn;
     private boolean zoneTint;
+    private boolean sliceMode;
     private boolean autoFit = true;
     private List<Asset.Problem> lastWarnings = List.of();
 
@@ -50,6 +51,8 @@ final class MapPreview extends Widget {
         home = add(new Button("Spawn", this::goHome));
         zonesBtn = add(new Button("Zones", () -> { zoneTint = !zoneTint; engine.zoneTint = zoneTint; lastRequestKey = ""; }));
         zonesBtn.tooltip = "Tint the map by zone";
+        sliceBtn = add(new Button("Slice", () -> { sliceMode = !sliceMode; engine.sliceMode = sliceMode; lastRequestKey = ""; }));
+        sliceBtn.tooltip = "Toggle X-Y vertical terrain cross-section at Z=" + (int) centerZ;
         fitBtn = add(new Button("Fit", () -> autoFit = true));
         fitBtn.tooltip = "Zoom out to show every placed structure";
         zoomIn.tooltip = "Zoom in";
@@ -110,6 +113,7 @@ final class MapPreview extends Widget {
         home.setBounds(x + w - 56, y + 42, 50, 16);
         fitBtn.setBounds(x + w - 56, y + 60, 50, 16);
         zonesBtn.setBounds(x + w - 56, y + 78, 50, 16);
+        sliceBtn.setBounds(x + w - 56, y + 96, 50, 16);
     }
 
     private long seedOverride() {
@@ -129,7 +133,8 @@ final class MapPreview extends Widget {
         int tw = Math.max(16, Math.min(420, (w - 2) / STEP)), th = Math.max(16, Math.min(420, (h - 2) / STEP));
         long now = System.currentTimeMillis();
         zonesBtn.selected = zoneTint;
-        String key = app.project.revision + "|" + zoneTint + "|" + dimId + "|" + (long) centerX / 8 + "|" + (long) centerZ / 8 + "|" + scale + "|" + tw + "x" + th;
+        sliceBtn.selected = sliceMode;
+        String key = app.project.revision + "|" + zoneTint + "|" + sliceMode + "|" + dimId + "|" + (long) centerX / 8 + "|" + (long) centerZ / 8 + "|" + scale + "|" + tw + "x" + th;
         if (!key.equals(lastRequestKey) && now - lastRequestTime > 90) {
             lastRequestKey = key;
             lastRequestTime = now;
@@ -146,16 +151,25 @@ final class MapPreview extends Widget {
 
         g.clip(x + 1, y + 1, w - 2, h - 2);
         if (frame != null && tex != null && frame.argb != null) {
-            double worldLeft = frame.centerX - frame.texW * frame.blocksPerSample / 2.0;
-            double worldTop = frame.centerZ - frame.texH * frame.blocksPerSample / 2.0;
-            float dx = (float) sx(worldLeft), dy = (float) sy(worldTop);
-            float k = (float) (frame.blocksPerSample / scale);
-            g.g.pose().pushMatrix();
-            g.g.pose().translate(dx, dy);
-            g.g.pose().scale(k, k);
-            g.g.blit(RenderPipelines.GUI_TEXTURED, texId, 0, 0, 0f, 0f, frame.texW, frame.texH, frame.texW, frame.texH);
-            g.g.pose().popMatrix();
-            drawOverlay(g, frame.compiled);
+            if (sliceMode) {
+                g.g.pose().pushMatrix();
+                g.g.pose().translate(x + 1, y + 1);
+                g.g.pose().scale((float) (w - 2) / frame.texW, (float) (h - 2) / frame.texH);
+                g.g.blit(RenderPipelines.GUI_TEXTURED, texId, 0, 0, 0f, 0f, frame.texW, frame.texH, frame.texW, frame.texH);
+                g.g.pose().popMatrix();
+                drawSliceOverlay(g, frame.compiled);
+            } else {
+                double worldLeft = frame.centerX - frame.texW * frame.blocksPerSample / 2.0;
+                double worldTop = frame.centerZ - frame.texH * frame.blocksPerSample / 2.0;
+                float dx = (float) sx(worldLeft), dy = (float) sy(worldTop);
+                float k = (float) (frame.blocksPerSample / scale);
+                g.g.pose().pushMatrix();
+                g.g.pose().translate(dx, dy);
+                g.g.pose().scale(k, k);
+                g.g.blit(RenderPipelines.GUI_TEXTURED, texId, 0, 0, 0f, 0f, frame.texW, frame.texH, frame.texW, frame.texH);
+                g.g.pose().popMatrix();
+                drawOverlay(g, frame.compiled);
+            }
         } else {
             g.textCentered(engine.busy() ? "Compiling..." : "No preview", x, y, w, h, Ui.TEXT_FAINT);
         }
@@ -197,6 +211,17 @@ final class MapPreview extends Widget {
             Asset a = app.project.get(path);
             if (a != null) { a.live = now; app.uiRevision++; }
         }
+    }
+
+    private void drawSliceOverlay(Gfx g, ProjectCompiler.Result res) {
+        if (res == null) return;
+        int minY = res.minY, maxY = res.maxY, height = Math.max(1, maxY - minY);
+        int seaPy = y + h - 1 - (int) ((res.seaLevel - minY) / (double) height * (h - 2));
+        if (seaPy > y + 1 && seaPy < y + h - 1) {
+            g.hline(x + 1, seaPy, w - 2, 0x9060C5FF);
+            g.text("Sea Y=" + res.seaLevel, x + 6, seaPy - 10, 0xFF9FD8F0);
+        }
+        g.text("X-Y Slice @ Z=" + (int) centerZ + "  Y=[" + minY + ".." + maxY + "]", x + 6, y + 6, Ui.TEXT);
     }
 
     private void drawOverlay(Gfx g, ProjectCompiler.Result res) {

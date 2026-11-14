@@ -54,15 +54,17 @@ public final class WorldGenStudioClient {
 
     private static void registerPresetEditor() {
         try {
-            net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.presets.WorldPreset> presetKey =
-                net.minecraft.resources.ResourceKey.create(
-                    net.minecraft.core.registries.Registries.WORLD_PRESET,
-                    net.minecraft.resources.Identifier.parse("worldgenv2:volumetric")
+            for (String id : new String[]{"worldgenv2:volumetric", "worldgenv2:project"}) {
+                net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.presets.WorldPreset> presetKey =
+                    net.minecraft.resources.ResourceKey.create(
+                        net.minecraft.core.registries.Registries.WORLD_PRESET,
+                        net.minecraft.resources.Identifier.parse(id)
+                    );
+                net.minecraft.client.gui.screens.worldselection.PresetEditor.EDITORS.put(
+                    java.util.Optional.of(presetKey),
+                    (createWorldScreen, creationContext) -> new com.worldgenv2.minecraft.gui.WorldGenCustomizeScreen(createWorldScreen)
                 );
-            net.minecraft.client.gui.screens.worldselection.PresetEditor.EDITORS.put(
-                java.util.Optional.of(presetKey),
-                (createWorldScreen, creationContext) -> new com.worldgenv2.minecraft.gui.WorldGenCustomizeScreen(createWorldScreen)
-            );
+            }
         } catch (Throwable t) {
             // Silently fall back if PresetEditor is unavailable
         }

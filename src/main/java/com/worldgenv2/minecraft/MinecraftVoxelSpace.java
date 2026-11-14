@@ -97,6 +97,38 @@ public final class MinecraftVoxelSpace implements VoxelSpace<BlockState> {
         return maxY;
     }
 
+    @Override
+    public void setBlockLoot(int x, int y, int z, String lootTableId, long seed) {
+        if (lootTableId == null || lootTableId.isBlank() || y < minY || y >= maxY) {
+            return;
+        }
+        int lx = x - minBlockX;
+        int lz = z - minBlockZ;
+        if ((lx | lz) < 0 || lx >= 16 || lz >= 16) {
+            return;
+        }
+        net.minecraft.resources.Identifier loc = net.minecraft.resources.Identifier.tryParse(lootTableId);
+        if (loc == null) return;
+        net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(x, y, z);
+        net.minecraft.world.level.block.state.BlockState state = chunk.getBlockState(pos);
+        if (!(state.getBlock() instanceof net.minecraft.world.level.block.EntityBlock eb)) {
+            return;
+        }
+        net.minecraft.world.level.block.entity.BlockEntity be = chunk.getBlockEntity(pos);
+        if (be == null) {
+            be = eb.newBlockEntity(pos, state);
+            if (be != null) {
+                chunk.setBlockEntity(be);
+            }
+        }
+        if (be instanceof net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity container) {
+            container.setLootTable(
+                net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.LOOT_TABLE, loc),
+                seed
+            );
+        }
+    }
+
     public ChunkAccess getChunk() {
         return chunk;
     }

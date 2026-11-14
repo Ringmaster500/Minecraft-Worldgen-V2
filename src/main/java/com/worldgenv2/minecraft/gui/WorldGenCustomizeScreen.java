@@ -1,26 +1,38 @@
 package com.worldgenv2.minecraft.gui;
 
+import com.google.gson.JsonObject;
+import com.worldgenv2.pack.ProjectRuntime;
+import com.worldgenv2.pack.WorldGenV2Addons;
 import com.worldgenv2.studio.StudioTheme;
+import com.worldgenv2.studio.gui.WorldGenStudioScreen;
+import com.worldgenv2.studio.project.ProjectStore;
+import com.worldgenv2.studio.shell.StudioApp;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 /**
  * Clean, spacious Worldgen V2 World Setup & Seed Preview Screen.
  * Opened when clicking [ Customize ] on Worldgen V2 in Minecraft's Create World screen.
- * Displays a clean centered terrain radar with seed and scaling controls.
+ * Lets the player/pack-maker choose the active project or addon preset, preview the seed, or jump into Studio.
  */
 public class WorldGenCustomizeScreen extends Screen {
 
+    private record Entry(boolean isProject, String id, String label) {}
+
     private final Screen parentScreen;
     private final LiveSeedRadarWidget radarWidget;
+    private final List<Entry> entries = new ArrayList<>();
 
+    private int selectedIdx = 0;
     private long currentSeed = 133742L;
     private float biomeScale = 1.0f;
 
@@ -29,6 +41,40 @@ public class WorldGenCustomizeScreen extends Screen {
         this.parentScreen = parentScreen;
         this.radarWidget = new LiveSeedRadarWidget();
         this.currentSeed = new Random().nextLong() & 0x7FFFFFFFFFFFL;
+        loadEntries();
+    }
+
+    private void loadEntries() {
+        entries.clear();
+        String activeProj = ProjectRuntime.activeProjectName();
+        String activePreset = ProjectRuntime.activePresetId();
+        for (ProjectStore.Entry p : ProjectStore.list()) {
+            entries.add(new Entry(true, p.name(), "Project: " + p.name()));
+            if (p.name().equals(activeProj)) selectedIdx = entries.size() - 1;
+        }
+        for (WorldGenV2Addons.Preset pr : WorldGenV2Addons.presets()) {
+            if (pr.isPack()) continue;
+            entries.add(new Entry(false, pr.id(), "Preset: " + pr.name()));
+            if (activeProj == null && pr.id().equals(activePreset)) selectedIdx = entries.size() - 1;
+        }
+        if (entries.isEmpty()) {
+            entries.add(new Entry(false, "worldgenv2:default", "Preset: Default"));
+        }
+    }
+
+    private void applySelection() {
+        if (entries.isEmpty()) return;
+        Entry sel = entries.get(Math.max(0, Math.min(selectedIdx, entries.size() - 1)));
+        try {
+            if (sel.isProject()) {
+                ProjectRuntime.setActiveProject(sel.id());
+            } else {
+                Files.createDirectories(ProjectRuntime.activeFile().getParent());
+                JsonObject o = new JsonObject();
+                o.addProperty("preset", sel.id());
+                Files.writeString(ProjectRuntime.activeFile(), o.toString());
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -38,32 +84,42 @@ public class WorldGenCustomizeScreen extends Screen {
         int centerX = width / 2;
 
         // Clean centered preview radar
-        int previewW = Math.min(320, width - 40);
-        int previewH = Math.min(150, height - 110);
+        int previewW = Math.min(340, width - 40);
+        int previewH = Math.min(145, height - 130);
         int previewX = centerX - previewW / 2;
-        int previewY = 32;
+        int previewY = 30;
 
         this.radarWidget.setBounds(previewX, previewY, previewW, previewH);
         this.radarWidget.updateSeed(currentSeed, biomeScale);
 
-        // Control row directly beneath the preview
-        int controlY = previewY + previewH + 8;
+        int row1Y = previewY + previewH + 8;
+        Entry cur = entries.get(Math.max(0, Math.min(selectedIdx, entries.size() - 1)));
+        this.addRenderableWidget(Button.builder(Component.literal(cur.label()), btn -> {
+            selectedIdx = (selectedIdx + 1) % entries.size();
+            btn.setMessage(Component.literal(entries.get(selectedIdx).label()));
+        }).bounds(centerX - 155, row1Y, 200, 20).build());
 
-        this.addRenderableWidget(Button.builder(Component.literal("🎲 Randomize Seed"), btn -> {
+        this.addRenderableWidget(Button.builder(Component.literal("Open Studio"), btn -> {
+            Entry sel = entries.get(Math.max(0, Math.min(selectedIdx, entries.size() - 1)));
+            if (sel.isProject()) StudioApp.get().openProject(sel.id());
+            Minecraft.getInstance().setScreen(WorldGenStudioScreen.getInstance());
+        }).bounds(centerX + 55, row1Y, 100, 20).build());
+
+        int row2Y = row1Y + 24;
+        this.addRenderableWidget(Button.builder(Component.literal("Randomize Seed"), btn -> {
             this.currentSeed = new Random().nextLong() & 0x7FFFFFFFFFFFL;
             this.radarWidget.updateSeed(currentSeed, biomeScale);
-        }).bounds(centerX - 105, controlY, 100, 20).build());
+        }).bounds(centerX - 105, row2Y, 100, 20).build());
 
         this.addRenderableWidget(Button.builder(Component.literal("Scale: " + String.format("%.1fx", biomeScale)), btn -> {
-            // Cycle scale: 0.5x -> 1.0x -> 1.5x -> 2.0x -> 0.5x
             if (biomeScale >= 2.0f) biomeScale = 0.5f;
             else biomeScale += 0.5f;
             btn.setMessage(Component.literal("Scale: " + String.format("%.1fx", biomeScale)));
             this.radarWidget.updateSeed(currentSeed, biomeScale);
-        }).bounds(centerX + 5, controlY, 100, 20).build());
+        }).bounds(centerX + 5, row2Y, 100, 20).build());
 
-        // Footer Done and Cancel buttons safely at bottom
         this.addRenderableWidget(Button.builder(Component.literal("Done"), btn -> {
+            applySelection();
             Minecraft.getInstance().setScreen(parentScreen);
         }).bounds(centerX - 105, height - 28, 100, 20).build());
 

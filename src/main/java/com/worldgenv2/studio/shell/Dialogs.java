@@ -88,9 +88,53 @@ final class Dialogs {
         items.add(PopupMenu.Item.of("New project...", () -> guardUnsaved(ui, app, () -> newProject(ui, app))));
         if (app.project != null) {
             if (hasAddons()) items.add(PopupMenu.Item.of("Import from addon...", () -> addFromPreset(ui, app)));
+            items.add(PopupMenu.Item.of("Import .nbt structures...", () -> importNbt(app)));
             items.add(PopupMenu.Item.of("Export as shareable file", app::exportPreset));
         }
         if (app.project != null) items.add(PopupMenu.Item.of("Close project", () -> guardUnsaved(ui, app, app::closeProject)));
         PopupMenu.open(ui, x, y, 190, items);
+    }
+
+    static void importNbt(StudioApp app) {
+        if (app.project == null) return;
+        java.nio.file.Path importsDir = java.nio.file.Path.of("config", "worldgenv2", "imports");
+        java.nio.file.Path prefabsDir = app.project.dir.resolve("prefabs");
+        try {
+            java.nio.file.Files.createDirectories(importsDir);
+            java.util.List<java.nio.file.Path> nbtFiles = new ArrayList<>();
+            for (java.nio.file.Path dir : new java.nio.file.Path[]{importsDir, prefabsDir}) {
+                if (!java.nio.file.Files.isDirectory(dir)) continue;
+                try (var s = java.nio.file.Files.list(dir)) {
+                    s.filter(p -> p.toString().toLowerCase().endsWith(".nbt")).forEach(nbtFiles::add);
+                }
+            }
+            if (nbtFiles.isEmpty()) {
+                app.say("Drop .nbt structure files into " + importsDir + " and run Import again.", com.worldgenv2.studio.ui.Ui.YELLOW);
+                return;
+            }
+            int imported = 0;
+            for (java.nio.file.Path f : nbtFiles) {
+                String rawName = f.getFileName().toString();
+                String id = StudioProject.sanitize(rawName.substring(0, rawName.length() - 4));
+                if (id.isBlank()) continue;
+                var json = com.worldgenv2.prefab.NbtPrefabImporter.importFile(f, "worldgenv2:" + id);
+                String assetPath = "prefabs/" + id + ".json";
+                Asset target = app.project.get(assetPath);
+                if (target == null) {
+                    target = app.project.create(AssetType.PREFAB, id);
+                }
+                if (target != null) {
+                    app.project.edit(target, "Import NBT " + id, old -> {
+                        for (String k : new ArrayList<>(old.keySet())) old.remove(k);
+                        for (var e : json.entrySet()) old.add(e.getKey(), e.getValue());
+                    });
+                }
+                imported++;
+            }
+            app.uiRevision++;
+            app.say("Imported " + imported + " .nbt structure(s) into Prefabs. Save to keep them.", com.worldgenv2.studio.ui.Ui.GREEN);
+        } catch (Exception e) {
+            app.say("NBT import failed: " + e.getMessage(), com.worldgenv2.studio.ui.Ui.RED);
+        }
     }
 }

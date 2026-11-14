@@ -35,6 +35,8 @@ final class PreviewEngine {
     private volatile boolean busy;
     /** When true, each zone's colour is blended over the biome colours. */
     volatile boolean zoneTint;
+    /** When true, renders an X-Y vertical cross-section at centerZ instead of a top-down map. */
+    volatile boolean sliceMode;
     private volatile ProjectCompiler.Result cachedCompile;
     private volatile String cachedKey = "";
 
@@ -55,6 +57,7 @@ final class PreviewEngine {
                  double cx, double cz, double blocksPerSample, int texW, int texH) {
         final long gen = ++latestGeneration;
         final boolean tint = zoneTint;
+        final boolean slice = sliceMode;
         busy = true;
         pool.execute(() -> {
             long t0 = System.currentTimeMillis();
@@ -77,12 +80,16 @@ final class PreviewEngine {
                 f.argb = new int[texW * texH];
                 WorldStructure s = res.structure;
                 if (s != null) {
-                    for (int y = 0; y < texH; y++) {
-                        if (gen != latestGeneration) return;
-                        double wz = cz + (y - texH / 2.0) * blocksPerSample;
-                        for (int x = 0; x < texW; x++) {
-                            double wx = cx + (x - texW / 2.0) * blocksPerSample;
-                            f.argb[y * texW + x] = colorAt(res, s, (float) wx, (float) wz, tint);
+                    if (slice) {
+                        renderSlice(res, s, cx, cz, blocksPerSample, texW, texH, gen, f.argb);
+                    } else {
+                        for (int y = 0; y < texH; y++) {
+                            if (gen != latestGeneration) return;
+                            double wz = cz + (y - texH / 2.0) * blocksPerSample;
+                            for (int x = 0; x < texW; x++) {
+                                double wx = cx + (x - texW / 2.0) * blocksPerSample;
+                                f.argb[y * texW + x] = colorAt(res, s, (float) wx, (float) wz, tint);
+                            }
                         }
                     }
                 }
@@ -114,6 +121,49 @@ final class PreviewEngine {
             }
         }
         return 0xFF000000 | (r << 16) | (g << 8) | bl;
+    }
+
+    private void renderSlice(ProjectCompiler.Result res, WorldStructure s, double cx, double cz,
+                             double blocksPerSample, int texW, int texH, long gen, int[] argb) {
+        int minY = res.minY, maxY = res.maxY, height = Math.max(1, maxY - minY);
+        float[] col = new float[height];
+        float[] scratch = new float[height];
+        float wz = (float) cz;
+        for (int x = 0; x < texW; x++) {
+            if (gen != latestGeneration) return;
+            float wx = (float) (cx + (x - texW / 2.0) * blocksPerSample);
+            boolean isVoid = s.isVoidColumn(wx, wz);
+            int biomeId = s.getBiomeId(wx, wz);
+            var b = res.bindingById(biomeId);
+            int base = b == null ? 0xFF6B7280 : Cat.color(b.category());
+            int br = (base >> 16) & 255, bg = (base >> 8) & 255, bb = base & 255;
+
+            if (!isVoid) {
+                var q = s.queryBiome(wx, wz);
+                q.computeBlendedColumn(wx, wz, minY, maxY, col, scratch);
+                s.applyTerrainModifiers(wx, wz, minY, maxY, col);
+            }
+            for (int py = 0; py < texH; py++) {
+                double t = (texH - 1 - py) / (double) Math.max(1, texH - 1);
+                int wy = minY + (int) Math.round(t * (height - 1));
+                int idx = Math.max(0, Math.min(height - 1, wy - minY));
+                if (isVoid) {
+                    argb[py * texW + x] = 0xFF07090E;
+                    continue;
+                }
+                float d = col[idx];
+                if (d >= 0.0f) {
+                    boolean surface = idx + 1 >= height || col[idx + 1] < 0.0f;
+                    float shade = surface ? 1.0f : 0.48f;
+                    int r = clamp((int) (br * shade)), g = clamp((int) (bg * shade)), bl = clamp((int) (bb * shade));
+                    argb[py * texW + x] = 0xFF000000 | (r << 16) | (g << 8) | bl;
+                } else if (wy <= res.seaLevel) {
+                    argb[py * texW + x] = 0xFF1B4D7E;
+                } else {
+                    argb[py * texW + x] = 0xFF101520;
+                }
+            }
+        }
     }
 
     private static int clamp(int v) { return Math.max(0, Math.min(255, v)); }

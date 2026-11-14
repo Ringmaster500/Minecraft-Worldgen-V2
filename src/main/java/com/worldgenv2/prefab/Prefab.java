@@ -97,7 +97,11 @@ public final class Prefab {
         }
     }
 
-    public record VoxelEntry(int x, int y, int z, int paletteIndex) {}
+    public record VoxelEntry(int x, int y, int z, int paletteIndex, String lootTable) {
+        public VoxelEntry(int x, int y, int z, int paletteIndex) {
+            this(x, y, z, paletteIndex, null);
+        }
+    }
 
     public record PrefabSocket(
         String name,
@@ -201,7 +205,7 @@ public final class Prefab {
         List<PaletteEntry> pal = new java.util.ArrayList<>();
         for (PaletteEntry e : palette) pal.add(PaletteEntry.of(e.id(), e.blockId(), turnProperties(e.properties())));
         List<VoxelEntry> vox = new java.util.ArrayList<>(blocks.size());
-        for (VoxelEntry v : blocks) vox.add(new VoxelEntry(sz - 1 - v.z(), v.y(), v.x(), v.paletteIndex()));
+        for (VoxelEntry v : blocks) vox.add(new VoxelEntry(sz - 1 - v.z(), v.y(), v.x(), v.paletteIndex(), v.lootTable()));
         List<PrefabSocket> soc = new java.util.ArrayList<>();
         for (PrefabSocket s : sockets) {
             Vec3i p = s.position();

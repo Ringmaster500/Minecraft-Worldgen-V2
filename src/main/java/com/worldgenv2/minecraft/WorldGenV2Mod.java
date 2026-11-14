@@ -53,12 +53,34 @@ public final class WorldGenV2Mod {
         BIOME_SOURCES.register(modEventBus);
 
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
+        NeoForge.EVENT_BUS.addListener(this::onCreateSpawnPosition);
 
         if (net.neoforged.fml.loading.FMLEnvironment.getDist().isClient()) {
             com.worldgenv2.studio.WorldGenStudioClient.init(modEventBus);
         }
 
         LOGGER.info("Initialized Minecraft Worldgen V2 for Minecraft 26.1 (NeoForge)");
+    }
+
+    private void onCreateSpawnPosition(net.neoforged.neoforge.event.level.LevelEvent.CreateSpawnPosition event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+        if (!(level.getChunkSource().getGenerator() instanceof WorldGenV2ChunkGenerator v2Gen)) return;
+        var spawnMgr = v2Gen.getActiveWorldStructure().getSpawnAnchorManager();
+        if (spawnMgr == null) return;
+        var rule = spawnMgr.getActiveRule();
+        if (rule == null || !rule.lockPlayerSpawn()) return;
+
+        int sx = rule.originX() + rule.spawnOffsetX();
+        int sz = rule.originZ() + rule.spawnOffsetZ();
+        int minY = v2Gen.getMinY();
+        int maxY = minY + v2Gen.getGenDepth();
+        int sy = v2Gen.getActiveWorldStructure().sampleSurfaceY(sx, sz, minY, maxY) + 1 + rule.spawnOffsetY();
+        BlockPos spawnPos = new BlockPos(sx, sy, sz);
+
+        spawnMgr.setResolvedSpawnPos(spawnPos);
+        event.getSettings().setSpawn(net.minecraft.world.level.storage.LevelData.RespawnData.of(level.dimension(), spawnPos, 0.0f, 0.0f));
+        event.setCanceled(true);
+        LOGGER.info("[Worldgen V2] Locked world spawn to anchor '{}' at {}", rule.id(), spawnPos);
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
