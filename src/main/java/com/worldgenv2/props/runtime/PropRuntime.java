@@ -153,6 +153,6 @@ public final class PropRuntime<T> implements Prop<T> {
     @Override
     public int contentReach() {
         Prop<T> inner = unwrap(prop);
-        return inner instanceof com.worldgenv2.props.AssignmentsProp<?> ap ? ap.contentReach() : horizontalReach();
+        return inner instanceof com.worldgenv2.props.AssignmentsProp<?> ap ? ap.contentReach() : inner.horizontalReach();
     }
 }

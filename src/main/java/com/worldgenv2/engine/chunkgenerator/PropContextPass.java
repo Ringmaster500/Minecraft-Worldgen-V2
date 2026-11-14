@@ -1,7 +1,7 @@
 package com.worldgenv2.engine.chunkgenerator;
 
 import com.worldgenv2.api.VoxelSpace;
-import com.worldgenv2.props.AssignmentsProp;
+import com.worldgenv2.props.Distribution;
 import com.worldgenv2.props.Prop;
 import com.worldgenv2.props.runtime.PropRuntime;
 import com.worldgenv2.worldstructure.WorldStructure;
@@ -43,7 +43,7 @@ final class PropContextPass<T> {
         ImmutableChunkSnapshot<T> tile(int chunkX, int chunkZ);
     }
 
-    private record Item<T>(Prop<T> wrapper, AssignmentsProp<T> dist, int stage, long salt) {}
+    private record Item<T>(Prop<T> wrapper, Distribution<T> dist, int stage, long salt) {}
 
     private static final class Plan<T> {
         final List<Item<T>> items = new ArrayList<>();
@@ -68,7 +68,7 @@ final class PropContextPass<T> {
 
     /** True for props handled by this pass (distributions); everything else stays per surface column. */
     static boolean isDistribution(Prop<?> p) {
-        return PropRuntime.unwrap(p) instanceof AssignmentsProp<?>;
+        return PropRuntime.unwrap(p) instanceof Distribution<?>;
     }
 
     @SuppressWarnings("unchecked")
@@ -80,7 +80,7 @@ final class PropContextPass<T> {
             Plan<T> np = new Plan<>();
             for (WorldStructure.BiomeProp<T> bp : ws.<T>allBiomeProps()) {
                 if (!isDistribution(bp.prop()) || np.byProp.containsKey(bp.prop())) continue;
-                AssignmentsProp<T> ap = (AssignmentsProp<T>) PropRuntime.unwrap(bp.prop());
+                Distribution<T> ap = (Distribution<T>) PropRuntime.unwrap(bp.prop());
                 Item<T> it = new Item<>(bp.prop(), ap, PropRuntime.stageOf(bp.prop()), bp.salt());
                 np.items.add(it);
                 np.byProp.put(bp.prop(), it);

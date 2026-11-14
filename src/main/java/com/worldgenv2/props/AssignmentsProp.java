@@ -13,7 +13,7 @@ import java.util.function.Predicate;
  * High-level composable prop generator connecting:
  * {@link PositionsProvider} -&gt; {@link Scanner} -&gt; {@link Assignments} -&gt; child {@link Prop}.
  */
-public final class AssignmentsProp<T> implements Prop<T> {
+public final class AssignmentsProp<T> implements Distribution<T> {
 
     private final PositionsProvider positionsProvider;
     private final Scanner scanner;
@@ -163,6 +163,7 @@ public final class AssignmentsProp<T> implements Prop<T> {
      *
      * @param accept says whether this prop owns the column (its biome); null accepts every column
      */
+    @Override
     public int generateInRegion(int minX, int minZ, int maxX, int maxZ, com.worldgenv2.api.VoxelSpace<T> space, long seedBase,
                                 java.util.function.BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
         int minWorldY = space.getMinY(), maxWorldY = space.getMaxY();

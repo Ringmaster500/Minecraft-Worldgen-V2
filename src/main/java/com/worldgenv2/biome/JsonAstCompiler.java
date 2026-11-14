@@ -2954,6 +2954,9 @@ public final class JsonAstCompiler {
                 return compilePropRuntime(json.getOrDefault("node", json.get("runtime")), context, blockResolver);
             }
         });
+
+        // Hytale's own props, patterns and scanners go in last so a Hytale name always means what Hytale says it means.
+        HytaleDialect.register();
     }
 
     // =========================================================================
@@ -3903,7 +3906,13 @@ public final class JsonAstCompiler {
         if (root.get("props") instanceof List<?> rawProps) {
             for (Object item : rawProps) {
                 if (item instanceof Map<?, ?> propMap) {
-                    props.add(compileProp((Map<String, Object>) propMap, context, blockResolver));
+                    Map<String, Object> pm = (Map<String, Object>) propMap;
+                    if (HytaleDialect.isHytaleBiomeProp(pm)) {
+                        Prop<T> hp = HytaleDialect.compileBiomeProp(pm, context, blockResolver);
+                        if (hp != null) props.add(hp);
+                    } else {
+                        props.add(compileProp(pm, context, blockResolver));
+                    }
                 }
             }
         }

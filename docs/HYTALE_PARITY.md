@@ -23,6 +23,9 @@ A node name that exists in Hytale must mean exactly what it means there: same pa
 
 ## Done
 - **Prop Runtime context** (item 1 below): terrain is a deterministic per-chunk stage (bedrock and water included); distribution props run as staged runtimes over a context region sized from the props' reach, every anchor that can reach a chunk is evaluated with seeds that depend only on the anchor, only the chunk's own cells are committed. Proven by Phase18VerificationTest.
+- **Hytale Pattern, Scanner, Locator, Orienter** (`com.worldgenv2.hytale`, registered under their Hytale names): Constant, BlockType, BlockSet, Offset, Rotator, Floor, Ceiling, Wall, Surface, Cuboid, And, Or, Not, FieldFunction; Origin, Linear, Random, Radial, Queue scanners that enumerate positions and leave validity to the Pattern; Locator (Pattern + Scanner + PlacementCap); Orienter (Rotations + Pattern + Scanner + SelectionMode, turning the child with the pattern). Patterns are rotation-aware, so one definition tests a prop in every direction. Phase 19 (30 checks) and Phase 20 (7 checks, Hytale-format JSON through the compiler) cover them, including a log laid across a gap in either direction.
+- **Hytale biome Props form**: `Props: [{ Runtime, Positions, Assignments, Skip }]` loads; a Hytale distribution generates props at the position given (no surface snapping), and Locator/Orienter do the searching. Runtime numbers start at 0 as in Hytale.
+- Where a Hytale name is unsuffixed (`Locator`) it now means Hytale's node; the engine's own versions stay under their suffixed names (`LocatorProp`, `OrienterProp`, `SurfacePattern`) and still load.
 - Keys are matched without regard to case (`Type`/`type`), as are type names.
 - Hytale's positional `Inputs` list works for every density node (mapped onto the node's slots).
 
@@ -34,8 +37,8 @@ A node name that exists in Hytale must mean exactly what it means there: same pa
 5. **Prop vocabulary.** Hytale's Locator / Orienter / Queue / Mask / Offset / Weighted / PondFiller... with Pattern + Scanner reading real blocks. Ours has same-named props with different parameter shapes (0 of 16 match).
 
 ## Order of work
-1. Prop Runtime context (fixes clipping; unblocks real Locator/Orienter use).
-2. Prop, Pattern, Scanner, Assignments, Positions Provider conformance (the five categories with the lowest match).
+1. Prop Runtime context - DONE.
+2. Prop, Pattern, Scanner, Assignments, Positions Provider conformance - STARTED: Pattern, Scanner, Locator, Orienter and the biome Props form are done. Still to conform: Queue, Mask, Offset, Union, Weighted, StaticRotator, RandomRotator, DensitySelector, Density, Cuboid, Manual, PondFiller, Prefab (props); Weighted/FieldFunction/Sandwich assignments (Seed, SkipChance, WeightedAssignments); Positions providers (TriangularGrid2d takes no parameters in Hytale; Scaler, BaseHeight, Cache, Anchor...). Prop distributions Constant / Positions / Assigned / Union / Anchor / Graph.
 3. Density and Material Provider conformance (missing: CellWallDistance, Axis, BaseHeight, Distance, material Condition...).
 4. World Structure asset and Framework; biome-owned content.
 5. Graph Generator conformance, then re-express spawn / landmarks / points of interest / rivers / caves as graph content.
