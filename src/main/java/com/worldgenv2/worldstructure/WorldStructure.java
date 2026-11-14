@@ -257,6 +257,13 @@ public final class WorldStructure {
 
     public long seed() { return worldSeed; }
 
+    private volatile DensityBiomeMap biomeMap;
+
+    /** Hytale-style biome distribution: one density field with biome delimiters replaces the Voronoi map. Pass null to go back. */
+    public WorldStructure withBiomeMap(DensityBiomeMap map) { this.biomeMap = map; return this; }
+
+    public DensityBiomeMap getBiomeMap() { return biomeMap; }
+
     public WorldStructure withOreRules(java.util.List<OreRule> rules) {
         this.oreRules = rules == null ? java.util.List.of() : java.util.List.copyOf(rules);
         return this;
@@ -600,7 +607,8 @@ public final class WorldStructure {
      * Resolves the complete biome query result (including CustomBiome smooth overrides and macro radial zone overrides) for (x, z).
      */
     public BiomeQueryResult queryBiome(float x, float z) {
-        BiCarta.CellQueryResult<TileBiome> cell = biCarta.query(x, z);
+        DensityBiomeMap map = biomeMap;
+        BiCarta.CellQueryResult<TileBiome> cell = map != null ? map.query(x, z) : biCarta.query(x, z);
         TileBiome primary = cell.primary();
         if (dimensionLayout != null) {
             String zoneBiomeName = dimensionLayout.resolveZoneBiomeOverride(x, z);

@@ -519,6 +519,10 @@ final class HytaleDialect {
         R.register("Slider", (j, ctx) -> HDensity.slider(input(j, 0, ctx), (float) dnum(get(j, "slidex"), 0), (float) dnum(get(j, "slidey"), 0), (float) dnum(get(j, "slidez"), 0)));
         var legacySelector = R.get("Selector");
         R.register("Selector", (j, ctx) -> legacySelector != null && !j.containsKey("inputs") ? legacySelector.deserialize(j, ctx) : HDensity.selector(inputs(j, ctx)));
+        R.register("DistanceFromBiomeEdge", (j, ctx) -> (x, y, z) -> {
+            double d = ctx.biomeEdgeDistance(x, z);
+            return d > ctx.maxBiomeEdgeDistance() ? -1f : (float) d;
+        });
         R.register("BaseHeight", (j, ctx) -> {
             String name = String.valueOf(get(j, "baseheightname"));
             return HDensity.baseHeight(() -> ctx.decimalConstants().getOrDefault(name, 0.0), flag(get(j, "distance"), false));

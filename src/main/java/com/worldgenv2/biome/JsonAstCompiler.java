@@ -59,6 +59,14 @@ public final class JsonAstCompiler {
         private final Map<String, Double> decimalConstants = new java.util.concurrent.ConcurrentHashMap<>();
         private final Map<String, PositionsProvider> frameworkPositions = new java.util.concurrent.ConcurrentHashMap<>();
 
+        private volatile java.util.function.DoubleBinaryOperator edgeDistance = (x, z) -> Double.MAX_VALUE;
+        private volatile int maxBiomeEdgeDistance = 0;
+
+        /** Installed once the World Structure exists; DistanceFromBiomeEdge reads it. */
+        public void setBiomeEdge(java.util.function.DoubleBinaryOperator distance, int maxDistance) { this.edgeDistance = distance; this.maxBiomeEdgeDistance = maxDistance; }
+        public double biomeEdgeDistance(double x, double z) { return edgeDistance.applyAsDouble(x, z); }
+        public int maxBiomeEdgeDistance() { return maxBiomeEdgeDistance; }
+
         /** Named decimal constants of the World Structure's Framework (BaseHeight reads them). */
         public Map<String, Double> decimalConstants() { return decimalConstants; }
 

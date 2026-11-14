@@ -124,6 +124,8 @@ public final class ProjectCompiler {
             }
         }
         JsonAstCompiler.CompileContext ctx = new JsonAstCompiler.CompileContext(r.seed);
+        JsonObject wsJson = ci(d, "worldStructure");
+        if (wsJson != null) applyFramework(wsJson, ctx, r);
         for (Object[] p : pending) {
             int id = (Integer) p[0];
             String assetId = (String) p[1];
@@ -179,6 +181,7 @@ public final class ProjectCompiler {
         }
 
         WorldStructure structure = new WorldStructure(tiles, customs, cellSize, r.seed);
+        if (wsJson != null) applyBiomeMap(wsJson, structure, ctx, r);
         if (J.bool(d, "rivers", true)) {
             JsonObject rs = J.obj(d, "riverSettings");
             RiverCarver.Settings def = RiverCarver.Settings.defaults();
@@ -751,4 +754,102 @@ public final class ProjectCompiler {
     static <E extends Enum<E>> E parseEnum(Class<E> c, String v, E def) {
         try { return Enum.valueOf(c, v.trim().toUpperCase(Locale.ROOT)); } catch (Exception e) { return def; }
     }
-}
+
+    // ---- Hytale World Structure (DefaultBiome, Density, Biomes delimiters, Framework) ----
+
+    private static com.google.gson.JsonElement ciGet(JsonObject o, String key) {
+        if (o == null) return null;
+        for (var e : o.entrySet()) if (e.getKey().equalsIgnoreCase(key)) return e.getValue();
+        return null;
+    }
+
+    private static JsonObject ci(JsonObject o, String key) {
+        var e = ciGet(o, key);
+        return e != null && e.isJsonObject() ? e.getAsJsonObject() : null;
+    }
+
+    private static double ciNum(JsonObject o, String key, double def) {
+        var e = ciGet(o, key);
+        try { return e != null && e.isJsonPrimitive() ? e.getAsDouble() : def; } catch (NumberFormatException ex) { return def; }
+    }
+
+    private static String ciStr(JsonObject o, String key, String def) {
+        var e = ciGet(o, key);
+        return e != null && e.isJsonPrimitive() ? e.getAsString() : def;
+    }
+
+    private static Object parsed(com.google.gson.JsonElement e) { return new JsonAstCompiler.SimpleJsonParser(e.toString()).parseValue(); }
+
+    /** Fills the named constants and positions that biomes read through BaseHeight and the Framework positions node. */
+    private static void applyFramework(JsonObject ws, JsonAstCompiler.CompileContext ctx, Result r) {
+        var fw = ciGet(ws, "framework");
+        if (fw == null || !fw.isJsonArray()) return;
+        for (JsonElement m : fw.getAsJsonArray()) {
+            if (!m.isJsonObject()) continue;
+            JsonObject mo = m.getAsJsonObject();
+            String type = ciStr(mo, "type", "");
+            var entries = ciGet(mo, "entries");
+            if (entries == null || !entries.isJsonArray()) continue;
+            for (JsonElement en : entries.getAsJsonArray()) {
+                if (!en.isJsonObject()) continue;
+                JsonObject eo = en.getAsJsonObject();
+                String name = ciStr(eo, "name", "");
+                if (name.isBlank()) continue;
+                try {
+                    if (type.equalsIgnoreCase("DecimalConstants")) {
+                        ctx.decimalConstants().put(name, ciNum(eo, "value", 0));
+                    } else if (type.equalsIgnoreCase("Positions")) {
+                        ctx.frameworkPositions().put(name, JsonAstCompiler.compilePositionsProvider(parsed(ciGet(eo, "positions")), ctx));
+                    }
+                } catch (Throwable ex) {
+                    r.warnings.add("World structure framework entry '" + name + "' failed: " + ex.getMessage());
+                }
+            }
+        }
+    }
+
+    private static int resolveBiomeId(String ref, Result r, WorldStructure structure) {
+        if (ref == null) return -1;
+        String bare = ref.contains(":") ? ref.substring(ref.indexOf(':') + 1) : ref;
+        for (BiomeBinding b : r.biomes) {
+            String nb = b.name().contains(":") ? b.name().substring(b.name().indexOf(':') + 1) : b.name();
+            if ((b.assetId().equalsIgnoreCase(ref) || b.name().equalsIgnoreCase(ref) || nb.equalsIgnoreCase(bare) || b.assetId().equalsIgnoreCase(bare))
+                    && structure.findTileBiome(b.id()) != null) return b.id();
+        }
+        return -1;
+    }
+
+    /** Replaces the Voronoi biome map with Hytale's density plus delimiters when the dimension has a world structure. */
+    private static void applyBiomeMap(JsonObject ws, WorldStructure structure, JsonAstCompiler.CompileContext ctx, Result r) {
+        var dens = ciGet(ws, "density");
+        var list = ciGet(ws, "biomes");
+        if (dens == null || !dens.isJsonObject()) return;
+        try {
+            int defId = resolveBiomeId(ciStr(ws, "defaultBiome", ""), r, structure);
+            if (defId < 0) {
+                if (!ciStr(ws, "defaultBiome", "").isBlank()) r.warnings.add("World structure default biome '" + ciStr(ws, "defaultBiome", "") + "' is not in the biome pool.");
+                defId = structure.getBiCarta().getTileBiomes().get(0).id();
+            }
+            List<com.worldgenv2.worldstructure.DensityBiomeMap.Delimiter> ds = new ArrayList<>();
+            if (list != null && list.isJsonArray()) {
+                for (JsonElement e : list.getAsJsonArray()) {
+                    if (!e.isJsonObject()) continue;
+                    JsonObject o = e.getAsJsonObject();
+                    String ref = ciStr(o, "biome", "");
+                    int id = resolveBiomeId(ref, r, structure);
+                    if (id < 0) { r.warnings.add("World structure delimiter uses biome '" + ref + "' which is not in the biome pool; skipped."); continue; }
+                    double lo = ciGet(o, "min") != null ? ciNum(o, "min", 0) : ciNum(o, "from", -1e9);
+                    double hi = ciGet(o, "max") != null ? ciNum(o, "max", 0) : ciNum(o, "to", 1e9);
+                    ds.add(new com.worldgenv2.worldstructure.DensityBiomeMap.Delimiter(lo, hi, id));
+                }
+            }
+            @SuppressWarnings("unchecked")
+            var density = JsonAstCompiler.compileDensity((Map<String, Object>) parsed(dens), ctx);
+            int edge = (int) ciNum(ws, "maxBiomeEdgeDistance", 0);
+            var map = new com.worldgenv2.worldstructure.DensityBiomeMap(density, ds, defId, (float) ciNum(ws, "defaultTransitionDistance", 32), edge, structure::findTileBiome);
+            structure.withBiomeMap(map);
+            ctx.setBiomeEdge((x, z) -> structure.queryBiome((float) x, (float) z).distanceToEdge(), edge);
+        } catch (Throwable ex) {
+            r.warnings.add("World structure failed to compile: " + ex.getMessage());
+        }
+    }}
