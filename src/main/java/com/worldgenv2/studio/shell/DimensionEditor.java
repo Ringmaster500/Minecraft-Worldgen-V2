@@ -121,13 +121,14 @@ final class DimensionEditor extends Editor {
         }
 
         // ---- spans: a structure that bridges a gap (a fallen log over a river) ----
-        if (feature("spans", "Natural bridges", "structures that cross a gap in the terrain, like a fallen log over a river", false)) {
+        if (feature("spans", "Natural bridges", "fallen trees (or anything you build) lying across narrow water, like a log over a river", true)) {
         block(new CardList(this, "spans", "bridge", List.of(
                 CardList.Field.str("id", "Name", "Unique name."),
                 CardList.Field.prefabs("prefabs", "Structures", "Candidates. The one that reaches both banks without overshooting is used, and it is turned to cross the gap. Build them with the long side along X."),
                 CardList.Field.integer("minGap", "Min gap", 1, 200, "Shortest stretch of water to cross."),
                 CardList.Field.integer("maxGap", "Max gap", 1, 200, "Longest stretch of water to cross."),
                 CardList.Field.integer("maxBankDiff", "Bank height diff", 0, 32, "Largest height difference allowed between the two banks."),
+                CardList.Field.integer("maxDrop", "Max bank height", 0, 64, "Banks may rise at most this far above the water. Low values keep the structure close to the water instead of bridging a canyon."),
                 CardList.Field.integer("yOffset", "Height offset", -16, 16, "Raise (+) or sink (-) the structure relative to the higher bank."),
                 CardList.Field.integer("cell", "Search cell", 16, 1024, "World is searched in squares this wide; one bridge at most per square. Bigger = rarer."),
                 CardList.Field.num("chance", "Chance", 0, 1, 0.05, "Chance that a square is searched at all."),
@@ -202,6 +203,7 @@ final class DimensionEditor extends Editor {
         field("Spacing", num("riverSettings.spacing", 1000, 200, 6000, 50, false, "River spacing"), "Roughly how far apart rivers run. Bigger = fewer, longer rivers.");
         field("Water width", num("riverSettings.channelWidth", 30, 4, 200, 2, false, "River width"), "Width of the water surface, in blocks.");
         field("Valley width", num("riverSettings.valleyWidth", 60, 8, 400, 4, false, "Valley width"), "Width of the gentle valley around the water.");
+        field("Bank gentleness", num("riverSettings.valleyRise", 14, 0, 80, 1, false, "River bank gentleness"), "Blocks of height that add one more valley width. Lower = wider, gentler banks on high ground; 0 = fixed width (cliffs on hills).");
         field("Depth", num("riverSettings.depth", 6, 1, 40, 1, true, "River depth"), "How far the riverbed lies below sea level.");
         field("Meander", num("riverSettings.meander", 96, 0, 400, 8, false, "River meander"), "How much rivers wander. 0 = straight.");
         field("Width variation", num("riverSettings.widthVariation", 0.22, 0, 1, 0.02, false, "River width variation"), "How much the width changes along a river.");
@@ -226,6 +228,7 @@ final class DimensionEditor extends Editor {
         J.setNum(o, "minGap", 5);
         J.setNum(o, "maxGap", 14);
         J.setNum(o, "maxBankDiff", 3);
+        J.setNum(o, "maxDrop", 3);
         J.setNum(o, "yOffset", 0);
         J.setNum(o, "cell", 64);
         J.setNum(o, "chance", 0.6);
@@ -281,6 +284,13 @@ final class DimensionEditor extends Editor {
                         edit("Customize ores", j -> {
                             j.add("ores", com.worldgenv2.pack.WorldGenV2Addons.defaultOres());
                             J.objOrCreate(j, "features").addProperty("ores", "custom");
+                        })));
+            }
+            if (key.equals("spans")) {
+                block(new Button("Copy the default fallen-tree bridge here so I can edit it", () ->
+                        edit("Customize bridges", j -> {
+                            j.add("spans", com.worldgenv2.pack.ProjectCompiler.defaultSpans(project()));
+                            J.objOrCreate(j, "features").addProperty("spans", "custom");
                         })));
             }
             return false;

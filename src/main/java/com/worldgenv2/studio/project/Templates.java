@@ -33,7 +33,8 @@ public final class Templates {
 
     private static final String[] SHIPPED_BIOMES = {
             "alpine_peaks", "arid_dunes", "boreal_tundra", "old_growth_grove", "open_sea", "sunlit_plains", "temperate_forest"};
-    private static final String[] SHIPPED_PREFABS = {"stone_walkway_01.prefab", "watchtower_01.prefab"};
+    private static final String[] SHIPPED_PREFABS = {"stone_walkway_01.prefab", "watchtower_01.prefab",
+            "fallen_oak_a.prefab", "fallen_oak_b.prefab", "fallen_oak_c.prefab"};
 
     public static JsonObject defaultWorld() {
         JsonObject o = new JsonObject();

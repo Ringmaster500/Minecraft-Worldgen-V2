@@ -30,11 +30,15 @@ public final class RiverCarver {
      * @param meander        how strongly the river wanders (domain warp amplitude, blocks)
      * @param widthVariation 0..1, how much the width changes along the river
      */
-    public record Settings(float spacing, float channelWidth, float valleyWidth, int depth, float meander, float widthVariation) {
-        public static Settings defaults() { return new Settings(1000f, 30f, 60f, 6, 96f, 0.22f); }
+    public record Settings(float spacing, float channelWidth, float valleyWidth, int depth, float meander, float widthVariation,
+                           float valleyRise) {
+        /** {@code valleyRise}: every this-many blocks the land stands above sea level adds one more valley width, so banks
+         *  slope gently down to the water instead of forming cliffs (0 = fixed width). */
+        public static Settings defaults() { return new Settings(1000f, 30f, 60f, 6, 96f, 0.22f, 14f); }
     }
 
-    private final float coreHalfWidth, channelHalfWidth, valleyHalfWidth, meanderAmp, widthVar;
+    private static final float MAX_RATIO = 3.6f;
+    private final float coreHalfWidth, channelHalfWidth, valleyHalfWidth, meanderAmp, widthVar, valleyRise;
 
     private final FastNoiseLite riverNoise;
     private final FastNoiseLite warpX;
@@ -47,7 +51,7 @@ public final class RiverCarver {
 
     public RiverCarver(long seed, int seaLevel, int bedDepth) {
         this(seed, seaLevel, Settings.defaults().depth() == bedDepth ? Settings.defaults()
-                : new Settings(1000f, 30f, 60f, bedDepth, 96f, 0.22f));
+                : new Settings(1000f, 30f, 60f, bedDepth, 96f, 0.22f, 14f));
     }
 
     public RiverCarver(long seed, int seaLevel, Settings st) {
@@ -61,6 +65,7 @@ public final class RiverCarver {
         this.coreHalfWidth = channelHalfWidth * (0.024f / 0.055f);
         this.meanderAmp = Math.max(0f, st.meander());
         this.widthVar = Math.clamp(st.widthVariation(), 0f, 1f);
+        this.valleyRise = Math.max(0f, st.valleyRise());
 
         this.riverNoise = new FastNoiseLite(s + 8101);
         this.riverNoise.setNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
@@ -101,7 +106,7 @@ public final class RiverCarver {
         float wMod = 1.0f + widthNoise.getNoise(x, z) * widthVar;
         float effectiveValley = valleyHalfWidth * wMod;
 
-        float noiseDist = Math.clamp(n / effectiveValley, 0.0f, 1.0f);
+        float noiseDist = Math.clamp(n / effectiveValley, 0.0f, MAX_RATIO);
 
         if (riverGraph != null && riverGraph.edgeCount() > 0) {
             float minGraphDist = Float.MAX_VALUE;
@@ -158,8 +163,8 @@ public final class RiverCarver {
      * hollows out the submerged riverbed below sea level.
      */
     public void carveColumn(float x, float z, int minY, int maxY, float[] col) {
-        float dist = riverDistance(x, z);
-        if (dist >= 0.999f) {
+        float rawDist = riverDistance(x, z);
+        if (rawDist >= MAX_RATIO * 0.999f) {
             return;
         }
 
@@ -184,13 +189,22 @@ public final class RiverCarver {
             return;
         }
 
+        float channelRatio = channelHalfWidth / valleyHalfWidth;
+        float coreRatio = coreHalfWidth / valleyHalfWidth;
+
+        // The higher the land stands above the sea, the wider its valley, so banks stay gently sloped instead of
+        // turning into cliffs. Inside the channel the original distance is used, so the water keeps its width.
+        float widen = valleyRise > 0f ? 1.0f + Math.max(0, surfaceY - seaLevel) / valleyRise : 1.0f;
+        widen = Math.min(widen, MAX_RATIO);
+        if (rawDist >= widen * 0.999f) {
+            return;
+        }
+        float dist = rawDist <= channelRatio ? rawDist : Math.max(channelRatio, rawDist / widen);
+
         // Smooth cubic Hermite profile for the valley basin:
         // dist in [0.0, 1.0] -> valleyFactor in [1.0, 0.0]
         float t = 1.0f - dist;
         float valleyFactor = t * t * (3.0f - 2.0f * t) * eligibility;
-
-        float channelRatio = channelHalfWidth / valleyHalfWidth;
-        float coreRatio = coreHalfWidth / valleyHalfWidth;
 
         // Target surface height in the valley
         // In the outer valley: terrain slopes gently down toward seaLevel + 1

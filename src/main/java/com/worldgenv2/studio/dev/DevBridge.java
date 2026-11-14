@@ -128,7 +128,9 @@ public final class DevBridge {
                 return "{\"screen\":\"" + (mc.screen == null ? "none" : mc.screen.getClass().getName())
                         + "\",\"guiWidth\":" + w.getGuiScaledWidth() + ",\"guiHeight\":" + w.getGuiScaledHeight()
                         + ",\"guiScale\":" + w.getGuiScale() + ",\"pixelWidth\":" + w.getWidth()
-                        + ",\"pixelHeight\":" + w.getHeight() + ",\"inWorld\":" + (mc.level != null) + "}";
+                        + ",\"pixelHeight\":" + w.getHeight() + ",\"inWorld\":" + (mc.level != null)
+                        + (mc.player == null ? "" : ",\"pos\":\"" + String.format("%.1f %.1f %.1f yaw %.0f pitch %.0f", mc.player.getX(), mc.player.getY(), mc.player.getZ(), mc.player.getYRot(), mc.player.getXRot()) + "\"")
+                        + "}";
             });
             case "/open" -> onRender(() -> {
                 Minecraft mc = Minecraft.getInstance();

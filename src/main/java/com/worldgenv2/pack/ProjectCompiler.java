@@ -185,7 +185,8 @@ public final class ProjectCompiler {
             RiverCarver.Settings st = rs == null ? def : new RiverCarver.Settings(
                     (float) J.num(rs, "spacing", def.spacing()), (float) J.num(rs, "channelWidth", def.channelWidth()),
                     (float) J.num(rs, "valleyWidth", def.valleyWidth()), J.integer(rs, "depth", def.depth()),
-                    (float) J.num(rs, "meander", def.meander()), (float) J.num(rs, "widthVariation", def.widthVariation()));
+                    (float) J.num(rs, "meander", def.meander()), (float) J.num(rs, "widthVariation", def.widthVariation()),
+                    (float) J.num(rs, "valleyRise", def.valleyRise()));
             structure.withRiverCarver(new RiverCarver(r.seed, r.seaLevel, st))
                     .withRiverMaterialProvider(DefaultBiomeFactory.createRiverMaterialProvider());
         }
@@ -363,7 +364,10 @@ public final class ProjectCompiler {
         structure.withStructurePlacements(placements);
 
         // ---- spans: prefabs that bridge a gap in the terrain (a fallen log over a river) ----
-        JsonArray spans = on(d, "spans", nonEmpty(J.arr(d, "spans"))) ? J.arr(d, "spans") : null;
+        JsonObject featuresObj = J.obj(d, "features");
+        boolean spansDefault = featuresObj != null && "default".equals(J.str(featuresObj, "spans", ""));
+        JsonArray spans = spansDefault ? defaultSpans(project)
+                : on(d, "spans", nonEmpty(J.arr(d, "spans"))) ? J.arr(d, "spans") : null;
         if (spans != null && !spans.isEmpty()) {
             try {
                 List<SpanPlacer.Rule> rules = new ArrayList<>();
@@ -379,7 +383,8 @@ public final class ProjectCompiler {
                     if (!single.isBlank()) { var pf = loadPrefab(project, single, prefabs, r); if (pf != null) pfs.add(pf); }
                     int minGap = J.integer(s, "minGap", 4), maxGap = J.integer(s, "maxGap", 14);
                     rules.add(new SpanPlacer.Rule(id, pfs, minGap, Math.max(minGap, maxGap), J.integer(s, "maxBankDiff", 3),
-                            J.integer(s, "cell", 64), (float) J.num(s, "chance", 0.6), J.integer(s, "yOffset", 0), biomeNames(s, r)));
+                            J.integer(s, "cell", 64), (float) J.num(s, "chance", 0.6), J.integer(s, "yOffset", 0), biomeNames(s, r),
+                            J.integer(s, "maxDrop", 3)));
                 }
                 structure.withSpanPlacer(new SpanPlacer(r.seed, r.minY, r.maxY, r.seaLevel, rules));
             } catch (Throwable ex) {
@@ -390,6 +395,32 @@ public final class ProjectCompiler {
         r.structure = structure;
         WorldGenV2Addons.runCompileHooks(project, r);
         return r;
+    }
+
+    /**
+     * The built-in bridge: shipped fallen-tree prefabs (when the project has them) across narrow water in forest biomes.
+     * Used when {@code features.spans} is {@code default}; "Customize" in the Studio copies it into the dimension to edit.
+     */
+    public static JsonArray defaultSpans(StudioProject project) {
+        JsonObject s = new JsonObject();
+        s.addProperty("id", "fallen_tree");
+        JsonArray pf = new JsonArray();
+        for (String id : new String[]{"fallen_oak_a", "fallen_oak_b", "fallen_oak_c"}) if (project.hasAsset("prefabs/" + id + ".json")) pf.add(id);
+        s.add("prefabs", pf);
+        JsonArray forests = new JsonArray();
+        for (Asset b : project.assetsOf(com.worldgenv2.studio.project.AssetType.BIOME)) {
+            if ("forest".equals(J.str(b.json, "category", ""))) forests.add(b.id());
+        }
+        s.add("biomes", forests);
+        J.setNum(s, "minGap", 4);
+        J.setNum(s, "maxGap", 12);
+        J.setNum(s, "maxBankDiff", 2);
+        J.setNum(s, "maxDrop", 3);
+        J.setNum(s, "cell", 48);
+        J.setNum(s, "chance", 0.8);
+        JsonArray arr = new JsonArray();
+        if (!pf.isEmpty()) arr.add(s);
+        return arr;
     }
 
     /** Applies an item's "rotation" (0-3 quarter turns, 0/90/180/270 degrees, or "random"; random is stable per id). */

@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class SpanPlacer {
 
     public record Rule(String id, List<Prefab> prefabs, int minGap, int maxGap, int maxBankDiff, int cell,
-                       float chance, int yOffset, Set<String> biomes) {}
+                       float chance, int yOffset, Set<String> biomes, int maxDrop) {}
 
     private record Key(int rule, int cx, int cz) {}
 
@@ -125,6 +125,8 @@ public final class SpanPlacer {
         if (surf(ws, memo, px + dx * (s - 2), pz + dz * (s - 2)) < seaLevel) return null;
         if (surf(ws, memo, px + dx * (e + 2), pz + dz * (e + 2)) < seaLevel) return null;
         if (Math.abs(hA - hB) > rule.maxBankDiff()) return null;
+        // the banks must lie close to the water, so the span rests near the surface instead of bridging a canyon
+        if (hA > seaLevel + rule.maxDrop() || hB > seaLevel + rule.maxDrop()) return null;
         // the river must be straight across the prefab's width, not a diagonal bend
         int mid = (s + e) / 2;
         for (int lat : new int[]{-3, 3}) {
