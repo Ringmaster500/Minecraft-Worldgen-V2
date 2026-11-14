@@ -18,7 +18,7 @@ public final class RandomEdgeSelector implements EdgeSelector {
         if (chance <= 0.0) return false;
         if (chance >= 1.0) return true;
 
-        long h = seed ^ (edge.key() * 0x9E3779B97F4A7C15L);
+        long h = seed ^ ((graph.getNode(edge.nodeA()).stableKey() + graph.getNode(edge.nodeB()).stableKey()) * 0x9E3779B97F4A7C15L);
         h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L;
         h = (h ^ (h >>> 27)) * 0x94D049BB133111EBL;
         h = h ^ (h >>> 31);

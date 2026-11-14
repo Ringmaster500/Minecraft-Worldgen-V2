@@ -14,6 +14,7 @@ import java.util.Set;
 public final class GraphNode {
 
     private final int id;
+    private final long stableKey;
     private Vec3d position;
     private GraphContent content;
     private final Set<Integer> connections = new LinkedHashSet<>();
@@ -22,11 +23,17 @@ public final class GraphNode {
     public GraphNode(int id, Vec3d position, GraphContent content) {
         this.id = id;
         this.position = Objects.requireNonNull(position, "position");
+        long h = Double.doubleToLongBits(position.x()) * 0x9E3779B97F4A7C15L ^ Double.doubleToLongBits(position.y()) * 0xC2B2AE3D27D4EB4FL ^ Double.doubleToLongBits(position.z()) * 0x165667B19E3779F9L;
+        h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L;
+        this.stableKey = h ^ (h >>> 31);
         this.content = content != null ? content : GraphContent.EMPTY;
         if (content != null) {
             this.tags.addAll(content.getContentTags());
         }
     }
+
+    /** A key derived from where the node was created, not from its id, so random choices are the same in every cell that generates it. */
+    public long stableKey() { return stableKey; }
 
     public int getId() {
         return id;

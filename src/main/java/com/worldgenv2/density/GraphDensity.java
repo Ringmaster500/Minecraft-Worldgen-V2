@@ -20,6 +20,21 @@ public final class GraphDensity implements DensityFunction {
     private final float backgroundValue;
     private final long seed;
     private final double maxSearchRadius;
+    private double slope = 2.5, offset = 0.0, smooth = 0.2;
+
+    /** Hytale's transition curve: how steeply weight rises from the edge of a Range towards the node (see Graph density docs). */
+    public GraphDensity withTransition(double slope, double offset, double smooth) {
+        this.slope = slope; this.offset = offset; this.smooth = Math.max(0.0, smooth);
+        return this;
+    }
+
+    private double weight(double dist, double range) {
+        double t = 1.0 - dist / range;
+        double x = Math.max(0.0, slope * (t + offset));
+        if (smooth <= 0.0) return Math.min(1.0, x);
+        double h = Math.max(smooth - Math.abs(x - 1.0), 0.0) / smooth;
+        return Math.max(0.0, Math.min(x, 1.0) - h * h * smooth * 0.25);
+    }
 
     public GraphDensity(GraphGenerator graphGenerator, String contentLayer, float backgroundValue, long seed) {
         this(graphGenerator, contentLayer, backgroundValue, seed, 128.0);
@@ -36,7 +51,7 @@ public final class GraphDensity implements DensityFunction {
     @Override
     public float compute(float x, float y, float z) {
         Vec3d samplePos = new Vec3d(x, y, z);
-        List<GraphNode> nearbyNodes = graphGenerator.getNodesNear(seed, samplePos, maxSearchRadius);
+        List<GraphNode> nearbyNodes = graphGenerator.getNodesInRange(seed, samplePos, maxSearchRadius, 0.0);
 
         if (nearbyNodes.isEmpty()) {
             return backgroundValue;
@@ -51,7 +66,7 @@ public final class GraphDensity implements DensityFunction {
                 GraphContent.DensityEntry entry = opt.get();
                 double dist = node.getPosition().distance(samplePos);
                 if (dist <= entry.range() && entry.range() > 0.0) {
-                    double weight = 1.0 - (dist / entry.range());
+                    double weight = weight(dist, entry.range());
                     float dVal = entry.density().compute(x, y, z);
                     weightedSum += weight * dVal;
                     totalWeight += weight;
@@ -59,10 +74,10 @@ public final class GraphDensity implements DensityFunction {
             }
         }
 
-        if (totalWeight > 0.0) {
-            return (float) (weightedSum / totalWeight);
-        }
-        return backgroundValue;
+        if (totalWeight <= 0.0) return backgroundValue;
+        // Where the combined weight is below 1 the background shows through, so the field stays continuous at a Range's edge.
+        if (totalWeight >= 1.0) return (float) (weightedSum / totalWeight);
+        return (float) (weightedSum + (1.0 - totalWeight) * backgroundValue);
     }
 
     public GraphGenerator getGraphGenerator() {

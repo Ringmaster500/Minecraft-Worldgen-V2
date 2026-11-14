@@ -18,7 +18,7 @@ public final class RandomNodeSelector implements NodeSelector {
         if (chance <= 0.0) return false;
         if (chance >= 1.0) return true;
 
-        long h = seed ^ (node.getId() * 0x9E3779B97F4A7C15L);
+        long h = seed ^ (node.stableKey() * 0x9E3779B97F4A7C15L);
         h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L;
         h = (h ^ (h >>> 27)) * 0x94D049BB133111EBL;
         h = h ^ (h >>> 31);

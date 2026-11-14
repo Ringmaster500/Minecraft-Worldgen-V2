@@ -14,6 +14,7 @@ import com.worldgenv2.props.WeightedProp;
 import com.worldgenv2.prefab.PrefabProp;
 import com.worldgenv2.hytale.HScanner;
 import com.worldgenv2.vector.Vec3d;
+import com.worldgenv2.hytale.HDistributions;
 import com.worldgenv2.hytale.HytaleDistribution;
 import com.worldgenv2.positions.PositionsProvider;
 import com.worldgenv2.props.Prop;
@@ -40,7 +41,7 @@ import java.util.Map;
  * This adapter fills the named slots from {@code Inputs} by position, using the node's slot order from the generated
  * node schema. Nodes that already take a list ({@code inputs}) need nothing.
  */
-final class HytaleDialect {
+public final class HytaleDialect {
     private HytaleDialect() {}
 
     /** density type (lower case) -> its single (non-list) slot keys in schema order; types with a list slot are omitted. */
@@ -274,19 +275,60 @@ final class HytaleDialect {
      * A biome's Props entry in Hytale's form: {@code { "Runtime": n, "Positions": {...}, "Assignments": {...}, "Skip": false }}.
      * Returns null for a skipped entry. Hytale numbers runtimes from 0; the engine's stages start at 1.
      */
-    static <T> Prop<T> compileBiomeProp(Map<String, Object> entry, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
+    public static <T> Prop<T> compileBiomeProp(Map<String, Object> entry, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
         if (flag(get(entry, "skip"), false)) return null;
-        PositionsProvider positions = JsonAstCompiler.compilePositionsProvider(get(entry, "positions"), ctx);
-        Assignments<T> assignments = JsonAstCompiler.compileAssignments(get(entry, "assignments"), ctx, resolver);
+        JsonAstCompiler.collectExports(entry, ctx);
+        HDistributions.Field<T> field;
+        if (entry.containsKey("propdistribution")) {
+            field = compileDistribution(get(entry, "propdistribution"), ctx, resolver);
+        } else {
+            PositionsProvider positions = JsonAstCompiler.compilePositionsProvider(get(entry, "positions"), ctx);
+            Assignments<T> assignments = JsonAstCompiler.compileAssignments(get(entry, "assignments"), ctx, resolver);
+            field = HDistributions.assigned(HDistributions.positions(positions), assignments, false);
+        }
         ContextPrecision precision = ContextPrecision.BIOME;
-        return new PropRuntime<>(num(get(entry, "runtime"), 0) + 1, precision, new HytaleDistribution<>(positions, assignments), 0, 0, 0);
+        String cp = String.valueOf(get(entry, "contextprecision")).toUpperCase(Locale.ROOT);
+        for (ContextPrecision c : ContextPrecision.values()) if (c.name().equals(cp)) precision = c;
+        return new PropRuntime<>(num(get(entry, "runtime"), 0) + 1, precision, new HDistributions.FieldProp<>(field), 0, 0, 0);
     }
 
-    /** True for a Props entry written in Hytale's form (no Type, but Positions and Assignments). */
+    /** True for a Props entry written in Hytale's form (no Type, but a PropDistribution, or Positions and Assignments). */
     static boolean isHytaleBiomeProp(Map<String, Object> entry) {
-        return !entry.containsKey("type") && (entry.containsKey("positions") || entry.containsKey("assignments"));
+        return !entry.containsKey("type") && (entry.containsKey("positions") || entry.containsKey("assignments") || entry.containsKey("propdistribution"));
     }
 
+    /** A Prop Distribution node: Constant, Positions, Assigned, Union, Anchor, Imported. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static <T> HDistributions.Field<T> compileDistribution(Object raw, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
+        Map<String, Object> j = obj(raw);
+        if (j == null) return HDistributions.positions((x0, y0, z0, x1, y1, z1) -> List.of());
+        String type = String.valueOf(get(j, "type")).toLowerCase(Locale.ROOT);
+        switch (type) {
+            case "constant":
+                return HDistributions.constant(JsonAstCompiler.compilePositionsProvider(get(j, "positions"), ctx), JsonAstCompiler.compileProp(obj(get(j, "prop")), ctx, resolver));
+            case "positions":
+                return HDistributions.positions(JsonAstCompiler.compilePositionsProvider(get(j, "positions"), ctx));
+            case "assigned":
+                return HDistributions.assigned(compileDistribution(get(j, "propdistribution"), ctx, resolver),
+                        JsonAstCompiler.compileAssignments(get(j, "assignments"), ctx, resolver), flag(get(j, "overrideallprops"), false));
+            case "union": {
+                List<HDistributions.Field<T>> kids = new ArrayList<>();
+                if (get(j, "propdistributions") instanceof List<?> l) for (Object o : l) kids.add(compileDistribution(o, ctx, resolver));
+                return HDistributions.union(kids);
+            }
+            case "anchor":
+                return HDistributions.anchor(compileDistribution(get(j, "propdistribution"), ctx, resolver), flag(get(j, "reversed"), false));
+            case "graph":
+                return HDistributions.graph(JsonAstCompiler.compileGraphGenerator(get(j, "graphgenerator"), ctx, resolver), String.valueOf(get(j, "contentlayer") == null ? "" : get(j, "contentlayer")), ctx.worldSeed());
+            case "imported": {
+                Object loaded = ctx.resolveAsset(String.valueOf(get(j, "name")));
+                if (loaded == null) throw new IllegalArgumentException("Imported PropDistribution '" + get(j, "name") + "' was not found");
+                return compileDistribution(loaded, ctx, resolver);
+            }
+            default:
+                throw new IllegalArgumentException("Unknown PropDistribution type '" + get(j, "type") + "'");
+        }
+    }
     // ================================================================== Hytale positions providers
 
     private static long seedOf(Object o, JsonAstCompiler.CompileContext ctx) {
@@ -302,7 +344,7 @@ final class HytaleDialect {
     }
 
     /** Bounds written {Min: {...}, Max: {...}}; returns {min[3], max[3]}. */
-    private static double[][] boundsD(Object o, double def) {
+    static double[][] boundsD(Object o, double def) {
         Map<String, Object> m = obj(o);
         if (m == null) return new double[][]{{-def, -def, -def}, {def, def, def}};
         return new double[][]{vecD(get(m, "min"), -def), vecD(get(m, "max"), def)};

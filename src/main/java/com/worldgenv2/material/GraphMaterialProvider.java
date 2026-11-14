@@ -38,7 +38,7 @@ public final class GraphMaterialProvider<T> implements MaterialProvider<T> {
     @SuppressWarnings("unchecked")
     public T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
         Vec3d samplePos = new Vec3d(x, y, z);
-        List<GraphNode> nearby = graphGenerator.getNodesNear(seed, samplePos, maxSearchRadius);
+        List<GraphNode> nearby = graphGenerator.getNodesInRange(seed, samplePos, maxSearchRadius, 0.0);
 
         GraphNode nearestNode = null;
         GraphContent.MaterialEntry nearestEntry = null;

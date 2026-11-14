@@ -34,7 +34,7 @@ public final class ConnectedNodesNodeAction implements NodeAction {
         }
 
         if (targetCount < neighbors.size()) {
-            Random rng = new Random(seed ^ actionSeed ^ (node.getId() * 31L));
+            Random rng = new Random(seed ^ actionSeed ^ (node.stableKey() * 31L));
             Collections.shuffle(neighbors, rng);
         }
 

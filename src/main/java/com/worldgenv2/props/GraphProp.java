@@ -32,7 +32,7 @@ public final class GraphProp<T> implements Prop<T> {
     @SuppressWarnings("unchecked")
     public boolean generate(Context<T> context) {
         Vec3d samplePos = new Vec3d(context.worldX(), context.worldY(), context.worldZ());
-        List<GraphNode> nearby = graphGenerator.getNodesNear(context.seed(), samplePos, maxSearchRadius);
+        List<GraphNode> nearby = graphGenerator.getNodesInRange(context.seed(), samplePos, maxSearchRadius, 0.0);
 
         boolean placedAny = false;
         for (GraphNode node : nearby) {

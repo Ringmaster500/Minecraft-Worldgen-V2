@@ -36,7 +36,7 @@ public final class WeightedNodeAction implements NodeAction {
     public void apply(GraphNode node, ProceduralGraph graph, long seed) {
         if (totalWeight <= 0.0) return;
 
-        long h = seed ^ actionSeed ^ (node.getId() * 0x9E3779B97F4A7C15L);
+        long h = seed ^ actionSeed ^ (node.stableKey() * 0x9E3779B97F4A7C15L);
         h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L;
         h = (h ^ (h >>> 27)) * 0x94D049BB133111EBL;
         h = h ^ (h >>> 31);

@@ -40,7 +40,7 @@ public final class GraphPositionsProvider implements PositionsProvider {
             Math.pow((maxZ - minZ) * 0.5, 2)
         );
 
-        List<GraphNode> nearby = graphGenerator.getNodesNear(seed, center, halfDiag + maxSearchRadius);
+        List<GraphNode> nearby = graphGenerator.getNodesInRange(seed, center, maxSearchRadius, halfDiag);
         List<Vec3d> result = new ArrayList<>();
 
         for (GraphNode node : nearby) {

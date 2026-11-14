@@ -56,6 +56,11 @@ public final class JsonAstCompiler {
         private final Function<String, String> assetResolver;
         private final Map<String, Object> assetCache = new java.util.concurrent.ConcurrentHashMap<>();
         private final AtomicInteger saltCounter = new AtomicInteger(100);
+        private final Map<String, Object> exports = new java.util.concurrent.ConcurrentHashMap<>();
+
+        /** Named exports (ExportAs) seen so far; Imported nodes read them before looking for an asset file. */
+        public Map<String, Object> exports() { return exports; }
+
         private final Map<String, Double> decimalConstants = new java.util.concurrent.ConcurrentHashMap<>();
         private final Map<String, PositionsProvider> frameworkPositions = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -128,6 +133,8 @@ public final class JsonAstCompiler {
             if (assetPath == null || assetPath.isBlank()) {
                 return null;
             }
+            Object exported = exports.get(assetPath);
+            if (exported != null) return exported;
             return assetCache.computeIfAbsent(assetPath, path -> {
                 if (assetResolver != null) {
                     String json = assetResolver.apply(path);
@@ -618,10 +625,10 @@ public final class JsonAstCompiler {
         );
 
         WorldGenV2Registries.DENSITY_NODE_TYPE.register("GraphDensity", (json, ctx) -> {
-            GraphGenerator gen = compileGraphGenerator(json.get("graphGenerator"), ctx, s -> null);
+            GraphGenerator gen = compileGraphGenerator(json.get("graphGenerator"), ctx, s -> s);
             String layer = getString(json, "contentLayer", getString(json, "ContentLayer", ""));
             float bg = getFloat(json, "backgroundValue", getFloat(json, "BackgroundValue", 0.0f));
-            return new GraphDensity(gen, layer, bg, ctx.worldSeed());
+            return new GraphDensity(gen, layer, bg, ctx.worldSeed()).withTransition(getDouble(json, "transitionSlope", 2.5), getDouble(json, "transitionOffset", 0.0), getDouble(json, "transitionSmooth", 0.2));
         });
         WorldGenV2Registries.DENSITY_NODE_TYPE.register("Graph", (json, ctx) ->
             WorldGenV2Registries.DENSITY_NODE_TYPE.get("GraphDensity").deserialize(json, ctx)
@@ -1473,7 +1480,7 @@ public final class JsonAstCompiler {
                 String layer = getString(json, "contentLayer", getString(json, "ContentLayer", ""));
                 MaterialProvider<T> fallback = json.containsKey("fallback")
                     ? compileMaterialProvider((Map<String, Object>) json.get("fallback"), context, blockResolver)
-                    : new ConstantMaterialProvider<>(blockResolver.apply("minecraft:stone"));
+                    : null;   // Hytale: no content in range means no material (a Queue moves on)
                 return new GraphMaterialProvider<>(gen, layer, fallback, context.worldSeed());
             }
         });
@@ -2533,7 +2540,7 @@ public final class JsonAstCompiler {
         );
 
         WorldGenV2Registries.POSITIONS_PROVIDER_TYPE.register("GraphPositionsProvider", (json, ctx) -> {
-            GraphGenerator gen = compileGraphGenerator(json.get("graphGenerator"), ctx, s -> null);
+            GraphGenerator gen = compileGraphGenerator(json.get("graphGenerator"), ctx, s -> s);
             String layer = getString(json, "contentLayer", getString(json, "ContentLayer", ""));
             return new GraphPositionsProvider(gen, layer, ctx.worldSeed());
         });
@@ -3269,6 +3276,50 @@ public final class JsonAstCompiler {
         return BlockMask.always();
     }
 
+    /** The sum of every cap (Range, Magnitude, MaxDistance, MaxOffsetExclusive, MaxProxyDistance, ClusterBounds) in a graph: how far a pass can reach. */
+    static double contextMarginOf(Object raw) {
+        double sum = 0.0;
+        if (raw instanceof Map<?, ?> m) {
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                String k = String.valueOf(e.getKey()).toLowerCase(Locale.ROOT);
+                if (e.getValue() instanceof Number n && (k.equals("range") || k.equals("magnitude") || k.equals("maxdistance") || k.equals("maxoffsetexclusive") || k.equals("maxproxydistance"))) {
+                    if (!k.equals("range") || m.containsKey("Cap") || m.containsKey("cap") || m.containsKey("NodeSelector") || m.containsKey("nodeSelector")) sum += Math.abs(n.doubleValue());
+                } else if (k.equals("clusterbounds")) {
+                    double[][] b = HytaleDialect.boundsD(e.getValue(), 0.0);
+                    for (int i = 0; i < 3; i++) sum += Math.max(Math.abs(b[0][i]), Math.abs(b[1][i]));
+                } else {
+                    sum += contextMarginOf(e.getValue());
+                }
+            }
+        } else if (raw instanceof List<?> l) {
+            for (Object o : l) sum += contextMarginOf(o);
+        }
+        return sum;
+    }
+
+    /** Hytale's common {@code Skip} flag: the node does nothing and falls back to its neutral default. */
+    static boolean isSkipped(Map<?, ?> json) {
+        for (Map.Entry<?, ?> e : json.entrySet()) {
+            if (String.valueOf(e.getKey()).equalsIgnoreCase("skip")) return Boolean.TRUE.equals(e.getValue()) || "true".equalsIgnoreCase(String.valueOf(e.getValue()));
+        }
+        return false;
+    }
+
+    /** Records every node that carries {@code ExportAs} (or ExportName) so an Imported node can find it by Name. */
+    @SuppressWarnings("unchecked")
+    public static void collectExports(Object raw, CompileContext context) {
+        if (raw instanceof Map<?, ?> m) {
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                String k = String.valueOf(e.getKey());
+                if ((k.equalsIgnoreCase("exportas") || k.equalsIgnoreCase("exportname")) && e.getValue() instanceof String s && !s.isEmpty()) {
+                    context.exports().putIfAbsent(s, raw);
+                }
+                collectExports(e.getValue(), context);
+            }
+        } else if (raw instanceof List<?> l) {
+            for (Object o : l) collectExports(o, context);
+        }
+    }
     /**
      * Compiles a parsed JSON object into a {@link GraphGenerator}.
      */
@@ -3281,6 +3332,7 @@ public final class JsonAstCompiler {
         if (raw == null) {
             return new GraphGenerator(List.of());
         }
+        collectExports(raw, context);
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> json = (Map<String, Object>) map;
             String importName = getString(json, "importName", getString(json, "ImportName", ""));
@@ -3312,7 +3364,7 @@ public final class JsonAstCompiler {
                 );
             }
             int capacity = getInt(json, "cacheCapacity", getInt(json, "CacheCapacity", GraphGenerator.DEFAULT_CAPACITY));
-            return new GraphGenerator(passes, cellSize, capacity);
+            return new GraphGenerator(passes, cellSize, capacity).withContextMargin(contextMarginOf(json));
         }
         return new GraphGenerator(List.of());
     }
@@ -3327,6 +3379,7 @@ public final class JsonAstCompiler {
         Function<String, T> blockResolver
     ) {
         if (raw == null) return EmptyGraphPass.INSTANCE;
+        if (raw instanceof Map<?, ?> skipCheck && isSkipped(skipCheck)) return EmptyGraphPass.INSTANCE;
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> json = (Map<String, Object>) map;
             String type = getString(json, "type", getString(json, "Type", "Empty"));
@@ -3378,7 +3431,7 @@ public final class JsonAstCompiler {
                     }
                     yield new ManualGraphPass(mNodes);
                 }
-                case "imported" -> compileGraphPass(context.resolveAsset(getString(json, "asset", "")), context, blockResolver);
+                case "imported" -> compileGraphPass(context.resolveAsset(getString(json, "name", getString(json, "asset", ""))), context, blockResolver);
                 default -> EmptyGraphPass.INSTANCE;
             };
         }
@@ -3441,7 +3494,7 @@ public final class JsonAstCompiler {
                 for (Object item : list) {
                     if (item instanceof Map<?, ?> m) {
                         Map<String, Object> entry = (Map<String, Object>) m;
-                        Prop<T> p = compileProp((Map<String, Object>) entry.getOrDefault("propDistribution", entry.get("PropDistribution")), context, blockResolver);
+                        Prop<T> p = new com.worldgenv2.hytale.HDistributions.FieldProp<>(HytaleDialect.compileDistribution(entry.getOrDefault("propDistribution", entry.get("PropDistribution")), context, blockResolver));
                         double range = getDouble(entry, "range", getDouble(entry, "Range", 10.0));
                         String layer = getString(entry, "contentLayer", getString(entry, "ContentLayer", ""));
                         builder.addProp(p, range, layer);
@@ -3479,6 +3532,7 @@ public final class JsonAstCompiler {
     @SuppressWarnings("unchecked")
     public static NodeSelector compileNodeSelector(Object raw, CompileContext context) {
         if (raw == null) return AllNodeSelector.INSTANCE;
+        if (raw instanceof Map<?, ?> skipCheck && isSkipped(skipCheck)) return AllNodeSelector.INSTANCE;
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> json = (Map<String, Object>) map;
             String type = getString(json, "type", getString(json, "Type", "All"));
@@ -3533,7 +3587,7 @@ public final class JsonAstCompiler {
                     }
                     yield new OrNodeSelector(children);
                 }
-                case "imported" -> compileNodeSelector(context.resolveAsset(getString(json, "asset", "")), context);
+                case "imported" -> compileNodeSelector(context.resolveAsset(getString(json, "name", getString(json, "asset", ""))), context);
                 default -> AllNodeSelector.INSTANCE;
             };
         }
@@ -3546,6 +3600,7 @@ public final class JsonAstCompiler {
     @SuppressWarnings("unchecked")
     public static EdgeSelector compileEdgeSelector(Object raw, CompileContext context) {
         if (raw == null) return AllEdgeSelector.INSTANCE;
+        if (raw instanceof Map<?, ?> skipCheck && isSkipped(skipCheck)) return AllEdgeSelector.INSTANCE;
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> json = (Map<String, Object>) map;
             String type = getString(json, "type", getString(json, "Type", "All"));
@@ -3589,7 +3644,7 @@ public final class JsonAstCompiler {
                     }
                     yield new OrEdgeSelector(children);
                 }
-                case "imported" -> compileEdgeSelector(context.resolveAsset(getString(json, "asset", "")), context);
+                case "imported" -> compileEdgeSelector(context.resolveAsset(getString(json, "name", getString(json, "asset", ""))), context);
                 default -> AllEdgeSelector.INSTANCE;
             };
         }
@@ -3627,6 +3682,7 @@ public final class JsonAstCompiler {
         Function<String, T> blockResolver
     ) {
         if (raw == null) return (n, s) -> GraphContent.EMPTY;
+        if (raw instanceof Map<?, ?> skipCheck && isSkipped(skipCheck)) return (n, s) -> GraphContent.EMPTY;
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> json = (Map<String, Object>) map;
             String type = getString(json, "type", getString(json, "Type", "Constant"));
@@ -3649,7 +3705,7 @@ public final class JsonAstCompiler {
                     }
                     yield new WeightedContentSupplier(entries.isEmpty() ? List.of(new WeightedContentSupplier.Entry(1.0, (n, s) -> GraphContent.EMPTY)) : entries);
                 }
-                case "imported" -> compileContentSupplier(context.resolveAsset(getString(json, "asset", "")), context, blockResolver);
+                case "imported" -> compileContentSupplier(context.resolveAsset(getString(json, "name", getString(json, "asset", ""))), context, blockResolver);
                 default -> new ConstantContentSupplier(compileGraphContent(json, context, blockResolver));
             };
         }
@@ -3662,6 +3718,7 @@ public final class JsonAstCompiler {
     @SuppressWarnings("unchecked")
     public static ContentPredicate compileContentPredicate(Object raw, CompileContext context) {
         if (raw == null) return (c) -> true;
+        if (raw instanceof Map<?, ?> skipCheck && isSkipped(skipCheck)) return (c) -> true;
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> json = (Map<String, Object>) map;
             String type = getString(json, "type", getString(json, "Type", "Constant"));
@@ -3698,7 +3755,7 @@ public final class JsonAstCompiler {
                     }
                     yield new OrContentPredicate(children);
                 }
-                case "imported" -> compileContentPredicate(context.resolveAsset(getString(json, "asset", "")), context);
+                case "imported" -> compileContentPredicate(context.resolveAsset(getString(json, "name", getString(json, "asset", ""))), context);
                 default -> (c) -> true;
             };
         }
@@ -3715,6 +3772,7 @@ public final class JsonAstCompiler {
         Function<String, T> blockResolver
     ) {
         if (raw == null) return EmptyNodeAction.INSTANCE;
+        if (raw instanceof Map<?, ?> skipCheck && isSkipped(skipCheck)) return EmptyNodeAction.INSTANCE;
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> json = (Map<String, Object>) map;
             String type = getString(json, "type", getString(json, "Type", "Empty"));
@@ -3766,7 +3824,8 @@ public final class JsonAstCompiler {
                     ContentSupplier cs = compileContentSupplier(json.getOrDefault("content", json.get("Content")), context, blockResolver);
                     double maxOff = getDouble(json, "maxOffsetExclusive", getDouble(json, "MaxOffsetExclusive", 100.0));
                     boolean createEdges = getBoolean(json, "createEdges", getBoolean(json, "CreateEdges", true));
-                    yield new SpawnerNodeAction(off, pos, cs, new GraphBounds(-50, -50, -50, 50, 50, 50), maxOff, createEdges);
+                    double[][] cb = HytaleDialect.boundsD(json.getOrDefault("clusterBounds", json.get("ClusterBounds")), 50.0);
+                    yield new SpawnerNodeAction(off, pos, cs, new GraphBounds(cb[0][0], cb[0][1], cb[0][2], cb[1][0], cb[1][1], cb[1][2]), maxOff, createEdges);
                 }
                 case "weighted" -> {
                     List<WeightedNodeAction.Entry> entries = new ArrayList<>();
@@ -3783,7 +3842,7 @@ public final class JsonAstCompiler {
                     }
                     yield new WeightedNodeAction(entries.isEmpty() ? List.of(new WeightedNodeAction.Entry(1.0, EmptyNodeAction.INSTANCE)) : entries, context.nextSeedSalt(getInt(json, "seed", 0)));
                 }
-                case "imported" -> compileNodeAction(context.resolveAsset(getString(json, "asset", "")), context, blockResolver);
+                case "imported" -> compileNodeAction(context.resolveAsset(getString(json, "name", getString(json, "asset", ""))), context, blockResolver);
                 default -> EmptyNodeAction.INSTANCE;
             };
         }
@@ -3800,6 +3859,7 @@ public final class JsonAstCompiler {
         Function<String, T> blockResolver
     ) {
         if (raw == null) return EmptyEdgeAction.INSTANCE;
+        if (raw instanceof Map<?, ?> skipCheck && isSkipped(skipCheck)) return EmptyEdgeAction.INSTANCE;
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> json = (Map<String, Object>) map;
             String type = getString(json, "type", getString(json, "Type", "Empty"));
@@ -3827,7 +3887,7 @@ public final class JsonAstCompiler {
                     ContentSupplier pContent = compileContentSupplier(json.getOrDefault("proxyContent", json.get("ProxyContent")), context, blockResolver);
                     yield new ProxyEdgeAction(host, norm, a2n, spin, pDist, maxDist, pContent, context.nextSeedSalt(getInt(json, "seed", 0)));
                 }
-                case "imported" -> compileEdgeAction(context.resolveAsset(getString(json, "asset", "")), context, blockResolver);
+                case "imported" -> compileEdgeAction(context.resolveAsset(getString(json, "name", getString(json, "asset", ""))), context, blockResolver);
                 default -> EmptyEdgeAction.INSTANCE;
             };
         }

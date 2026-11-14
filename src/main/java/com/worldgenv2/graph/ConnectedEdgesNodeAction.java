@@ -34,7 +34,7 @@ public final class ConnectedEdgesNodeAction implements NodeAction {
         }
 
         if (targetCount < edges.size()) {
-            Random rng = new Random(seed ^ actionSeed ^ (node.getId() * 37L));
+            Random rng = new Random(seed ^ actionSeed ^ (node.stableKey() * 37L));
             Collections.shuffle(edges, rng);
         }
 

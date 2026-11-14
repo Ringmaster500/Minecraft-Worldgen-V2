@@ -37,7 +37,7 @@ public final class WeightedContentSupplier implements ContentSupplier {
         }
 
         // Coordinate + Node ID hash
-        long h = seed ^ (node.getId() * 0x9E3779B97F4A7C15L);
+        long h = seed ^ (node.stableKey() * 0x9E3779B97F4A7C15L);
         h ^= Double.doubleToLongBits(node.getPosition().x()) * 31;
         h ^= Double.doubleToLongBits(node.getPosition().y()) * 17;
         h ^= Double.doubleToLongBits(node.getPosition().z()) * 13;

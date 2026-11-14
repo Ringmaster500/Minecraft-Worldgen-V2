@@ -21,6 +21,19 @@ public final class HPositions {
     // Cluster anchors form a stack: a Clusters node sets one for the Cluster slot, an Anchor node reads it.
     private static final ThreadLocal<Deque<double[]>> ANCHORS = ThreadLocal.withInitial(ArrayDeque::new);
 
+    /** The contextual anchor (null when none or at the origin). Distribution Anchor nodes share it with positions Anchors. */
+    public static double[] currentAnchor() {
+        double[] a = ANCHORS.get().peek();
+        return a == null || (a[0] == 0 && a[1] == 0 && a[2] == 0) ? null : a;
+    }
+
+    /** Runs the action with the anchor reset to the origin (the effect of a reversed Anchor). */
+    public static <R> R withOrigin(java.util.function.Supplier<R> action) {
+        Deque<double[]> stack = ANCHORS.get();
+        stack.push(new double[]{0, 0, 0});
+        try { return action.get(); } finally { stack.pop(); }
+    }
+
     private static double hash01(long seed, double x, double y, double z, int salt) {
         long h = seed ^ (Double.doubleToLongBits(x) * 0x9E3779B97F4A7C15L) ^ (Double.doubleToLongBits(y) * 0xC2B2AE3D27D4EB4FL)
                 ^ (Double.doubleToLongBits(z) * 0x165667B19E3779F9L) ^ (salt * 0x27D4EB2F165667C5L);
