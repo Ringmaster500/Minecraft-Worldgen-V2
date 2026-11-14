@@ -43,7 +43,7 @@ A node name that exists in Hytale must mean exactly what it means there: same pa
 ## Order of work
 1. Prop Runtime context - DONE.
 2. Prop, Pattern, Scanner, Assignments, Positions Provider conformance - MOSTLY DONE (left: RandomRotator details, PondFiller's depression-filling, Prefab folders, Prop Distribution nodes Constant/Positions/Assigned/Union/Anchor/Graph, Imported nodes). Earlier note: Pattern, Scanner, Locator, Orienter and the biome Props form are done. Still to conform: Queue, Mask, Offset, Union, Weighted, StaticRotator, RandomRotator, DensitySelector, Density, Cuboid, Manual, PondFiller, Prefab (props); Weighted/FieldFunction/Sandwich assignments (Seed, SkipChance, WeightedAssignments); Positions providers (TriangularGrid2d takes no parameters in Hytale; Scaler, BaseHeight, Cache, Anchor...). Prop distributions Constant / Positions / Assigned / Union / Anchor / Graph.
-3. Density and Material Provider conformance - DONE (Phase 22, 23). Left: Block Mask node, Curve and Vector Provider verification.
+3. Density and Material Provider conformance - DONE (Phase 22, 23). Block Mask done (Phase 11/21). Curve and Vector Provider nodes verified against the docs (Phase 24, 24 checks); every Imported node now reads Hytale's `Name` key.
 4. World Structure asset and Framework; biome-owned content.
 5. Graph Generator conformance, then re-express spawn / landmarks / points of interest / rivers / caves as graph content.
 6. Our extras (placement rules, Studio, addons) sit on top and must keep working through the Hytale-shaped core.

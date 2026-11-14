@@ -805,7 +805,7 @@ public final class JsonAstCompiler {
         );
 
         WorldGenV2Registries.DENSITY_NODE_TYPE.register("Imported", (json, ctx) -> {
-            String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+            String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
             Object loaded = ctx.resolveAsset(asset);
             if (loaded instanceof Map<?, ?> map) {
                 return compileDensity((Map<String, Object>) map, ctx);
@@ -1058,7 +1058,7 @@ public final class JsonAstCompiler {
             compileChildCurve(json, "curve", "Curve", ctx)
         );
         WorldGenV2Registries.CURVE_TYPE.register("Imported", (json, ctx) -> {
-            String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+            String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
             Object loaded = ctx.resolveAsset(asset);
             if (loaded != null) {
                 return compileCurve(loaded, ctx);
@@ -1364,7 +1364,7 @@ public final class JsonAstCompiler {
             };
         });
         WorldGenV2Registries.VECTOR_PROVIDER_TYPE.register("Imported", (json, ctx) -> {
-            String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+            String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
             Object loaded = ctx.resolveAsset(asset);
             if (loaded != null) {
                 return compileVectorProvider(loaded, ctx);
@@ -1598,7 +1598,7 @@ public final class JsonAstCompiler {
             @Override
             @SuppressWarnings("unchecked")
             public <T> MaterialProvider<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
-                String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+                String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
                 Object loaded = context.resolveAsset(asset);
                 if (loaded instanceof Map<?, ?> map) {
                     return compileMaterialProvider((Map<String, Object>) map, context, blockResolver);
@@ -1779,7 +1779,7 @@ public final class JsonAstCompiler {
             @Override
             @SuppressWarnings("unchecked")
             public <T> Pattern<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
-                String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+                String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
                 Object loaded = context.resolveAsset(asset);
                 if (loaded instanceof Map<?, ?> map) {
                     return compilePattern((Map<String, Object>) map, context, blockResolver);
@@ -2305,7 +2305,7 @@ public final class JsonAstCompiler {
         WorldGenV2Registries.PROP_TYPE.register("Imported", new WorldGenV2Registries.PropDeserializer() {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
-                String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+                String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
                 Object loaded = context.resolveAsset(asset);
                 if (loaded instanceof Map<?, ?> map) {
                     @SuppressWarnings("unchecked")
@@ -2569,7 +2569,7 @@ public final class JsonAstCompiler {
         });
 
         WorldGenV2Registries.POSITIONS_PROVIDER_TYPE.register("Imported", (json, ctx) -> {
-            String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+            String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
             Object loaded = ctx.resolveAsset(asset);
             if (loaded != null) {
                 return compilePositionsProvider(loaded, ctx);
@@ -2641,7 +2641,7 @@ public final class JsonAstCompiler {
             WorldGenV2Registries.SCANNER_TYPE.get("QueueScanner").deserialize(json, ctx)
         );
         WorldGenV2Registries.SCANNER_TYPE.register("Imported", (json, ctx) -> {
-            String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+            String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
             Object loaded = ctx.resolveAsset(asset);
             if (loaded != null) {
                 return compileScanner(loaded, ctx);
@@ -2755,7 +2755,7 @@ public final class JsonAstCompiler {
         WorldGenV2Registries.ASSIGNMENTS_TYPE.register("Imported", new WorldGenV2Registries.AssignmentsDeserializer() {
             @Override
             public <T> Assignments<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
-                String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+                String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
                 Object loaded = context.resolveAsset(asset);
                 if (loaded != null) {
                     return compileAssignments(loaded, context, blockResolver);
@@ -2889,7 +2889,7 @@ public final class JsonAstCompiler {
         WorldGenV2Registries.BLOCK_MASK_TYPE.register("Imported", new WorldGenV2Registries.BlockMaskDeserializer() {
             @Override
             public <T> BlockMask<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
-                String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+                String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
                 Object loaded = context.resolveAsset(asset);
                 if (loaded instanceof Map<?, ?> map) {
                     @SuppressWarnings("unchecked")
@@ -2948,7 +2948,7 @@ public final class JsonAstCompiler {
         WorldGenV2Registries.PROP_RUNTIME_TYPE.register("Imported", new WorldGenV2Registries.PropRuntimeDeserializer() {
             @Override
             public <T> PropRuntime<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
-                String asset = getString(json, "asset", getString(json, "path", getString(json, "id", "")));
+                String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
                 Object loaded = context.resolveAsset(asset);
                 if (loaded != null) {
                     return compilePropRuntime(loaded, context, blockResolver);
