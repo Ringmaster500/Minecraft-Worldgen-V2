@@ -86,10 +86,19 @@ The Studio collapses a feature that is not Custom to one line; "Copy the default
 Addons use the same bundle registry (`pack.WorldGenV2Addons`; see `docs/ADDONS.md`) to offer extra starting content; players see it under
 "Import from addon..." only if an addon is installed. "Export as shareable file" turns any setup into a bundle an addon can ship.
 
+## Placement, terrain and water features
+- **Zones are assets** (`zones/<id>.json`): `kind` patch / radial / noise / **graph** / everywhere, `biomes`, and for graph zones a `mask` density graph (where; matched between `min` and `max`, soft edge via `softness`) and an optional `terrain` graph scaled by `terrainStrength`. A dimension lists zone ids; old inline zone objects still load.
+- **Rotation**: `rotation` (0/90/180/270 or `random`) on spawn, landmarks, budgets. `Prefab.rotated(n)` turns voxels, sockets, foundations, anchor and direction-dependent block-state properties. Prefab block states (stairs facing, log axis) are applied when stamped.
+- **Natural bridges (`spans`)**: `SpanPlacer` finds a run of water of `minGap..maxGap` blocks between two solid banks (similar height, straight crossing, optional biomes) and lays the best-fitting prefab across it, turned to cross. Deterministic from seed + terrain, chunk-order independent. Build the prefab's long side along X. Sea water fills downward from sea level, so water stays under logs, arches and piers.
+- **Buried structures**: `depth` on spawn/landmarks/budgets sinks a structure below the surface. The `StructureNearProp` node (wrap any prop) runs its child only when a placed structure is near (`structure` id filter, `radius`, `yMin`/`yMax` relative to the prop) or, with `invert`, when none is: "a tree only where a vault lies beneath".
+- **Rivers**: `rivers` toggle plus `riverSettings` {spacing, channelWidth, valleyWidth, depth, meander, widthVariation}. **Oceans**: `ocean.depthScale` (land untouched); Default ships an Open Sea biome.
+- Dev routes: `/spans?x&z&r` lists bridges near a point, `/cmd?c=<server command>` (time, tp with rotation, gamemode).
+
 ## Known limits / next
+- Do not use `/regen` on chunks that were already saved: vanilla's light engine can throw and stop the server. Test on fresh chunks (tp somewhere new).
 - Props at chunk borders are clipped: a prop is placed only from anchors inside its own chunk and writes outside the chunk are dropped, so a tree on a chunk edge can lose part of its canopy. Fix is a two-pass/halo scheme (Hytale's "context precision").
 - Heights are fixed by the world's dimension type (Standard -64..320, or the Hytale 512 type); `world.json` heights do not yet change the in-game dimension type.
-- Only the Overworld is project-driven; Nether/End stay vanilla. Landmark prefabs are not rotated (`yaw` ignored); spawn-lock (`lockSpawn`) is not yet wired to the world spawn point, so the player can spawn inside terrain/crater.
+- Only the Overworld is project-driven; Nether/End stay vanilla. (Rotation and spawn-lock are now implemented.)
 - No node thumbnails (live density previews on graph nodes), spline editor, asset shelf, macros, or prefab editor yet. Terrain material/prop slots are editable in the graph but have no form view.
 - Landmarks connect only parent→child one level deep (engine limit); parent can be `spawn`.
 - `WorldExplorerTab`, `NodeCanvasTab`, `ChunkViewportTab`, `CodexWikiTab`, `StudioState`, `StudioNodeCatalog` are dead code kept for reference; delete once nothing is wanted from them.
