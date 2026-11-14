@@ -36,6 +36,7 @@ public final class WorldGenStudioClient {
         NeoForge.EVENT_BUS.addListener(WorldGenStudioClient::onScreenInit);
 
         registerPresetEditor();
+        com.worldgenv2.studio.dev.DevBridge.startIfEnabled();
     }
 
     public static void onScreenInit(net.neoforged.neoforge.client.event.ScreenEvent.Init.Post event) {

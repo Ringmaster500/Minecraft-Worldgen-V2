@@ -18,7 +18,9 @@ neoForge {
         client {
             client()
             jvmArgument '-Xmx8G'
-            jvmArgument '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005'
+            jvmArgument '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:5005'
+            // Dev-only remote control (screenshots/input), see DevBridge.java and tools/dev.ps1
+            systemProperty 'worldgenv2.devbridge', '5006'
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             systemProperty 'forge.logging.console.level', 'debug'
         }

@@ -10,3 +10,5 @@ build/
 bin/
 run/
 logs/
+
+tools/.reload-hashes
