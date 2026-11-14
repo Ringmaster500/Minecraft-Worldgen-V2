@@ -62,24 +62,7 @@ final class DimensionEditor extends Editor {
         if (feature("zones", "Zones", "regions of the world that each use their own biomes (like Hytale's Zone 1-4)", false)) {
         field("Patch scale", num("zoneScale", 2000, 256, 20000, 100, false, "Zone patch scale"),
                 "Average width in blocks of 'patch' zones. Bigger = larger, rarer regions.");
-        List<String> zoneKinds = new ArrayList<>(List.of("everywhere", "patch", "radial", "noise"));
-        zoneKinds.addAll(com.worldgenv2.worldstructure.ZoneLayout.extraMaskKinds());
-        block(new CardList(this, "zones", "zone", List.of(
-                CardList.Field.str("id", "Id", "Unique name other rules refer to."),
-                CardList.Field.str("name", "Label", "Shown in the map."),
-                CardList.Field.choice("kind", "Shape", () -> zoneKinds, DimensionEditor::zoneKindLabel,
-                        "patch: weighted macro cells.  radial: distance band.  noise: noise range.  everywhere: fallback."),
-                CardList.Field.num("weight", "Weight", 0.1, 100, 0.5, "Relative size of this zone among patch zones.").when(o -> J.str(o, "kind", "").equals("patch")),
-                CardList.Field.num("centerX", "Center X", -60000, 60000, 8, null).when(o -> J.str(o, "kind", "").equals("radial")),
-                CardList.Field.num("centerZ", "Center Z", -60000, 60000, 8, null).when(o -> J.str(o, "kind", "").equals("radial")),
-                CardList.Field.num("inner", "Inner radius", 0, 100000, 16, "Zone begins this far from the center.").when(o -> J.str(o, "kind", "").equals("radial")),
-                CardList.Field.num("outer", "Outer radius", 0, 100000, 16, "Zone ends this far from the center.").when(o -> J.str(o, "kind", "").equals("radial")),
-                CardList.Field.num("frequency", "Frequency", 0.00005, 0.01, 0.0001, "Lower = bigger regions.").when(o -> J.str(o, "kind", "").equals("noise")),
-                CardList.Field.num("min", "Noise min", -1, 1, 0.05, "Zone applies where noise is above this.").when(o -> J.str(o, "kind", "").equals("noise")),
-                CardList.Field.num("max", "Noise max", -1, 1, 0.05, "...and below this.").when(o -> J.str(o, "kind", "").equals("noise")),
-                CardList.Field.biomes("biomes", "Biomes", "Biomes allowed in this zone. They must also be in the pool above.")),
-                this::newZoneRegion, o -> J.str(o, "name", J.str(o, "id", "zone")) + "   [" + zoneKindLabel(J.str(o, "kind", "")) + "]",
-                "No zones yet. Add one to give a region its own biomes."));
+        block(new ZoneRefs());
         }
 
         // ---- spawn: the "start with a structure" workflow ----
@@ -298,7 +281,7 @@ final class DimensionEditor extends Editor {
         o.add("");
         Asset a = asset();
         JsonArray zs = a == null ? null : J.arr(a.json, "zones");
-        if (zs != null) for (JsonElement e : zs) if (e.isJsonObject()) o.add(J.str(e.getAsJsonObject(), "id", ""));
+        if (zs != null) for (JsonElement e : zs) { if (e.isJsonPrimitive()) o.add(e.getAsString()); else if (e.isJsonObject()) o.add(J.str(e.getAsJsonObject(), "id", "")); }
         return o;
     }
 
@@ -625,6 +608,123 @@ final class DimensionEditor extends Editor {
                 g.textFit(name, nameX + 9, ry, ROW, wXs - nameX - 14, b == null ? Ui.RED : (en ? Ui.TEXT : Ui.TEXT_FAINT));
             }
             if (count == 0) g.textMid("No biomes yet. Add some below.", x + 6, y + 20, ROW, Ui.TEXT_FAINT);
+        }
+    }
+
+    /** The zones this dimension uses, in priority order (first match wins). Zones are separate assets with their own form and graph. */
+    private final class ZoneRefs extends Widget {
+        private static final int ROW = 18;
+        private String signature = "";
+        private final List<Button[]> rowBtns = new ArrayList<>();
+        private final List<String> rowIds = new ArrayList<>();
+        private Dropdown addPick;
+        private Button addBtn, newBtn;
+
+        ZoneRefs() { h = 50; }
+
+        private List<String> ids() {
+            List<String> out = new ArrayList<>();
+            Asset a = asset();
+            JsonArray zs = a == null ? null : J.arr(a.json, "zones");
+            if (zs != null) for (JsonElement e : zs) if (e.isJsonPrimitive()) out.add(e.getAsString());
+            return out;
+        }
+
+        private String sig() {
+            StringBuilder sb = new StringBuilder();
+            for (String id : ids()) sb.append(id).append(',');
+            for (Asset z : project().assetsOf(AssetType.ZONE)) sb.append('|').append(z.id());
+            return sb.toString();
+        }
+
+        private void rebuild() {
+            clearChildren();
+            rowBtns.clear();
+            rowIds.clear();
+            List<String> ids = ids();
+            for (int i = 0; i < ids.size(); i++) {
+                final int idx = i;
+                final String id = ids.get(i);
+                Button edit = add(new Button("Edit", () -> app.openDoc("zones/" + id + ".json")));
+                Button up = add(new Button("^", () -> move(idx, -1)));
+                Button down = add(new Button("v", () -> move(idx, 1)));
+                Button rm = add(new Button("x", () -> edit("Remove zone", j -> J.arrOrCreate(j, "zones").remove(idx))).style(Button.Style.DANGER));
+                up.tooltip = "Higher priority: the first zone whose shape matches wins";
+                down.tooltip = "Lower priority";
+                rm.tooltip = "Stop using this zone here (the zone itself is kept)";
+                rowBtns.add(new Button[]{edit, up, down, rm});
+                rowIds.add(id);
+            }
+            addPick = add(new Dropdown());
+            addPick.placeholder = "Use an existing zone...";
+            List<String> free = new ArrayList<>();
+            for (Asset z : project().assetsOf(AssetType.ZONE)) if (!ids.contains(z.id())) free.add(z.id());
+            addPick.options(free);
+            addPick.display = id -> { Asset z = project().get("zones/" + id + ".json"); return z == null ? id : J.str(z.json, "name", z.displayName()); };
+            addPick.selected(free.isEmpty() ? "" : free.get(0));
+            addPick.enabled = !free.isEmpty();
+            addBtn = add(new Button("Add", () -> {
+                String pick = addPick.selected();
+                if (!pick.isEmpty()) edit("Use zone", j -> J.arrOrCreate(j, "zones").add(pick));
+            }).style(Button.Style.PRIMARY));
+            addBtn.enabled = !free.isEmpty();
+            newBtn = add(new Button("+ New zone", () -> {
+                int n = 1;
+                while (project().checkNewId(AssetType.ZONE, "zone_" + n) != null) n++;
+                String id = "zone_" + n;
+                app.createAsset(AssetType.ZONE, id);
+                edit("Use zone", j -> J.arrOrCreate(j, "zones").add(id));
+            }));
+            signature = sig();
+            h = 20 + rowIds.size() * ROW + 30;
+        }
+
+        private void move(int idx, int dir) {
+            int to = idx + dir;
+            edit("Reorder zones", j -> {
+                JsonArray a = J.arrOrCreate(j, "zones");
+                if (to < 0 || to >= a.size()) return;
+                JsonElement tmp = a.get(idx);
+                a.set(idx, a.get(to));
+                a.set(to, tmp);
+            });
+        }
+
+        @Override
+        public void layout() {
+            for (int i = 0; i < rowBtns.size(); i++) {
+                int ry = y + 20 + i * ROW;
+                Button[] b = rowBtns.get(i);
+                int right = x + w - 4;
+                b[3].setBounds(right - 16, ry + 1, 16, 16);
+                b[2].setBounds(right - 36, ry + 1, 16, 16);
+                b[1].setBounds(right - 56, ry + 1, 16, 16);
+                b[0].setBounds(right - 100, ry + 1, 40, 16);
+            }
+            int ay = y + 20 + rowIds.size() * ROW + 6;
+            if (addPick != null) {
+                addPick.setBounds(x, ay, Math.min(200, w - 240), 16);
+                addBtn.setBounds(addPick.x + addPick.w + 4, ay, 44, 16);
+                newBtn.setBounds(addBtn.x + addBtn.w + 4, ay, 84, 16);
+            }
+        }
+
+        @Override
+        protected void render(Gfx g, int mx, int my) {
+            if (addPick == null || !signature.equals(sig())) { rebuild(); layout(); }
+            layout();
+            g.box(x, y, w, 18, Ui.BG_RAISED, Ui.LINE);
+            g.textMid("Priority order (first matching zone wins)", x + 6, y, 18, Ui.TEXT_FAINT);
+            for (int i = 0; i < rowIds.size(); i++) {
+                int ry = y + 20 + i * ROW;
+                Asset z = project().get("zones/" + rowIds.get(i) + ".json");
+                if (i % 2 == 1) g.fill(x, ry, w, ROW, 0x14FFFFFF);
+                String nm = z == null ? rowIds.get(i) + " (missing)" : J.str(z.json, "name", z.displayName());
+                g.fill(x + 6, ry + 7, 4, 4, z == null ? Ui.RED : AssetType.ZONE.color);
+                g.textFit((i + 1) + ".  " + nm, x + 14, ry, ROW, w - 130, z == null ? Ui.RED : Ui.TEXT);
+                if (z != null) g.textRight("[" + zoneKindLabel(J.str(z.json, "kind", "")) + "]", x + w - 106, ry, ROW, Ui.TEXT_FAINT);
+            }
+            if (rowIds.isEmpty()) g.textMid("No zones in use. Add one, or create a new one.", x + 6, y + 20, ROW, Ui.TEXT_FAINT);
         }
     }
 }

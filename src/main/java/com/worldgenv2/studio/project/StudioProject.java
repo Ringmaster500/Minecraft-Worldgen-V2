@@ -62,8 +62,38 @@ public final class StudioProject {
                 }
             }
         }
+        p.migrateInlineZones();
         p.validateAll();
         return p;
+    }
+
+    /** Older dimensions kept zones inline; each becomes a zone asset and the dimension lists it by id. */
+    void migrateInlineZones() {
+        for (Asset d : new java.util.ArrayList<>(assetsOf(AssetType.DIMENSION))) {
+            var zs = J.arr(d.json, "zones");
+            if (zs == null) continue;
+            boolean changed = false;
+            com.google.gson.JsonArray out = new com.google.gson.JsonArray();
+            for (JsonElement e : zs) {
+                if (e.isJsonObject()) {
+                    JsonObject z = e.getAsJsonObject().deepCopy();
+                    String base = sanitize(J.str(z, "id", "zone"));
+                    if (base.isEmpty()) base = "zone";
+                    String id = base;
+                    for (int n = 2; assets.containsKey("zones/" + id + ".json"); n++) id = base + "_" + n;
+                    z.remove("id");
+                    if (!z.has("name")) z.addProperty("name", id);
+                    Asset za = new Asset("zones/" + id + ".json", AssetType.ZONE, z);
+                    za.dirty = true;
+                    assets.put(za.path, za);
+                    out.add(id);
+                    changed = true;
+                } else {
+                    out.add(e);
+                }
+            }
+            if (changed) { d.json.add("zones", out); d.dirty = true; }
+        }
     }
 
     private void readFile(String path, AssetType type) {
@@ -133,6 +163,7 @@ public final class StudioProject {
             assets.put(a.path, a);
             n++;
         }
+        migrateInlineZones();
         validateAll();
         revision++;
         return n;
@@ -294,6 +325,7 @@ public final class StudioProject {
         JsonObject json = switch (t) {
             case BIOME -> Templates.newBiome(id);
             case DIMENSION -> Templates.newDimension(id, this);
+            case ZONE -> Templates.newZone(id);
             default -> new JsonObject();
         };
         Asset a = new Asset(t.folder + "/" + id + ".json", t, json);

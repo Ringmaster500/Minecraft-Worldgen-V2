@@ -159,7 +159,7 @@ public final class ProjectCompiler {
                     .withUndergroundBiomes(DefaultBiomeFactory.createUndergroundBiomes(), r.seed);
         }
         structure.withDimensionLayout(buildLayout(d, r));
-        r.zones = on(d, "zones", nonEmpty(J.arr(d, "zones"))) ? buildZones(d, r) : null;
+        r.zones = on(d, "zones", nonEmpty(J.arr(d, "zones"))) ? buildZones(d, r, project) : null;
         if (r.zones != null) structure.withZoneLayout(r.zones);
         structure.withOreRules(resolveOres(d, r));
 
@@ -382,18 +382,38 @@ public final class ProjectCompiler {
         return out;
     }
 
+    private static int parseColor(String hex, int fallback) {
+        try {
+            String h = hex.startsWith("#") ? hex.substring(1) : hex;
+            if (h.length() == 6) return 0xFF000000 | Integer.parseInt(h, 16);
+        } catch (NumberFormatException ignored) {
+        }
+        return fallback;
+    }
+
     private static final int[] ZONE_COLORS = {0xFF5FBF6A, 0xFFE3B341, 0xFF9FD8F0, 0xFFE5534B, 0xFFB37BE8, 0xFF3FC5FF, 0xFFE89A3C, 0xFF8BC34A};
 
     /** Builds the Hytale-style zone layer from the dimension's {@code zones} array. */
-    private static ZoneLayout buildZones(JsonObject d, Result r) {
+    private static ZoneLayout buildZones(JsonObject d, Result r, StudioProject project) {
         JsonArray za = J.arr(d, "zones");
         if (za == null || za.isEmpty()) return null;
         ZoneLayout.Builder zb = new ZoneLayout.Builder(r.seed, (float) J.num(d, "zoneScale", 2000));
         int i = 0;
         for (JsonElement e : za) {
-            if (!e.isJsonObject()) continue;
-            JsonObject z = e.getAsJsonObject();
-            String id = J.str(z, "id", "zone_" + i);
+            JsonObject z;
+            String id;
+            if (e.isJsonPrimitive()) {
+                // a zone asset referenced by id (zones/<id>.json)
+                id = e.getAsString();
+                Asset zoneAsset = project.get("zones/" + id + ".json");
+                if (zoneAsset == null) { r.warnings.add("Zone '" + id + "' is listed but does not exist."); continue; }
+                z = zoneAsset.json;
+            } else if (e.isJsonObject()) {
+                z = e.getAsJsonObject();
+                id = J.str(z, "id", "zone_" + i);
+            } else {
+                continue;
+            }
             List<String> names = new ArrayList<>();
             JsonArray ba = J.arr(z, "biomes");
             if (ba != null) {
@@ -407,7 +427,50 @@ public final class ProjectCompiler {
             if (names.isEmpty() && !J.str(z, "kind", "everywhere").equals("everywhere")) {
                 r.warnings.add("Zone '" + id + "' has no biomes, so it does not restrict anything.");
             }
-            zb.add(id, J.str(z, "name", id), ZONE_COLORS[i % ZONE_COLORS.length], J.str(z, "kind", "everywhere"), z, names);
+            String kind = J.str(z, "kind", "everywhere");
+            int color = parseColor(J.str(z, "color", ""), ZONE_COLORS[i % ZONE_COLORS.length]);
+            // The zone's own terrain graph (optional): extra density added inside the zone.
+            com.worldgenv2.density.DensityFunction terrain = null;
+            JsonObject terrainAst = J.obj(z, "terrain");
+            if (terrainAst != null && !terrainAst.isEmpty()) {
+                try {
+                    terrain = new JsonAstCompiler().compileDensityJson(terrainAst.toString(), r.seed);
+                } catch (Throwable ex) {
+                    r.warnings.add("Zone '" + id + "' terrain graph failed to compile: " + ex.getMessage());
+                }
+            }
+            float strength = (float) J.num(z, "terrainStrength", 1.0);
+            if (kind.equals("graph")) {
+                // The zone's shape is a density graph evaluated on the ground plane: inside where min <= value <= max.
+                JsonObject maskAst = J.obj(z, "mask");
+                if (maskAst == null || maskAst.isEmpty()) {
+                    r.warnings.add("Zone '" + id + "' is shaped by a graph but has no mask graph yet; it matches nowhere.");
+                    zb.addCustom(id, J.str(z, "name", id), color, (x, zz) -> false, names, terrain, strength);
+                } else {
+                    try {
+                        com.worldgenv2.density.DensityFunction mask = new JsonAstCompiler().compileDensityJson(maskAst.toString(), r.seed);
+                        float lo = (float) J.num(z, "min", 0.0), hi = (float) J.num(z, "max", 1.0), soft = (float) Math.max(0.0001, J.num(z, "softness", 0.15));
+                        zb.addCustom(id, J.str(z, "name", id), color, new ZoneLayout.Mask() {
+                            @Override public boolean matches(float x, float zz) {
+                                float v = mask.compute(x, 64.0f, zz);
+                                return v >= lo && v <= hi;
+                            }
+                            @Override public float weight(float x, float zz) {
+                                float v = mask.compute(x, 64.0f, zz);
+                                float a = Math.min(1.0f, Math.max(0.0f, (v - lo) / soft));
+                                float b = Math.min(1.0f, Math.max(0.0f, (hi - v) / soft));
+                                return a * b;
+                            }
+                        }, names, terrain, strength);
+                    } catch (Throwable ex) {
+                        r.warnings.add("Zone '" + id + "' mask graph failed to compile: " + ex.getMessage());
+                        zb.addCustom(id, J.str(z, "name", id), color, (x, zz) -> false, names, terrain, strength);
+                    }
+                }
+            } else {
+                zb.add(id, J.str(z, "name", id), color, kind, z, names);
+                if (terrain != null) r.warnings.add("Zone '" + id + "' has a terrain graph, which only applies to graph-shaped zones; set its shape to Graph.");
+            }
             i++;
         }
         return zb.build();

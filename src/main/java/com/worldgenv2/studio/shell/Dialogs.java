@@ -19,6 +19,7 @@ final class Dialogs {
         String suggestion = switch (t) {
             case BIOME -> "new_biome";
             case DIMENSION -> "new_dimension";
+            case ZONE -> "new_zone";
             default -> "new_asset";
         };
         Modal.prompt(ui, "New " + t.label.toLowerCase(), "Name (letters, numbers, underscores)", suggestion, "Create",

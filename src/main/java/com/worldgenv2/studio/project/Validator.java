@@ -20,8 +20,30 @@ final class Validator {
             case WORLD -> world(a);
             case DIMENSION -> dimension(p, a);
             case BIOME -> biome(a);
+            case ZONE -> zone(p, a);
             case PREFAB -> {}
         }
+    }
+
+    private static void zone(StudioProject p, Asset a) {
+        JsonObject z = a.json;
+        String kind = J.str(z, "kind", "everywhere");
+        JsonArray biomes = J.arr(z, "biomes");
+        if (biomes == null || biomes.isEmpty()) {
+            if (!kind.equals("everywhere")) warn(a, "This zone has no biomes, so it restricts nothing.");
+        } else {
+            for (JsonElement be : biomes) {
+                if (!p.hasAsset("biomes/" + be.getAsString() + ".json")) err(a, "Lists biome '" + be.getAsString() + "', which does not exist.");
+            }
+        }
+        if (kind.equals("graph")) {
+            JsonObject mask = J.obj(z, "mask");
+            if (mask == null || mask.isEmpty()) warn(a, "Shaped by a graph but the Mask graph is empty; the zone matches nowhere. Open the Graph view and wire the Mask.");
+            else checkNodes(a, mask, "mask");
+        }
+        JsonObject terrain = J.obj(z, "terrain");
+        if (terrain != null) checkNodes(a, terrain, "terrain");
+        if (J.num(z, "min", 0) > J.num(z, "max", 1)) warn(a, "Min is above Max, so the zone can never match.");
     }
 
     private static void err(Asset a, String m) { a.problems.add(new Asset.Problem(Severity.ERROR, a.path, m)); }
@@ -73,6 +95,12 @@ final class Validator {
         if (zonesArr != null) {
             java.util.Set<String> seen = new java.util.HashSet<>();
             for (JsonElement ze : zonesArr) {
+                if (ze.isJsonPrimitive()) {
+                    String zid = ze.getAsString();
+                    if (!seen.add(zid)) err(a, "Zone '" + zid + "' is listed twice.");
+                    if (!p.hasAsset("zones/" + zid + ".json")) err(a, "Zone '" + zid + "' is listed but does not exist.");
+                    continue;
+                }
                 if (!ze.isJsonObject()) continue;
                 JsonObject z = ze.getAsJsonObject();
                 String zid = J.str(z, "id", "?");

@@ -22,7 +22,12 @@ import java.util.Set;
  */
 public final class ZoneLayout {
 
-    public interface Mask { boolean matches(float x, float z); }
+    public interface Mask {
+        boolean matches(float x, float z);
+
+        /** Soft membership in [0, 1] used to fade a zone's terrain modifier near its edge. */
+        default float weight(float x, float z) { return matches(x, z) ? 1.0f : 0.0f; }
+    }
 
     /** Creates a mask from a zone's JSON parameters. */
     public interface MaskFactory { Mask create(JsonObject params, long seed); }
@@ -43,14 +48,20 @@ public final class ZoneLayout {
         public final int color;
         public final Mask mask;
         public final List<String> biomeNames;
+        /** Optional extra terrain (a density graph) added inside the zone, scaled by {@link #terrainStrength}. */
+        public final com.worldgenv2.density.DensityFunction terrain;
+        public final float terrainStrength;
         private volatile Set<Integer> ids = Set.of();
 
-        Zone(String id, String name, int color, Mask mask, List<String> biomeNames) {
+        Zone(String id, String name, int color, Mask mask, List<String> biomeNames,
+             com.worldgenv2.density.DensityFunction terrain, float terrainStrength) {
             this.id = id;
             this.name = name;
             this.color = color;
             this.mask = mask;
             this.biomeNames = biomeNames;
+            this.terrain = terrain;
+            this.terrainStrength = terrainStrength;
         }
 
         public Set<Integer> biomeIds() { return ids; }
@@ -73,6 +84,19 @@ public final class ZoneLayout {
         return zone == null || zone.ids.isEmpty() ? null : zone.ids;
     }
 
+    /** Adds each zone's own terrain (if it defines one) to a density column, faded by the zone's edge weight. */
+    public void applyTerrain(float x, float z, int minY, int maxY, float[] column) {
+        for (Zone zone : zones) {
+            if (zone.terrain == null || zone.terrainStrength == 0.0f) continue;
+            float w = zone.mask.weight(x, z);
+            if (w <= 0.0f) continue;
+            float[] extra = new float[maxY - minY];
+            zone.terrain.computeColumn(x, z, minY, maxY, extra);
+            float k = w * zone.terrainStrength;
+            for (int i = 0; i < extra.length && i < column.length; i++) column[i] += extra[i] * k;
+        }
+    }
+
     /** Resolves each zone's biome names to numeric ids once the tile biomes are known. */
     public void bind(List<TileBiome> tiles) {
         for (Zone zone : zones) {
@@ -89,7 +113,8 @@ public final class ZoneLayout {
     // ------------------------------------------------------------------ builder
 
     public static final class Builder {
-        private record Spec(String id, String name, int color, String kind, JsonObject params, List<String> biomes) {}
+        private record Spec(String id, String name, int color, String kind, JsonObject params, List<String> biomes,
+                            Mask customMask, com.worldgenv2.density.DensityFunction terrain, float terrainStrength) {}
 
         private final long seed;
         private final float patchCell;
@@ -101,7 +126,14 @@ public final class ZoneLayout {
         }
 
         public Builder add(String id, String name, int color, String kind, JsonObject params, List<String> biomes) {
-            specs.add(new Spec(id, name, color, kind, params == null ? new JsonObject() : params, biomes));
+            specs.add(new Spec(id, name, color, kind, params == null ? new JsonObject() : params, biomes, null, null, 0f));
+            return this;
+        }
+
+        /** A zone whose shape is an arbitrary mask (e.g. compiled from a density graph) and which may add its own terrain. */
+        public Builder addCustom(String id, String name, int color, Mask mask, List<String> biomes,
+                                 com.worldgenv2.density.DensityFunction terrain, float terrainStrength) {
+            specs.add(new Spec(id, name, color, "custom", new JsonObject(), biomes, mask, terrain, terrainStrength));
             return this;
         }
 
@@ -119,6 +151,7 @@ public final class ZoneLayout {
             for (Spec s : specs) {
                 Mask mask;
                 switch (s.kind()) {
+                    case "custom" -> mask = s.customMask();
                     case "everywhere" -> mask = (x, z) -> true;
                     case "radial" -> {
                         float cx = num(s.params(), "centerX", 0), cz = num(s.params(), "centerZ", 0);
@@ -148,7 +181,7 @@ public final class ZoneLayout {
                         mask = f != null ? f.create(s.params(), seed + ordinal) : (x, z) -> false;
                     }
                 }
-                out.add(new Zone(s.id(), s.name(), s.color(), mask, s.biomes()));
+                out.add(new Zone(s.id(), s.name(), s.color(), mask, s.biomes(), s.terrain(), s.terrainStrength()));
                 ordinal++;
             }
             return new ZoneLayout(out);

@@ -71,6 +71,16 @@ public final class Templates {
         return o;
     }
 
+    /** A new zone: patch-shaped, no biomes yet (it restricts nothing until you add some). */
+    public static JsonObject newZone(String id) {
+        JsonObject o = new JsonObject();
+        o.addProperty("name", id.replace('_', ' '));
+        o.addProperty("kind", "patch");
+        J.setNum(o, "weight", 1);
+        o.add("biomes", new JsonArray());
+        return o;
+    }
+
     public static JsonObject newDimension(String id, StudioProject p) {
         JsonObject o = new JsonObject();
         o.addProperty("id", id.contains(":") ? id : "worldgenv2:" + id);

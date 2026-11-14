@@ -99,13 +99,21 @@ final class GraphEditor extends Widget {
         r.path = List.of();
         r.json = biome;
         r.virtualRoot = true;
-        r.type = "Biome";
-        r.kind = "biome";
-        boolean custom = "CustomBiome".equalsIgnoreCase(J.str(biome, "type", ""));
-        addSlot(r, "terrain", "Terrain", "density", false);
-        addSlot(r, "materialProvider", "Materials", "material", false);
-        addSlot(r, "props", "Props", "prop", true);
-        if (custom || biome.has("placementNoise")) addSlot(r, "placementNoise", "Placement", "density", false);
+        if (a.type == com.worldgenv2.studio.project.AssetType.ZONE) {
+            // A zone: where it is (mask graph, used when the shape is "Graph") and what it adds to the terrain.
+            r.type = "Zone";
+            r.kind = "zone";
+            addSlot(r, "mask", "Shape mask", "density", false);
+            addSlot(r, "terrain", "Terrain", "density", false);
+        } else {
+            r.type = "Biome";
+            r.kind = "biome";
+            boolean custom = "CustomBiome".equalsIgnoreCase(J.str(biome, "type", ""));
+            addSlot(r, "terrain", "Terrain", "density", false);
+            addSlot(r, "materialProvider", "Materials", "material", false);
+            addSlot(r, "props", "Props", "prop", true);
+            if (custom || biome.has("placementNoise")) addSlot(r, "placementNoise", "Placement", "density", false);
+        }
         populate(r, 0);
         root = r;
         finishLayout();
@@ -315,7 +323,7 @@ final class GraphEditor extends Widget {
             g.fill(n.x, n.y, n.w, n.h, hov ? 0xFF1B2030 : 0xFF151925);
             g.border(n.x, n.y, n.w, n.h, sel ? 0xFFFFFFFF : (hov ? 0xFF4A5270 : 0xFF2A3042));
             g.fill(n.x + 1, n.y + 1, n.w - 2, HEAD_H - 1, Gfx.mix(0xFF151925, color, 0.55f));
-            String title = n.virtualRoot ? "Biome  " + J.str(n.json, "name", "") : n.type;
+            String title = n.virtualRoot ? n.type + "  " + J.str(n.json, "name", "") : n.type;
             g.textFit(title, n.x + 6, n.y, HEAD_H + 1, n.w - 12, 0xFFFFFFFF);
             if (!n.virtualRoot && n.schema == null) g.textRight("?", n.x + n.w - 5, n.y, HEAD_H + 1, Ui.YELLOW);
 
@@ -569,10 +577,19 @@ final class GraphEditor extends Widget {
             form.labelW = 84;
             final List<Object> path = n.path;
             if (n.virtualRoot) {
-                form.section("Biome output");
-                form.note("Wire graphs into its sockets: terrain shapes the", Ui.TEXT_DIM);
-                form.note("ground, materials paint it, props decorate it.", Ui.TEXT_DIM);
-                form.note("Name, weight and climate are in the Form view.", Ui.TEXT_FAINT);
+                if (n.kind.equals("zone")) {
+                    form.section("Zone output");
+                    form.note("Shape mask: where the zone is. Its value is read", Ui.TEXT_DIM);
+                    form.note("on the ground plane; the zone applies where the", Ui.TEXT_DIM);
+                    form.note("value is between Min and Max (set in Form view).", Ui.TEXT_DIM);
+                    form.note("Terrain: extra ground shape added inside the zone.", Ui.TEXT_DIM);
+                    form.note("The shape must be set to Graph for the mask to apply.", Ui.TEXT_FAINT);
+                } else {
+                    form.section("Biome output");
+                    form.note("Wire graphs into its sockets: terrain shapes the", Ui.TEXT_DIM);
+                    form.note("ground, materials paint it, props decorate it.", Ui.TEXT_DIM);
+                    form.note("Name, weight and climate are in the Form view.", Ui.TEXT_FAINT);
+                }
                 return;
             }
             form.section(n.type, n.kind);

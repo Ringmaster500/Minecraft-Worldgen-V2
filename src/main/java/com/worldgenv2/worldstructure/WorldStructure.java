@@ -403,6 +403,9 @@ public final class WorldStructure {
         if (dimensionLayout != null) {
             dimensionLayout.applyMacroZonesAndBounds(x, z, minY, maxY, column);
         }
+        if (zoneLayout != null) {
+            zoneLayout.applyTerrain(x, z, minY, maxY, column);
+        }
         if (spawnAnchorManager != null && spawnAnchorManager.hasActiveRule()) {
             spawnAnchorManager.carveCraterDensity(x, z, minY, maxY, column);
         }

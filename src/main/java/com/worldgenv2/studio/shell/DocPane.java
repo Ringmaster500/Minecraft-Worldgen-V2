@@ -54,7 +54,7 @@ final class DocPane extends Widget {
     }
 
     private Widget makeBody(Asset a) {
-        if (app.viewOf(a.path) == StudioApp.View.GRAPH && a.type == AssetType.BIOME && a.parseError == null) {
+        if (app.viewOf(a.path) == StudioApp.View.GRAPH && (a.type == AssetType.BIOME || a.type == AssetType.ZONE) && a.parseError == null) {
             return graphs.computeIfAbsent(a.path, k -> new GraphEditor(app, a));
         }
         if (app.viewOf(a.path) == StudioApp.View.JSON || a.parseError != null || a.type == AssetType.PREFAB) {
@@ -64,6 +64,7 @@ final class DocPane extends Widget {
             Editor e = switch (a.type) {
                 case WORLD -> new WorldEditor(app, a);
                 case DIMENSION -> new DimensionEditor(app, a);
+                case ZONE -> new ZoneEditor(app, a);
                 default -> new BiomeEditor(app, a);
             };
             e.rebuild();
@@ -112,8 +113,8 @@ final class DocPane extends Widget {
         }
         StudioApp.View vw = a == null ? StudioApp.View.FORM : app.viewOf(a.path);
         boolean json = a != null && vw == StudioApp.View.JSON;
-        boolean graph = a != null && vw == StudioApp.View.GRAPH && a.type == AssetType.BIOME;
-        graphBtn.visible = a != null && a.type == AssetType.BIOME && a.parseError == null;
+        boolean graph = a != null && vw == StudioApp.View.GRAPH && (a.type == AssetType.BIOME || a.type == AssetType.ZONE);
+        graphBtn.visible = a != null && (a.type == AssetType.BIOME || a.type == AssetType.ZONE) && a.parseError == null;
         graphBtn.selected = graph;
         mapBtn.visible = a != null && a.type == AssetType.DIMENSION && !json;
         mapBtn.selected = app.previewOpen;

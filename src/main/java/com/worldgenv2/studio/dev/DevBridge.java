@@ -229,6 +229,12 @@ public final class DevBridge {
                 com.worldgenv2.studio.shell.StudioApp.get().regenAroundPlayer();
                 return ok();
             });
+            case "/newasset" -> onRender(() -> {
+                var app = com.worldgenv2.studio.shell.StudioApp.get();
+                if (app.project == null) return "{\"error\":\"no project\"}";
+                app.createAsset(com.worldgenv2.studio.project.AssetType.valueOf(q.getOrDefault("type", "ZONE").toUpperCase()), q.getOrDefault("name", "dev_zone"));
+                return ok();
+            });
             case "/newproject" -> onRender(() -> {
                 var app = com.worldgenv2.studio.shell.StudioApp.get();
                 app.createProject(q.getOrDefault("name", "dev_new"), q.getOrDefault("preset", "worldgenv2:starter"));

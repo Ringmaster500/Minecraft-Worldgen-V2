@@ -4,6 +4,7 @@ package com.worldgenv2.studio.project;
 public enum AssetType {
     WORLD("World", "", 0xFFFFAA00),
     DIMENSION("Dimension", "dimensions", 0xFF4FA3E3),
+    ZONE("Zone", "zones", 0xFFE89A3C),
     BIOME("Biome", "biomes", 0xFF5FBF6A),
     PREFAB("Prefab", "prefabs", 0xFFB37BE8);
 
