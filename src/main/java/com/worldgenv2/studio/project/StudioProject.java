@@ -326,6 +326,7 @@ public final class StudioProject {
             case BIOME -> Templates.newBiome(id);
             case DIMENSION -> Templates.newDimension(id, this);
             case ZONE -> Templates.newZone(id);
+            case RULE -> Templates.newRule(id);
             default -> new JsonObject();
         };
         Asset a = new Asset(t.folder + "/" + id + ".json", t, json);

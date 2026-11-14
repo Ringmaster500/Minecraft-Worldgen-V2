@@ -120,24 +120,9 @@ final class DimensionEditor extends Editor {
                 "None yet. Add one to scatter a finite set of structures."));
         }
 
-        // ---- spans: a structure that bridges a gap (a fallen log over a river) ----
-        if (feature("spans", "Natural bridges", "fallen trees (or anything you build) lying across narrow water, like a log over a river", true)) {
-        block(new CardList(this, "spans", "bridge", List.of(
-                CardList.Field.str("id", "Name", "Unique name."),
-                CardList.Field.prefabs("prefabs", "Structures", "Candidates. The one that reaches both banks without overshooting is used, and it is turned to cross the gap. Build them with the long side along X."),
-                CardList.Field.prefabs("companions", "Nearby trees", "Optional standing trees placed beside the structure's 'root' end. Only trees tall enough to have made the span are used; if none is tall enough, no span is placed."),
-                CardList.Field.num("minTreeRatio", "Tree height x", 0.2, 5, 0.1, "A companion must be at least this many times the span's length tall (1 = as tall as the log is long)."),
-                CardList.Field.integer("companionCount", "Tree count", 1, 8, "How many companion trees stand beside it."),
-                CardList.Field.integer("minGap", "Min gap", 1, 200, "Shortest stretch of water to cross."),
-                CardList.Field.integer("maxGap", "Max gap", 1, 200, "Longest stretch of water to cross."),
-                CardList.Field.integer("maxBankDiff", "Bank height diff", 0, 32, "Largest height difference allowed between the two banks."),
-                CardList.Field.integer("maxDrop", "Max bank height", 0, 64, "Banks may rise at most this far above the water. Low values keep the structure close to the water instead of bridging a canyon."),
-                CardList.Field.integer("yOffset", "Height offset", -16, 16, "Raise (+) or sink (-) the structure relative to the higher bank."),
-                CardList.Field.integer("cell", "Search cell", 16, 1024, "World is searched in squares this wide; one bridge at most per square. Bigger = rarer."),
-                CardList.Field.num("chance", "Chance", 0, 1, 0.05, "Chance that a square is searched at all."),
-                CardList.Field.biomes("biomes", "Allowed in", "Empty = any biome.")),
-                this::newSpan, o -> J.str(o, "id", "bridge") + "   gap " + J.integer(o, "minGap", 4) + "-" + J.integer(o, "maxGap", 14),
-                "None yet. Add one, pick a long structure, and it will appear wherever water can be crossed."));
+        // ---- placement rules: node-built things that find a spot and build on it (bridges, camps, shrines...) ----
+        if (feature("placements", "Placement rules", "rules that search the world for a spot and build there, like a fallen tree across a river", false)) {
+        block(new PlacementRefs());
         }
 
         // ---- ores: all of them are rules here; vanilla ore generation is switched off ----
@@ -216,26 +201,11 @@ final class DimensionEditor extends Editor {
 
     // ---- feature modes: Off / Default (built in) / Custom ----
     private String builtFeatures = "";
-    private static final List<String> FEATURE_KEYS = List.of("zones", "spawn", "landmarks", "budgets", "spans", "ores", "shapes", "rings");
+    private static final List<String> FEATURE_KEYS = List.of("zones", "spawn", "landmarks", "budgets", "placements", "ores", "shapes", "rings");
     private static final List<String> ROTATIONS = List.of("0", "90", "180", "270", "random");
 
     private static String rotationLabel(String s) {
         return switch (s) { case "random" -> "Random (stable per structure)"; case "90", "180", "270" -> s + " degrees"; default -> "None (as built)"; };
-    }
-
-    private JsonObject newSpan(int n) {
-        JsonObject o = new JsonObject();
-        o.addProperty("id", "bridge_" + (n + 1));
-        o.add("prefabs", new JsonArray());
-        J.setNum(o, "minGap", 5);
-        J.setNum(o, "maxGap", 14);
-        J.setNum(o, "maxBankDiff", 3);
-        J.setNum(o, "maxDrop", 3);
-        J.setNum(o, "yOffset", 0);
-        J.setNum(o, "cell", 64);
-        J.setNum(o, "chance", 0.6);
-        o.add("biomes", new JsonArray());
-        return o;
     }
 
     /** Current mode of a feature: explicit {@code features.<key>}, otherwise inferred from whether it has data. */
@@ -286,13 +256,6 @@ final class DimensionEditor extends Editor {
                         edit("Customize ores", j -> {
                             j.add("ores", com.worldgenv2.pack.WorldGenV2Addons.defaultOres());
                             J.objOrCreate(j, "features").addProperty("ores", "custom");
-                        })));
-            }
-            if (key.equals("spans")) {
-                block(new Button("Copy the default fallen-tree bridge here so I can edit it", () ->
-                        edit("Customize bridges", j -> {
-                            j.add("spans", com.worldgenv2.pack.ProjectCompiler.defaultSpans(project()));
-                            J.objOrCreate(j, "features").addProperty("spans", "custom");
                         })));
             }
             return false;
@@ -790,5 +753,126 @@ final class DimensionEditor extends Editor {
             }
             if (rowIds.isEmpty()) g.textMid("No zones in use. Add one, or create a new one.", x + 6, y + 20, ROW, Ui.TEXT_FAINT);
         }
+    }
+
+    /** The placement rules this dimension uses. Rules are separate assets built as node graphs: a finder, conditions, and what to place. */
+    private final class PlacementRefs extends Widget {
+        private static final int ROW = 18;
+        private String signature = "";
+        private final List<Button[]> rowBtns = new ArrayList<>();
+        private final List<String> rowIds = new ArrayList<>();
+        private Dropdown addPick;
+        private Button addBtn, newBtn;
+
+        PlacementRefs() { h = 50; }
+
+        private List<String> ids() {
+            List<String> out = new ArrayList<>();
+            Asset a = asset();
+            JsonArray zs = a == null ? null : J.arr(a.json, "placements");
+            if (zs != null) for (JsonElement e : zs) if (e.isJsonPrimitive()) out.add(e.getAsString());
+            return out;
+        }
+
+        private String sig() {
+            StringBuilder sb = new StringBuilder();
+            for (String id : ids()) sb.append(id).append(',');
+            for (Asset z : project().assetsOf(AssetType.RULE)) sb.append('|').append(z.id());
+            return sb.toString();
+        }
+
+        private void rebuild() {
+            clearChildren();
+            rowBtns.clear();
+            rowIds.clear();
+            List<String> ids = ids();
+            for (int i = 0; i < ids.size(); i++) {
+                final int idx = i;
+                final String id = ids.get(i);
+                Button edit = add(new Button("Edit", () -> app.openDoc("placements/" + id + ".json")));
+                Button up = add(new Button("^", () -> move(idx, -1)));
+                Button down = add(new Button("v", () -> move(idx, 1)));
+                Button rm = add(new Button("x", () -> edit("Remove rule", j -> J.arrOrCreate(j, "placements").remove(idx))).style(Button.Style.DANGER));
+                up.tooltip = "Earlier rules place first";
+                down.tooltip = "Later";
+                rm.tooltip = "Stop using this rule here (the rule itself is kept)";
+                rowBtns.add(new Button[]{edit, up, down, rm});
+                rowIds.add(id);
+            }
+            addPick = add(new Dropdown());
+            addPick.placeholder = "Use an existing rule...";
+            List<String> free = new ArrayList<>();
+            for (Asset z : project().assetsOf(AssetType.RULE)) if (!ids.contains(z.id())) free.add(z.id());
+            addPick.options(free);
+            addPick.display = id -> { Asset z = project().get("placements/" + id + ".json"); return z == null ? id : J.str(z.json, "name", z.displayName()); };
+            addPick.selected(free.isEmpty() ? "" : free.get(0));
+            addPick.enabled = !free.isEmpty();
+            addBtn = add(new Button("Add", () -> {
+                String pick = addPick.selected();
+                if (!pick.isEmpty()) edit("Use rule", j -> J.arrOrCreate(j, "placements").add(pick));
+            }).style(Button.Style.PRIMARY));
+            addBtn.enabled = !free.isEmpty();
+            newBtn = add(new Button("+ New rule", () -> {
+                int n = 1;
+                while (project().checkNewId(AssetType.RULE, "rule_" + n) != null) n++;
+                String id = "rule_" + n;
+                app.createAsset(AssetType.RULE, id);
+                edit("Use rule", j -> J.arrOrCreate(j, "placements").add(id));
+            }));
+            signature = sig();
+            h = 20 + rowIds.size() * ROW + 30;
+        }
+
+        private void move(int idx, int dir) {
+            int to = idx + dir;
+            edit("Reorder rules", j -> {
+                JsonArray a = J.arrOrCreate(j, "placements");
+                if (to < 0 || to >= a.size()) return;
+                JsonElement tmp = a.get(idx);
+                a.set(idx, a.get(to));
+                a.set(to, tmp);
+            });
+        }
+
+        @Override
+        public void layout() {
+            for (int i = 0; i < rowBtns.size(); i++) {
+                int ry = y + 20 + i * ROW;
+                Button[] b = rowBtns.get(i);
+                int right = x + w - 4;
+                b[3].setBounds(right - 16, ry + 1, 16, 16);
+                b[2].setBounds(right - 36, ry + 1, 16, 16);
+                b[1].setBounds(right - 56, ry + 1, 16, 16);
+                b[0].setBounds(right - 100, ry + 1, 40, 16);
+            }
+            int ay = y + 20 + rowIds.size() * ROW + 6;
+            if (addPick != null) {
+                addPick.setBounds(x, ay, Math.min(200, w - 240), 16);
+                addBtn.setBounds(addPick.x + addPick.w + 4, ay, 44, 16);
+                newBtn.setBounds(addBtn.x + addBtn.w + 4, ay, 84, 16);
+            }
+        }
+
+        @Override
+        protected void render(Gfx g, int mx, int my) {
+            if (addPick == null || !signature.equals(sig())) { rebuild(); layout(); }
+            layout();
+            g.box(x, y, w, 18, Ui.BG_RAISED, Ui.LINE);
+            g.textMid("Each rule searches the world on its own grid and places what it builds", x + 6, y, 18, Ui.TEXT_FAINT);
+            for (int i = 0; i < rowIds.size(); i++) {
+                int ry = y + 20 + i * ROW;
+                Asset z = project().get("placements/" + rowIds.get(i) + ".json");
+                if (i % 2 == 1) g.fill(x, ry, w, ROW, 0x14FFFFFF);
+                String nm = z == null ? rowIds.get(i) + " (missing)" : J.str(z.json, "name", z.displayName());
+                g.fill(x + 6, ry + 7, 4, 4, z == null ? Ui.RED : AssetType.RULE.color);
+                g.textFit((i + 1) + ".  " + nm, x + 14, ry, ROW, w - 130, z == null ? Ui.RED : Ui.TEXT);
+                if (z != null) g.textRight("[" + findLabel(z) + "]", x + w - 106, ry, ROW, Ui.TEXT_FAINT);
+            }
+            if (rowIds.isEmpty()) g.textMid("No placement rules in use. Add one, or create a new one.", x + 6, y + 20, ROW, Ui.TEXT_FAINT);
+        }
+    }
+    private static String findLabel(Asset r) {
+        var f = J.obj(r.json, "find");
+        return f == null ? "no finder" : J.str(f, "type", "?");
     }
 }

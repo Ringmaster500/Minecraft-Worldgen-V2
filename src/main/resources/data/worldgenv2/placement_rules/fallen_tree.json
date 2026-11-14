@@ -1,0 +1,27 @@
+{
+  "name": "Fallen tree across a river",
+  "cell": 112,
+  "chance": 0.6,
+  "find": { "type": "Span", "axis": "any", "minGap": 4, "maxGap": 12, "maxBankDiff": 2, "maxBankHeight": 3 },
+  "conditions": [
+    { "type": "Biome", "biomes": ["temperate_forest", "old_growth_grove"] }
+  ],
+  "place": [
+    {
+      "type": "Prefab", "name": "log",
+      "from": ["fallen_oak_a", "fallen_oak_b", "fallen_oak_c"],
+      "require": "prefab.length >= span.length + 2 && prefab.length <= span.length + 16",
+      "rotate": "alignSpan", "flip": true,
+      "at": "span.center", "align": "center",
+      "height": "span.bankTop + 1", "onLand": false
+    },
+    {
+      "type": "Prefab", "name": "tree",
+      "from": ["tall_oak_a", "tall_oak_b", "tall_oak_c", "tall_oak_d"],
+      "require": "prefab.height >= log.length",
+      "at": "log.socket.root",
+      "alongMin": 3, "alongMax": 8, "sideMin": 3, "sideMax": 7,
+      "count": 3
+    }
+  ]
+}

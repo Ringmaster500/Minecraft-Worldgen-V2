@@ -21,6 +21,7 @@ final class Validator {
             case DIMENSION -> dimension(p, a);
             case BIOME -> biome(a);
             case ZONE -> zone(p, a);
+            case RULE -> rule(p, a);
             case PREFAB -> {}
         }
     }
@@ -44,6 +45,37 @@ final class Validator {
         JsonObject terrain = J.obj(z, "terrain");
         if (terrain != null) checkNodes(a, terrain, "terrain");
         if (J.num(z, "min", 0) > J.num(z, "max", 1)) warn(a, "Min is above Max, so the zone can never match.");
+    }
+
+    private static void rule(StudioProject p, Asset a) {
+        JsonObject o = a.json;
+        JsonObject find = J.obj(o, "find");
+        if (find == null) warn(a, "No finder: the rule acts on a plain point on the ground.");
+        else if (!com.worldgenv2.placement.Placement.has("finder", J.str(find, "type", ""))) err(a, "Unknown finder \u0027" + J.str(find, "type", "") + "\u0027.");
+        checkPieces(p, a, J.arr(o, "conditions"), "condition");
+        JsonArray place = J.arr(o, "place");
+        if (place == null || place.isEmpty()) warn(a, "Nothing to place: add an action in the Graph view.");
+        checkPieces(p, a, place, "action");
+    }
+
+    private static void checkPieces(StudioProject p, Asset a, JsonArray arr, String kind) {
+        if (arr == null) return;
+        for (JsonElement e : arr) {
+            if (!e.isJsonObject()) continue;
+            JsonObject c = e.getAsJsonObject();
+            String type = J.str(c, "type", "");
+            if (!com.worldgenv2.placement.Placement.has(kind, type)) { err(a, "Unknown " + kind + " \u0027" + type + "\u0027."); continue; }
+            for (String key : new String[]{"require", "expr", "height"}) {
+                if (!c.has(key) || !c.get(key).isJsonPrimitive()) continue;
+                try { com.worldgenv2.placement.Expr.parse(c.get(key).getAsString()); }
+                catch (RuntimeException ex) { err(a, type + " " + key + ": " + ex.getMessage()); }
+            }
+            JsonElement from = c.get("from");
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            if (from != null && from.isJsonArray()) for (JsonElement x : from.getAsJsonArray()) ids.add(x.getAsString());
+            else if (from != null && from.isJsonPrimitive()) for (String s : from.getAsString().split(",")) if (!s.isBlank()) ids.add(s.trim());
+            for (String id : ids) if (!p.hasAsset("prefabs/" + id + ".json")) err(a, type + " uses prefab \u0027" + id + "\u0027, which does not exist.");
+        }
     }
 
     private static void err(Asset a, String m) { a.problems.add(new Asset.Problem(Severity.ERROR, a.path, m)); }

@@ -5,6 +5,7 @@ public enum AssetType {
     WORLD("World", "", 0xFFFFAA00),
     DIMENSION("Dimension", "dimensions", 0xFF4FA3E3),
     ZONE("Zone", "zones", 0xFFE89A3C),
+    RULE("Placement rule", "placements", 0xFF3FC8B0),
     BIOME("Biome", "biomes", 0xFF5FBF6A),
     PREFAB("Prefab", "prefabs", 0xFFB37BE8);
 

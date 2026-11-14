@@ -20,6 +20,7 @@ final class Dialogs {
             case BIOME -> "new_biome";
             case DIMENSION -> "new_dimension";
             case ZONE -> "new_zone";
+            case RULE -> "new_rule";
             default -> "new_asset";
         };
         Modal.prompt(ui, "New " + t.label.toLowerCase(), "Name (letters, numbers, underscores)", suggestion, "Create",

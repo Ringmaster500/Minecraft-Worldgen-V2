@@ -105,6 +105,13 @@ final class GraphEditor extends Widget {
             r.kind = "zone";
             addSlot(r, "mask", "Shape mask", "density", false);
             addSlot(r, "terrain", "Terrain", "density", false);
+        } else if (a.type == com.worldgenv2.studio.project.AssetType.RULE) {
+            // A placement rule: where to look (finder), what must hold (conditions), what to build (actions).
+            r.type = "Rule";
+            r.kind = "rule";
+            addSlot(r, "find", "Find", "finder", false);
+            addSlot(r, "conditions", "Conditions", "condition", true);
+            addSlot(r, "place", "Place", "action", true);
         } else {
             r.type = "Biome";
             r.kind = "biome";
@@ -164,12 +171,13 @@ final class GraphEditor extends Widget {
                     shown.add(key);
                     if (!o.has(key) && (p.def() == null || p.def().isJsonNull())) continue;
                     JsonElement v = o.has(key) ? o.get(key) : p.def();
-                    n.params.add(new String[]{key, v.isJsonPrimitive() ? v.getAsString() : "...", o.has(key) ? "1" : "0"});
+                    n.params.add(new String[]{key, v.isJsonPrimitive() ? v.getAsString() : joinStrings(v), o.has(key) ? "1" : "0"});
                 }
             }
             for (Map.Entry<String, JsonElement> e : o.entrySet()) {
-                if (e.getKey().equals("type") || shown.contains(e.getKey()) || !e.getValue().isJsonPrimitive()) continue;
-                n.params.add(new String[]{e.getKey(), e.getValue().getAsString(), "1"});
+                if (e.getKey().equals("type") || shown.contains(e.getKey())) continue;
+                if (e.getValue().isJsonPrimitive()) n.params.add(new String[]{e.getKey(), e.getValue().getAsString(), "1"});
+                else if (isStringList(e.getValue())) n.params.add(new String[]{e.getKey(), joinStrings(e.getValue()), "1"});
             }
         }
 
@@ -206,6 +214,19 @@ final class GraphEditor extends Widget {
         c.inSlot = slot;
         populate(c, depth);
         return c;
+    }
+
+    private static boolean isStringList(JsonElement v) {
+        if (!v.isJsonArray()) return false;
+        for (JsonElement x : v.getAsJsonArray()) if (!x.isJsonPrimitive()) return false;
+        return true;
+    }
+
+    private static String joinStrings(JsonElement v) {
+        if (!isStringList(v)) return "...";
+        StringBuilder sb = new StringBuilder();
+        for (JsonElement x : v.getAsJsonArray()) { if (sb.length() > 0) sb.append(", "); sb.append(x.getAsString()); }
+        return sb.toString();
     }
 
     private static String guessKind(String type) {
@@ -577,7 +598,14 @@ final class GraphEditor extends Widget {
             form.labelW = 84;
             final List<Object> path = n.path;
             if (n.virtualRoot) {
-                if (n.kind.equals("zone")) {
+                if (n.kind.equals("rule")) {
+                    form.section("Placement rule");
+                    form.note("Find: how a spot is found (a gap over water, a point).", Ui.TEXT_DIM);
+                    form.note("Conditions: what must hold there (biome, density...).", Ui.TEXT_DIM);
+                    form.note("Place: what to build. Later actions can refer to earlier", Ui.TEXT_DIM);
+                    form.note("ones by name, e.g. at = log.socket.root.", Ui.TEXT_DIM);
+                    form.note("Cell size and chance are in the Form view.", Ui.TEXT_FAINT);
+                } else if (n.kind.equals("zone")) {
                     form.section("Zone output");
                     form.note("Shape mask: where the zone is. Its value is read", Ui.TEXT_DIM);
                     form.note("on the ground plane; the zone applies where the", Ui.TEXT_DIM);
@@ -609,7 +637,8 @@ final class GraphEditor extends Widget {
                 if (!done.add(p[0])) continue;
                 NodeSchemas.Param sp = null;
                 if (n.schema != null) for (NodeSchemas.Param q : n.schema.params()) if (q.key().equals(p[0]) || p[0].equals(q.alias())) sp = q;
-                form.field(p[0], paramEditor(path, p[0], p[1], sp), sp != null && sp.def() != null && !sp.def().isJsonNull() ? "default " + sp.def().getAsString() : null);
+                String pdoc = NodeSchemas.doc(n.kind, n.type, p[0]);
+                form.field(p[0], paramEditor(path, p[0], p[1], sp), pdoc != null ? pdoc : sp != null && sp.def() != null && !sp.def().isJsonNull() ? "default " + sp.def().getAsString() : null);
             }
 
             if (!n.slots.isEmpty()) form.section("Inputs");
@@ -657,6 +686,13 @@ final class GraphEditor extends Widget {
                     };
                     return f;
                 }
+                case "strings" -> {
+                    TextField f = new TextField();
+                    f.setText(current);
+                    f.placeholder("comma, separated, ids");
+                    f.onChange = s -> edit("Node " + key, j -> setStrings(j, path, key, s));
+                    return f;
+                }
                 default -> {
                     List<String> opts = sp == null ? List.of() : sp.enumOptions();
                     if (!opts.isEmpty()) {
@@ -688,6 +724,14 @@ final class GraphEditor extends Widget {
             if (n == null) return;
             if (v instanceof Boolean b) n.addProperty(key, b);
             else n.addProperty(key, String.valueOf(v));
+        }
+
+        private void setStrings(JsonObject root, List<Object> path, String key, String text) {
+            JsonObject n = GraphOps.nodeAt(root, path);
+            if (n == null) return;
+            JsonArray arr = new JsonArray();
+            for (String s : text.split(",")) if (!s.isBlank()) arr.add(s.trim());
+            n.add(key, arr);
         }
 
         private void setNum(JsonObject root, List<Object> path, String key, double v) {

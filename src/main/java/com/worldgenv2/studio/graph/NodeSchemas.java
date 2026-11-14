@@ -39,9 +39,16 @@ public final class NodeSchemas {
     }
 
     public static final List<String> KINDS = List.of("density", "curve", "vector", "material", "pattern", "prop",
-            "positions", "scanner", "assignments", "mask", "propruntime");
+            "positions", "scanner", "assignments", "mask", "propruntime", "finder", "condition", "action");
 
     private static Map<String, Map<String, NodeType>> byKind;
+    private static final Map<String, String> DOCS = new HashMap<>();
+
+    /** The one-line description a registry gave a parameter (placement pieces), or null. */
+    public static String doc(String kind, String type, String key) {
+        load();
+        return DOCS.get(kind + ":" + type + ":" + key);
+    }
 
     private static synchronized void load() {
         if (byKind != null) return;
@@ -53,6 +60,8 @@ public final class NodeSchemas {
         } catch (Exception e) {
             // schema is an aid, not a requirement: the graph still works generically from the JSON
         }
+        // Placement pieces come from the live registry, so addon-registered finders/conditions/actions appear automatically.
+        try { mergeSchema(com.worldgenv2.placement.Placement.schemaJson()); } catch (Exception ignored) { }
         // Addons ship worldgenv2_node_schemas.json (same format) to add their own node types to the palette.
         try {
             var urls = NodeSchemas.class.getClassLoader().getResources("worldgenv2_node_schemas.json");
@@ -78,6 +87,7 @@ public final class NodeSchemas {
                 List<Param> params = new ArrayList<>();
                 for (JsonElement pe : o.getAsJsonArray("params")) {
                     JsonObject p = pe.getAsJsonObject();
+                    if (p.has("doc")) DOCS.put(kind + ":" + t.getKey() + ":" + p.get("key").getAsString(), p.get("doc").getAsString());
                     params.add(new Param(p.get("key").getAsString(), p.get("t").getAsString(),
                             p.has("def") ? p.get("def") : null, p.has("alias") ? p.get("alias").getAsString() : null));
                 }
@@ -185,6 +195,9 @@ public final class NodeSchemas {
             case "assignments" -> 0xFFE8C040;
             case "mask" -> 0xFFE05B7A;
             case "propruntime" -> 0xFFC8A040;
+            case "finder" -> 0xFF3FC8B0;
+            case "condition" -> 0xFFE0707A;
+            case "action" -> 0xFFE8A23C;
             default -> 0xFF8A90A0;
         };
     }

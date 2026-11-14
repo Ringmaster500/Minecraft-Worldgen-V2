@@ -153,8 +153,8 @@ final class LiveWorld {
                 ServerLevel level = server.overworld();
                 if (!(level.getChunkSource().getGenerator() instanceof WorldGenV2ChunkGenerator v2)) return "not a worldgenv2 world";
                 var ws = v2.getActiveWorldStructure();
-                var sp = ws.getSpanPlacer();
-                if (sp == null) return "no span rules";
+                var sp = ws.getPlacementEngine();
+                if (sp == null) return "no placement rules";
                 java.util.Map<String, String> found = new java.util.TreeMap<>();
                 for (int cx = (x - radius) >> 4; cx <= (x + radius) >> 4; cx++)
                     for (int cz = (z - radius) >> 4; cz <= (z + radius) >> 4; cz++)

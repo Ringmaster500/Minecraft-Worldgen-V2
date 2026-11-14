@@ -55,7 +55,7 @@ final class Explorer extends Widget {
             List<Asset> list = app.project.assetsOf(t);
             Tree.Node header = new Tree.Node("hdr:" + t.name(), t.plural());
             header.header = true;
-            header.addable = t == AssetType.DIMENSION || t == AssetType.BIOME || t == AssetType.ZONE;
+            header.addable = t == AssetType.DIMENSION || t == AssetType.BIOME || t == AssetType.ZONE || t == AssetType.RULE;
             header.data = t;
             header.expanded = expanded.getOrDefault(header.id, true);
             for (Asset a : list) {

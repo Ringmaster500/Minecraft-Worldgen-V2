@@ -468,15 +468,15 @@ public final class WorldStructure {
         return structurePlacements;
     }
 
-    private volatile SpanPlacer spanPlacer;
+    private volatile com.worldgenv2.placement.PlacementEngine placementEngine;
 
-    public WorldStructure withSpanPlacer(SpanPlacer placer) {
-        this.spanPlacer = placer == null || placer.isEmpty() ? null : placer;
+    public WorldStructure withPlacementEngine(com.worldgenv2.placement.PlacementEngine placer) {
+        this.placementEngine = placer == null || placer.isEmpty() ? null : placer;
         return this;
     }
 
-    public SpanPlacer getSpanPlacer() {
-        return spanPlacer;
+    public com.worldgenv2.placement.PlacementEngine getPlacementEngine() {
+        return placementEngine;
     }
 
     /**
@@ -485,7 +485,7 @@ public final class WorldStructure {
      */
     public boolean structureNear(int x, int y, int z, String filter, int radius, int yMin, int yMax) {
         java.util.List<StructurePlacement> all = structurePlacements;
-        SpanPlacer sp = spanPlacer;
+        com.worldgenv2.placement.PlacementEngine sp = placementEngine;
         if (sp != null) {
             all = new java.util.ArrayList<>(all);
             for (int cx = (x - radius - 32) >> 4; cx <= (x + radius + 32) >> 4; cx++)
@@ -506,7 +506,7 @@ public final class WorldStructure {
 
     /** Fixed placements plus gap-spanning placements (fallen-log bridges and the like) that touch the chunk. */
     public java.util.List<StructurePlacement> placementsForChunk(int chunkX, int chunkZ) {
-        SpanPlacer sp = spanPlacer;
+        com.worldgenv2.placement.PlacementEngine sp = placementEngine;
         if (sp == null) return structurePlacements;
         java.util.List<StructurePlacement> all = new java.util.ArrayList<>(structurePlacements);
         all.addAll(sp.forChunk(this, chunkX, chunkZ));

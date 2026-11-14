@@ -83,6 +83,20 @@ public final class Templates {
         return o;
     }
 
+    /** A new placement rule: a plain point, no conditions, nothing placed yet (build it in the Graph view). */
+    public static JsonObject newRule(String id) {
+        JsonObject o = new JsonObject();
+        o.addProperty("name", id.replace('_', ' '));
+        J.setNum(o, "cell", 96);
+        J.setNum(o, "chance", 0.6);
+        JsonObject find = new JsonObject();
+        find.addProperty("type", "Point");
+        o.add("find", find);
+        o.add("conditions", new JsonArray());
+        o.add("place", new JsonArray());
+        return o;
+    }
+
     public static JsonObject newDimension(String id, StudioProject p) {
         JsonObject o = new JsonObject();
         o.addProperty("id", id.contains(":") ? id : "worldgenv2:" + id);
@@ -244,8 +258,23 @@ public final class Templates {
             a.dirty = true;
             p.putAsset(a);
         }
+        JsonObject fallen = readResource("data/worldgenv2/placement_rules/fallen_tree.json");
+        if (fallen != null) {
+            Asset ra = new Asset("placements/fallen_tree.json", AssetType.RULE, fallen);
+            ra.dirty = true;
+            p.putAsset(ra);
+        }
         JsonObject ow = newDimension("overworld", p);
         ow.addProperty("id", "minecraft:overworld");
+        if (fallen != null) {
+            // listed but off, like zones: turn "Placement rules" to Custom to see fallen trees across forest rivers
+            JsonArray pl = new JsonArray();
+            pl.add("fallen_tree");
+            ow.add("placements", pl);
+            JsonObject feats = new JsonObject();
+            feats.addProperty("placements", "off");
+            ow.add("features", feats);
+        }
         JsonObject nether = new JsonObject();
         nether.addProperty("id", "minecraft:the_nether");
         nether.addProperty("generator", "vanilla");

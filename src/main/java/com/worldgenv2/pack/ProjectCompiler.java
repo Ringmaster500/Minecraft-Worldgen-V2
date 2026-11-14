@@ -366,36 +366,68 @@ public final class ProjectCompiler {
         }
         structure.withStructurePlacements(placements);
 
-        // ---- spans: prefabs that bridge a gap in the terrain (a fallen log over a river) ----
-        JsonObject featuresObj = J.obj(d, "features");
-        boolean spansDefault = featuresObj != null && "default".equals(J.str(featuresObj, "spans", ""));
-        JsonArray spans = spansDefault ? defaultSpans(project)
-                : on(d, "spans", nonEmpty(J.arr(d, "spans"))) ? J.arr(d, "spans") : null;
-        if (spans != null && !spans.isEmpty()) {
-            try {
-                List<SpanPlacer.Rule> rules = new ArrayList<>();
-                for (JsonElement e : spans) {
-                    if (!e.isJsonObject()) continue;
-                    JsonObject s = e.getAsJsonObject();
-                    String id = J.str(s, "id", "");
-                    if (id.isBlank()) continue;
-                    List<com.worldgenv2.prefab.Prefab> pfs = new ArrayList<>();
-                    JsonArray pa = J.arr(s, "prefabs");
-                    if (pa != null) for (JsonElement pe : pa) { var pf = loadPrefab(project, pe.getAsString(), prefabs, r); if (pf != null) pfs.add(pf); }
-                    String single = J.str(s, "prefab", "");
-                    if (!single.isBlank()) { var pf = loadPrefab(project, single, prefabs, r); if (pf != null) pfs.add(pf); }
-                    List<com.worldgenv2.prefab.Prefab> comp = new ArrayList<>();
-                    JsonArray ca = J.arr(s, "companions");
-                    if (ca != null) for (JsonElement ce : ca) { var pf = loadPrefab(project, ce.getAsString(), prefabs, r); if (pf != null) comp.add(pf); }
-                    int minGap = J.integer(s, "minGap", 4), maxGap = J.integer(s, "maxGap", 14);
-                    rules.add(new SpanPlacer.Rule(id, pfs, minGap, Math.max(minGap, maxGap), J.integer(s, "maxBankDiff", 3),
-                            J.integer(s, "cell", 64), (float) J.num(s, "chance", 0.6), J.integer(s, "yOffset", 0), biomeNames(s, r),
-                            J.integer(s, "maxDrop", 3), comp, (float) J.num(s, "minTreeRatio", 1.0), J.integer(s, "companionCount", 2)));
+        // ---- placement rules: finder + conditions + actions, run on a grid over the whole world ----
+        try {
+            List<JsonObject> ruleJson = new ArrayList<>();
+            JsonArray refs = J.arr(d, "placements");
+            if (refs != null && on(d, "placements", nonEmpty(refs))) {
+                for (JsonElement e : refs) {
+                    if (e.isJsonPrimitive()) {
+                        Asset ra = project.get("placements/" + e.getAsString() + ".json");
+                        if (ra == null) { r.warnings.add("Placement rule '" + e.getAsString() + "' is listed but does not exist."); continue; }
+                        JsonObject o = ra.json.deepCopy();
+                        if (!o.has("id")) o.addProperty("id", e.getAsString());
+                        ruleJson.add(o);
+                    } else if (e.isJsonObject()) ruleJson.add(e.getAsJsonObject());
                 }
-                structure.withSpanPlacer(new SpanPlacer(r.seed, r.minY, r.maxY, r.seaLevel, rules));
-            } catch (Throwable ex) {
-                r.warnings.add("Spans failed: " + ex.getMessage());
             }
+            JsonArray legacy = on(d, "spans", nonEmpty(J.arr(d, "spans"))) ? J.arr(d, "spans") : null;
+            if (legacy != null) for (JsonElement e : legacy) if (e.isJsonObject()) ruleJson.add(legacySpanRule(e.getAsJsonObject()));
+            if (!ruleJson.isEmpty()) {
+                final Map<String, com.worldgenv2.prefab.Prefab> prefabCache = prefabs;
+                com.worldgenv2.placement.Placement.Ctx pctx = new com.worldgenv2.placement.Placement.Ctx() {
+                    @Override public com.worldgenv2.prefab.Prefab prefab(String id) { return loadPrefab(project, id, prefabCache, r); }
+                    @Override public Set<String> biomeNames(JsonArray ids) {
+                        Set<String> out = new LinkedHashSet<>();
+                        for (JsonElement e : ids) for (BiomeBinding b : r.biomes) if (b.assetId().equals(e.getAsString())) out.add(b.name());
+                        return out;
+                    }
+                    @Override public com.worldgenv2.density.DensityFunction density(JsonObject graph) {
+                        return new JsonAstCompiler().compileDensityJson(graph.toString(), r.seed);
+                    }
+                    @Override public long seed() { return r.seed; }
+                    @Override public void warn(String m) { r.warnings.add(m); }
+                };
+                List<com.worldgenv2.placement.PlacementEngine.Rule> rules = new ArrayList<>();
+                for (JsonObject rj : ruleJson) {
+                    String rid = J.str(rj, "id", J.str(rj, "name", "rule"));
+                    try {
+                        JsonObject fj = J.obj(rj, "find");
+                        if (fj == null) { fj = new JsonObject(); fj.addProperty("type", "Point"); }
+                        var finder = com.worldgenv2.placement.Placement.createFinder(fj, pctx);
+                        List<com.worldgenv2.placement.Placement.Condition> conds = new ArrayList<>();
+                        JsonArray bio = J.arr(rj, "biomes");
+                        if (bio != null && !bio.isEmpty()) {
+                            JsonObject bj = new JsonObject();
+                            bj.addProperty("type", "Biome");
+                            bj.add("biomes", bio);
+                            conds.add(com.worldgenv2.placement.Placement.createCondition(bj, pctx));
+                        }
+                        JsonArray ca = J.arr(rj, "conditions");
+                        if (ca != null) for (JsonElement ce : ca) if (ce.isJsonObject()) conds.add(com.worldgenv2.placement.Placement.createCondition(ce.getAsJsonObject(), pctx));
+                        List<com.worldgenv2.placement.Placement.Action> acts = new ArrayList<>();
+                        JsonArray aa = J.arr(rj, "place");
+                        if (aa != null) for (JsonElement ae : aa) if (ae.isJsonObject()) acts.add(com.worldgenv2.placement.Placement.createAction(ae.getAsJsonObject(), pctx));
+                        if (acts.isEmpty()) { r.warnings.add("Placement rule '" + rid + "' has nothing to place."); continue; }
+                        rules.add(new com.worldgenv2.placement.PlacementEngine.Rule(rid, J.integer(rj, "cell", 96), (float) J.num(rj, "chance", 0.6), finder, conds, acts));
+                    } catch (Throwable ex) {
+                        r.warnings.add("Placement rule '" + rid + "' failed: " + ex.getMessage());
+                    }
+                }
+                structure.withPlacementEngine(new com.worldgenv2.placement.PlacementEngine(r.seed, r.minY, r.maxY, r.seaLevel, rules));
+            }
+        } catch (Throwable ex) {
+            r.warnings.add("Placement rules failed: " + ex.getMessage());
         }
 
         r.structure = structure;
@@ -403,37 +435,55 @@ public final class ProjectCompiler {
         return r;
     }
 
-    /**
-     * The built-in bridge: shipped fallen-tree prefabs (when the project has them) across narrow water in forest biomes.
-     * Used when {@code features.spans} is {@code default}; "Customize" in the Studio copies it into the dimension to edit.
-     */
-    public static JsonArray defaultSpans(StudioProject project) {
-        JsonObject s = new JsonObject();
-        s.addProperty("id", "fallen_tree");
-        JsonArray pf = new JsonArray();
-        for (String id : new String[]{"fallen_oak_a", "fallen_oak_b", "fallen_oak_c"}) if (project.hasAsset("prefabs/" + id + ".json")) pf.add(id);
-        s.add("prefabs", pf);
-        JsonArray trees = new JsonArray();
-        for (String id : new String[]{"tall_oak_a", "tall_oak_b", "tall_oak_c", "tall_oak_d"}) if (project.hasAsset("prefabs/" + id + ".json")) trees.add(id);
-        s.add("companions", trees);
-        J.setNum(s, "minTreeRatio", 1.0);
-        J.setNum(s, "companionCount", 3);
-        JsonArray forests = new JsonArray();
-        for (Asset b : project.assetsOf(com.worldgenv2.studio.project.AssetType.BIOME)) {
-            if ("forest".equals(J.str(b.json, "category", ""))) forests.add(b.id());
+    /** Old-style {@code spans} entries, expressed as an ordinary placement rule so there is only one code path. */
+    private static JsonObject legacySpanRule(JsonObject s) {
+        JsonObject rule = new JsonObject();
+        rule.addProperty("id", J.str(s, "id", "bridge"));
+        rule.addProperty("cell", J.integer(s, "cell", 64));
+        rule.addProperty("chance", J.num(s, "chance", 0.6));
+        if (J.arr(s, "biomes") != null) rule.add("biomes", J.arr(s, "biomes"));
+        JsonObject find = new JsonObject();
+        find.addProperty("type", "Span");
+        find.addProperty("minGap", J.integer(s, "minGap", 4));
+        find.addProperty("maxGap", J.integer(s, "maxGap", 14));
+        find.addProperty("maxBankDiff", J.integer(s, "maxBankDiff", 3));
+        find.addProperty("maxBankHeight", J.integer(s, "maxDrop", 3));
+        rule.add("find", find);
+        JsonArray place = new JsonArray();
+        JsonObject log = new JsonObject();
+        log.addProperty("type", "Prefab");
+        log.addProperty("name", "log");
+        JsonArray from = new JsonArray();
+        if (J.arr(s, "prefabs") != null) for (JsonElement pe : J.arr(s, "prefabs")) from.add(pe.getAsString());
+        if (!J.str(s, "prefab", "").isBlank()) from.add(J.str(s, "prefab", ""));
+        log.add("from", from);
+        log.addProperty("require", "prefab.length >= span.length + 2 && prefab.length <= span.length + 16");
+        log.addProperty("rotate", "alignSpan");
+        log.addProperty("flip", true);
+        log.addProperty("at", "span.center");
+        log.addProperty("align", "center");
+        log.addProperty("height", "span.bankTop + 1");
+        log.addProperty("yOffset", J.integer(s, "yOffset", 0));
+        log.addProperty("onLand", false);
+        place.add(log);
+        JsonArray comp = J.arr(s, "companions");
+        if (comp != null && !comp.isEmpty()) {
+            JsonObject tree = new JsonObject();
+            tree.addProperty("type", "Prefab");
+            tree.addProperty("name", "tree");
+            tree.add("from", comp);
+            tree.addProperty("require", "prefab.height >= log.length * " + J.num(s, "minTreeRatio", 1.0));
+            tree.addProperty("at", "log.socket.root");
+            tree.addProperty("alongMin", 3);
+            tree.addProperty("alongMax", 8);
+            tree.addProperty("sideMin", 3);
+            tree.addProperty("sideMax", 7);
+            tree.addProperty("count", J.integer(s, "companionCount", 2));
+            place.add(tree);
         }
-        s.add("biomes", forests);
-        J.setNum(s, "minGap", 4);
-        J.setNum(s, "maxGap", 12);
-        J.setNum(s, "maxBankDiff", 2);
-        J.setNum(s, "maxDrop", 3);
-        J.setNum(s, "cell", 112);
-        J.setNum(s, "chance", 0.6);
-        JsonArray arr = new JsonArray();
-        if (!pf.isEmpty()) arr.add(s);
-        return arr;
+        rule.add("place", place);
+        return rule;
     }
-
     /** Applies an item's "rotation" (0-3 quarter turns, 0/90/180/270 degrees, or "random"; random is stable per id). */
     private static com.worldgenv2.prefab.Prefab turned(com.worldgenv2.prefab.Prefab pf, JsonObject item, String id, long seed) {
         if (item == null || !item.has("rotation")) return pf;
