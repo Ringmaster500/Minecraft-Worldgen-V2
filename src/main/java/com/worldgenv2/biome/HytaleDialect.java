@@ -4,6 +4,7 @@ import com.worldgenv2.assignments.Assignments;
 import com.worldgenv2.density.DensityFunction;
 import com.worldgenv2.hytale.HPattern;
 import com.worldgenv2.hytale.HProps;
+import com.worldgenv2.hytale.HDensity;
 import com.worldgenv2.hytale.HMoreProps;
 import com.worldgenv2.hytale.HPositions;
 import com.worldgenv2.material.ConstantMaterialProvider;
@@ -240,6 +241,7 @@ final class HytaleDialect {
     static void register() {
         registerPositions();
         registerMoreProps();
+        registerDensity();
         WorldGenV2Registries.PROP_TYPE.register("Locator", new WorldGenV2Registries.PropDeserializer() {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
@@ -487,5 +489,39 @@ final class HytaleDialect {
                 return new ConstantMaterialProvider<>(r.apply(materialId(get(j, "material"))));
             }
         });
+    }
+
+    // ================================================================== Hytale density nodes
+
+    /** The i-th child of a Hytale density node's positional Inputs list. */
+    private static DensityFunction input(Map<String, Object> j, int i, JsonAstCompiler.CompileContext ctx) {
+        if (get(j, "inputs") instanceof List<?> l && i < l.size()) return JsonAstCompiler.compileDensity(obj(l.get(i)), ctx);
+        return (x, y, z) -> 0f;
+    }
+
+    private static List<DensityFunction> inputs(Map<String, Object> j, JsonAstCompiler.CompileContext ctx) {
+        List<DensityFunction> out = new ArrayList<>();
+        if (get(j, "inputs") instanceof List<?> l) for (Object o : l) out.add(JsonAstCompiler.compileDensity(obj(o), ctx));
+        return out;
+    }
+
+    static void registerDensity() {
+        var R = WorldGenV2Registries.DENSITY_NODE_TYPE;
+        R.register("Multiplier", (j, ctx) -> HDensity.multiplier(inputs(j, ctx)));
+        R.register("SmoothMax", (j, ctx) -> HDensity.smoothMax(input(j, 0, ctx), input(j, 1, ctx), (float) dnum(get(j, "range"), 0.2)));
+        R.register("SmoothMin", (j, ctx) -> HDensity.smoothMin(input(j, 0, ctx), input(j, 1, ctx), (float) dnum(get(j, "range"), 0.2)));
+        R.register("SmoothClamp", (j, ctx) -> HDensity.smoothClamp(input(j, 0, ctx), (float) dnum(get(j, "walla"), 0), (float) dnum(get(j, "wallb"), 1), (float) dnum(get(j, "range"), 0.2)));
+        R.register("Inverter", (j, ctx) -> HDensity.inverter(input(j, 0, ctx)));
+        R.register("Scale", (j, ctx) -> HDensity.scale(input(j, 0, ctx), (float) dnum(get(j, "x"), 1), (float) dnum(get(j, "y"), 1), (float) dnum(get(j, "z"), 1)));
+        R.register("Normalizer", (j, ctx) -> HDensity.normalizer(input(j, 0, ctx), (float) dnum(get(j, "frommin"), 0), (float) dnum(get(j, "frommax"), 1), (float) dnum(get(j, "tomin"), 0), (float) dnum(get(j, "tomax"), 1)));
+        R.register("Slider", (j, ctx) -> HDensity.slider(input(j, 0, ctx), (float) dnum(get(j, "slidex"), 0), (float) dnum(get(j, "slidey"), 0), (float) dnum(get(j, "slidez"), 0)));
+        R.register("Selector", (j, ctx) -> HDensity.selector(inputs(j, ctx)));
+        R.register("BaseHeight", (j, ctx) -> {
+            String name = String.valueOf(get(j, "baseheightname"));
+            return HDensity.baseHeight(() -> ctx.decimalConstants().getOrDefault(name, 0.0), flag(get(j, "distance"), false));
+        });
+        R.register("Distance", (j, ctx) -> HDensity.distance(JsonAstCompiler.compileCurve(get(j, "curve"), ctx)));
+        R.register("Axis", (j, ctx) -> { double[] a = vecD(get(j, "axis"), 0.0); return HDensity.axis(a[0], a[1], a[2], JsonAstCompiler.compileCurve(get(j, "curve"), ctx)); });
+        R.register("CellWallDistance", (j, ctx) -> HDensity.cellWallDistance());
     }
 }

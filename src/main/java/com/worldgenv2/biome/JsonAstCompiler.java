@@ -4604,6 +4604,8 @@ public final class JsonAstCompiler {
             try {
                 return Integer.parseInt(s.trim());
             } catch (NumberFormatException ignored) {
+                // Hytale's Seed is a string: any text is a seed, and different text gives a different seed
+                if (key.equalsIgnoreCase("seed") && !s.isBlank()) return s.trim().hashCode();
             }
         }
         return defaultValue;
