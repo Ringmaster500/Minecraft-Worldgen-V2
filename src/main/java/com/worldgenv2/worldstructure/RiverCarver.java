@@ -20,9 +20,21 @@ import com.worldgenv2.density.FastNoiseLite;
 public final class RiverCarver {
 
     // Thresholds in absolute noise space (|N|)
-    private static final float CORE_HALF_WIDTH = 0.024f;   // Deepest channel center (~12–16 blocks wide)
-    private static final float CHANNEL_HALF_WIDTH = 0.055f; // Water surface width (~24–36 blocks wide)
-    private static final float VALLEY_HALF_WIDTH = 0.155f;  // Gentle valley basin (~50–70 blocks wide)
+    /**
+     * Everything a creator can tune about rivers, in blocks.
+     *
+     * @param spacing        roughly how far apart river lines are (bigger = fewer, longer rivers)
+     * @param channelWidth   water surface width
+     * @param valleyWidth    width of the gentle valley around the water
+     * @param depth          how far below sea level the riverbed sits
+     * @param meander        how strongly the river wanders (domain warp amplitude, blocks)
+     * @param widthVariation 0..1, how much the width changes along the river
+     */
+    public record Settings(float spacing, float channelWidth, float valleyWidth, int depth, float meander, float widthVariation) {
+        public static Settings defaults() { return new Settings(1000f, 30f, 60f, 6, 96f, 0.22f); }
+    }
+
+    private final float coreHalfWidth, channelHalfWidth, valleyHalfWidth, meanderAmp, widthVar;
 
     private final FastNoiseLite riverNoise;
     private final FastNoiseLite warpX;
@@ -34,13 +46,25 @@ public final class RiverCarver {
     private float graphValleyRadius = 50.0f;
 
     public RiverCarver(long seed, int seaLevel, int bedDepth) {
+        this(seed, seaLevel, Settings.defaults().depth() == bedDepth ? Settings.defaults()
+                : new Settings(1000f, 30f, 60f, bedDepth, 96f, 0.22f));
+    }
+
+    public RiverCarver(long seed, int seaLevel, Settings st) {
         int s = (int) (seed ^ (seed >>> 32));
         this.seaLevel = seaLevel;
-        this.bedDepth = bedDepth;
+        this.bedDepth = Math.max(1, st.depth());
+        float freq = 1.0f / Math.max(100f, st.spacing());
+        float fScale = freq / 0.0010f;
+        this.channelHalfWidth = 0.055f * (Math.max(2f, st.channelWidth()) / 30f) * fScale;
+        this.valleyHalfWidth = Math.max(channelHalfWidth * 1.3f, 0.155f * (Math.max(4f, st.valleyWidth()) / 60f) * fScale);
+        this.coreHalfWidth = channelHalfWidth * (0.024f / 0.055f);
+        this.meanderAmp = Math.max(0f, st.meander());
+        this.widthVar = Math.clamp(st.widthVariation(), 0f, 1f);
 
         this.riverNoise = new FastNoiseLite(s + 8101);
         this.riverNoise.setNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-        this.riverNoise.setFrequency(0.0010f);
+        this.riverNoise.setFrequency(freq);
 
         this.warpX = new FastNoiseLite(s + 8102);
         this.warpX.setNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
@@ -69,13 +93,13 @@ public final class RiverCarver {
      * 0.0 at the centerline, 1.0 at the outer edge of the valley basin.
      */
     public float riverDistance(float x, float z) {
-        float wx = x + warpX.getNoise(x, z) * 96.0f;
-        float wz = z + warpZ.getNoise(x, z) * 96.0f;
+        float wx = x + warpX.getNoise(x, z) * meanderAmp;
+        float wz = z + warpZ.getNoise(x, z) * meanderAmp;
         float n = Math.abs(riverNoise.getNoise(wx, wz));
 
-        // Modulate valley width organically by ±20%
-        float wMod = 1.0f + widthNoise.getNoise(x, z) * 0.22f;
-        float effectiveValley = VALLEY_HALF_WIDTH * wMod;
+        // Modulate valley width organically along the river
+        float wMod = 1.0f + widthNoise.getNoise(x, z) * widthVar;
+        float effectiveValley = valleyHalfWidth * wMod;
 
         float noiseDist = Math.clamp(n / effectiveValley, 0.0f, 1.0f);
 
@@ -115,7 +139,7 @@ public final class RiverCarver {
      */
     public boolean isChannel(float x, float z) {
         float dist = riverDistance(x, z);
-        float channelRatio = CHANNEL_HALF_WIDTH / VALLEY_HALF_WIDTH;
+        float channelRatio = channelHalfWidth / valleyHalfWidth;
         return dist <= channelRatio;
     }
 
@@ -124,8 +148,8 @@ public final class RiverCarver {
      */
     public boolean isRiparianBank(float x, float z) {
         float dist = riverDistance(x, z);
-        float channelRatio = CHANNEL_HALF_WIDTH / VALLEY_HALF_WIDTH;
-        float bankRatio = (CHANNEL_HALF_WIDTH + 0.030f) / VALLEY_HALF_WIDTH;
+        float channelRatio = channelHalfWidth / valleyHalfWidth;
+        float bankRatio = (channelHalfWidth + 0.030f) / valleyHalfWidth;
         return dist > channelRatio && dist <= bankRatio;
     }
 
@@ -165,8 +189,8 @@ public final class RiverCarver {
         float t = 1.0f - dist;
         float valleyFactor = t * t * (3.0f - 2.0f * t) * eligibility;
 
-        float channelRatio = CHANNEL_HALF_WIDTH / VALLEY_HALF_WIDTH;
-        float coreRatio = CORE_HALF_WIDTH / VALLEY_HALF_WIDTH;
+        float channelRatio = channelHalfWidth / valleyHalfWidth;
+        float coreRatio = coreHalfWidth / valleyHalfWidth;
 
         // Target surface height in the valley
         // In the outer valley: terrain slopes gently down toward seaLevel + 1

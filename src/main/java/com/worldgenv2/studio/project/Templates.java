@@ -32,7 +32,7 @@ public final class Templates {
     public static final List<String> HEIGHT_PRESETS = List.of("standard", "hytale_512", "hytale_extended", "epic_1024", "custom");
 
     private static final String[] SHIPPED_BIOMES = {
-            "alpine_peaks", "arid_dunes", "boreal_tundra", "old_growth_grove", "sunlit_plains", "temperate_forest"};
+            "alpine_peaks", "arid_dunes", "boreal_tundra", "old_growth_grove", "open_sea", "sunlit_plains", "temperate_forest"};
     private static final String[] SHIPPED_PREFABS = {"stone_walkway_01.prefab", "watchtower_01.prefab"};
 
     public static JsonObject defaultWorld() {

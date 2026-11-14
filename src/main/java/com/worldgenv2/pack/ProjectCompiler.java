@@ -151,9 +151,17 @@ public final class ProjectCompiler {
 
         WorldStructure structure = new WorldStructure(tiles, customs, cellSize, r.seed);
         if (J.bool(d, "rivers", true)) {
-            structure.withRiverCarver(new RiverCarver(r.seed, r.seaLevel, 6))
+            JsonObject rs = J.obj(d, "riverSettings");
+            RiverCarver.Settings def = RiverCarver.Settings.defaults();
+            RiverCarver.Settings st = rs == null ? def : new RiverCarver.Settings(
+                    (float) J.num(rs, "spacing", def.spacing()), (float) J.num(rs, "channelWidth", def.channelWidth()),
+                    (float) J.num(rs, "valleyWidth", def.valleyWidth()), J.integer(rs, "depth", def.depth()),
+                    (float) J.num(rs, "meander", def.meander()), (float) J.num(rs, "widthVariation", def.widthVariation()));
+            structure.withRiverCarver(new RiverCarver(r.seed, r.seaLevel, st))
                     .withRiverMaterialProvider(DefaultBiomeFactory.createRiverMaterialProvider());
         }
+        JsonObject ocean = J.obj(d, "ocean");
+        if (ocean != null) structure.withOceanDepth((float) J.num(ocean, "depthScale", 1.0), r.seaLevel);
         if (J.bool(d, "caves", true)) {
             structure.withCaveCarver(new CaveCarver(r.seed))
                     .withUndergroundBiomes(DefaultBiomeFactory.createUndergroundBiomes(), r.seed);

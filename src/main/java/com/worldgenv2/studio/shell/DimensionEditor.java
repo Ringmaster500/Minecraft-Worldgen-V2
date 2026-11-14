@@ -192,8 +192,19 @@ final class DimensionEditor extends Editor {
         field("Edge blend", num("bounds.falloff", 64, 8, 2000, 8, false, "Bounds falloff"), "Blend distance at the bounds edge.");
         field("Base block", str("defaultBlock", "minecraft:stone", "Base block"), "Solid fill used for terrain.");
         field("Fluid", str("defaultFluid", "minecraft:water", "Fluid"), "Liquid for oceans and rivers. Use minecraft:air for none.");
-        field("Rivers", toggle("rivers", true, "Rivers", "Carve rivers"), null);
         field("Caves", toggle("caves", true, "Caves", "Carve caves and underground biomes"), null);
+
+        section("Rivers", "winding channels with gentle valleys; off removes them completely");
+        field("Rivers", toggle("rivers", true, "Rivers", "Carve rivers"), null);
+        field("Spacing", num("riverSettings.spacing", 1000, 200, 6000, 50, false, "River spacing"), "Roughly how far apart rivers run. Bigger = fewer, longer rivers.");
+        field("Water width", num("riverSettings.channelWidth", 30, 4, 200, 2, false, "River width"), "Width of the water surface, in blocks.");
+        field("Valley width", num("riverSettings.valleyWidth", 60, 8, 400, 4, false, "Valley width"), "Width of the gentle valley around the water.");
+        field("Depth", num("riverSettings.depth", 6, 1, 40, 1, true, "River depth"), "How far the riverbed lies below sea level.");
+        field("Meander", num("riverSettings.meander", 96, 0, 400, 8, false, "River meander"), "How much rivers wander. 0 = straight.");
+        field("Width variation", num("riverSettings.widthVariation", 0.22, 0, 1, 0.02, false, "River width variation"), "How much the width changes along a river.");
+
+        section("Oceans", "how deep the seas are");
+        field("Depth scale", num("ocean.depthScale", 1, 0.1, 4, 0.1, false, "Ocean depth scale"), "1 = as your biomes define it. 0.5 = shallow seas, 2 = deep ocean. Land is not affected.");
     }
 
     // ---- feature modes: Off / Default (built in) / Custom ----

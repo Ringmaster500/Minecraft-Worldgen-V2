@@ -1,0 +1,55 @@
+{
+  "name": "minecraft:open_sea",
+  "category": "ocean",
+  "type": "TileBiome",
+  "weight": 6.0,
+  "sizeModifier": 1.5,
+  "defaultTransitionDistance": 64.0,
+  "climate": {
+    "continentalness": -0.75,
+    "temperature": 0.0,
+    "humidity": 0.2
+  },
+  "terrain": {
+    "type": "SumDensity",
+    "inputs": [
+      {
+        "type": "VerticalGradient",
+        "baseHeight": 44.0,
+        "scale": 26.0
+      },
+      {
+        "type": "Noise2dDensity",
+        "noiseType": "OpenSimplex2",
+        "frequency": 0.0030,
+        "octaves": 2,
+        "amplitude": 0.35
+      }
+    ]
+  },
+  "materialProvider": {
+    "type": "QueueMaterialProvider",
+    "providers": [
+      {
+        "pattern": { "type": "SurfacePattern" },
+        "provider": {
+          "type": "SpaceAndDepth",
+          "layers": [
+            { "material": "minecraft:sand", "thickness": 2 },
+            { "material": "minecraft:gravel", "thickness": 2 },
+            { "material": "minecraft:stone", "thickness": 999 }
+          ],
+          "fallbackMaterial": "minecraft:stone",
+          "cliffMaterial": "minecraft:stone",
+          "maxSlopeForCover": 60.0,
+          "minSpaceForCover": 0
+        }
+      }
+    ],
+    "fallback": {
+      "type": "ConstantMaterialProvider",
+      "material": "minecraft:stone"
+    }
+  },
+  "props": []
+}

@@ -394,6 +394,9 @@ public final class WorldStructure {
      * radial zones / outside-bounds fallbacks) to an already biome-blended density column.
      */
     public void applyTerrainModifiers(float x, float z, int minY, int maxY, float[] column) {
+        if (oceanDepthScale != 1.0f) {
+            applyOceanDepth(minY, maxY, column);
+        }
         if (riverCarver != null) {
             riverCarver.carveColumn(x, z, minY, maxY, column);
         }
@@ -408,6 +411,40 @@ public final class WorldStructure {
         }
         if (spawnAnchorManager != null && spawnAnchorManager.hasActiveRule()) {
             spawnAnchorManager.carveCraterDensity(x, z, minY, maxY, column);
+        }
+    }
+
+    private volatile float oceanDepthScale = 1.0f;
+    private volatile int oceanSeaLevel = 63;
+
+    /**
+     * Scales how far the sea floor lies below sea level: 1 = as the biomes define it, 0.5 = shallow seas, 2 = deep
+     * ocean. Land at or above sea level is untouched, so coasts stay continuous.
+     */
+    public WorldStructure withOceanDepth(float scale, int seaLevel) {
+        this.oceanDepthScale = Math.clamp(scale, 0.05f, 6.0f);
+        this.oceanSeaLevel = seaLevel;
+        return this;
+    }
+
+    private void applyOceanDepth(int minY, int maxY, float[] col) {
+        int h = maxY - minY;
+        int surfaceIdx = -1;
+        for (int i = h - 1; i >= 0; i--) {
+            if (col[i] > 0.0f) { surfaceIdx = i; break; }
+        }
+        if (surfaceIdx < 0) return;
+        int surfY = minY + surfaceIdx;
+        int sea = oceanSeaLevel;
+        if (surfY >= sea - 1) return;
+        float depth = sea - surfY;
+        int newSurf = Math.max(minY + 4, Math.round(sea - depth * oceanDepthScale));
+        int delta = newSurf - surfY;
+        if (delta == 0) return;
+        float[] old = col.clone();
+        for (int i = 0; i < h; i++) {
+            int src = i - delta;
+            col[i] = src < 0 ? old[0] : src >= h ? old[h - 1] : old[src];
         }
     }
 
