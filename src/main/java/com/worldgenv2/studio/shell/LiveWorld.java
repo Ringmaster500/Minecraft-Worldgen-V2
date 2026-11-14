@@ -130,6 +130,42 @@ final class LiveWorld {
         }
     }
 
+    /** Counts every block type in the chunk containing (x, z): proof of what generation actually produced. */
+    static String census(int x, int z) {
+        MinecraftServer server = server();
+        if (server == null) return "no world";
+        try {
+            return server.submit(() -> {
+                ServerLevel level = server.overworld();
+                var chunk = level.getChunk(x >> 4, z >> 4);
+                java.util.Map<String, Integer> counts = new java.util.TreeMap<>();
+                int minY = level.getMinY(), maxY = level.getMaxY();
+                var pos = new net.minecraft.core.BlockPos.MutableBlockPos();
+                for (int dx = 0; dx < 16; dx++) for (int dz = 0; dz < 16; dz++) for (int y = minY; y < maxY; y++) {
+                    pos.set((chunk.getPos().x() << 4) + dx, y, (chunk.getPos().z() << 4) + dz);
+                    var bs = chunk.getBlockState(pos);
+                    if (bs.isAir()) continue;
+                    counts.merge(bs.getBlock().builtInRegistryHolder().key().identifier().getPath(), 1, Integer::sum);
+                }
+                StringBuilder sb = new StringBuilder("chunk " + chunk.getPos().x() + "," + chunk.getPos().z());
+                if (level.getChunkSource().getGenerator() instanceof WorldGenV2ChunkGenerator v2) {
+                    var q = v2.getActiveWorldStructure().queryBiome(x, z);
+                    var tb = q.primaryTileBiome();
+                    sb.append(" biome=").append(tb == null ? "?" : tb.name()).append(" props=").append(tb == null ? 0 : tb.props().size());
+                    var zl = v2.getActiveWorldStructure().getZoneLayout();
+                    var zone = zl == null ? null : zl.zoneAt(x, z);
+                    if (zone != null) sb.append(" zone=").append(zone.id);
+                }
+                sb.append(": ");
+                counts.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(24)
+                    .forEach(e -> sb.append(e.getKey()).append("=").append(e.getValue()).append(" "));
+                return sb.toString();
+            }).get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            return "census failed: " + t;
+        }
+    }
+
     /** Teleports the player to the surface at world (x, z), generating the chunk if needed. */
     static void teleport(StudioApp app, int x, int z) { teleport(app, x, z, 0); }
 

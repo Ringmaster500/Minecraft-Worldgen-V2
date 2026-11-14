@@ -77,7 +77,78 @@ public final class StudioProject {
         } catch (Exception ex) {
             a.parseError = String.valueOf(ex.getMessage());
         }
+        if (type == AssetType.DIMENSION && a.parseError == null && migrateDimension(a.json)) a.dirty = true;
         assets.put(path, a);
+    }
+
+    /**
+     * Brings older dimension files up to the current format. Returns true when something changed.
+     * v1 used {@code zones} for radial terrain shapes; that is now {@code shapes}, and {@code zones} means
+     * biome zones (Hytale-style regions with their own biome sets).
+     */
+    static boolean migrateDimension(JsonObject d) {
+        var zones = J.arr(d, "zones");
+        if (zones == null || zones.isEmpty() || J.arr(d, "shapes") != null) return false;
+        for (JsonElement e : zones) {
+            if (e.isJsonObject() && e.getAsJsonObject().has("mode")) {
+                d.add("shapes", zones);
+                d.remove("zones");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ---------------------------------------------------------------- bundles (presets, packs, addons)
+
+    /** A project with no files behind it, for presets the game ships or an addon registers. */
+    public static StudioProject fromBundle(String name, JsonObject bundle) {
+        StudioProject p = new StudioProject(name, null);
+        Asset w = new Asset(Asset.WORLD_PATH, AssetType.WORLD, Templates.defaultWorld());
+        w.dirty = true;
+        p.assets.put(w.path, w);
+        p.importBundle(bundle, false, false);
+        return p;
+    }
+
+    /**
+     * Copies a bundle's assets into this project. A bundle is {@code {"assets": {"biomes/x.json": {...}, ...}}}.
+     * @param skipExisting keep assets that already exist (used to add a pack to a project)
+     * @param packOnly     import only biomes and prefabs (what an addon "biome pack" provides)
+     * @return number of assets added
+     */
+    public int importBundle(JsonObject bundle, boolean skipExisting, boolean packOnly) {
+        JsonObject src = J.obj(bundle, "assets");
+        if (src == null) return 0;
+        int n = 0;
+        for (var e : src.entrySet()) {
+            AssetType t = AssetType.ofPath(e.getKey());
+            if (t == null || !e.getValue().isJsonObject()) continue;
+            if (packOnly && t != AssetType.BIOME && t != AssetType.PREFAB) continue;
+            if (skipExisting && assets.containsKey(e.getKey())) continue;
+            JsonObject json = e.getValue().getAsJsonObject().deepCopy();
+            if (t == AssetType.DIMENSION) migrateDimension(json);
+            Asset a = new Asset(e.getKey(), t, json);
+            a.dirty = true;
+            assets.put(a.path, a);
+            n++;
+        }
+        validateAll();
+        revision++;
+        return n;
+    }
+
+    /** Serialises the project's assets as a bundle (the format presets and addons use). */
+    public JsonObject toBundle(String id, String displayName, String description, String kind) {
+        JsonObject b = new JsonObject();
+        b.addProperty("id", id);
+        b.addProperty("name", displayName);
+        b.addProperty("description", description);
+        b.addProperty("kind", kind);
+        JsonObject a = new JsonObject();
+        for (Asset asset : assets.values()) if (asset.parseError == null) a.add(asset.path, asset.json.deepCopy());
+        b.add("assets", a);
+        return b;
     }
 
     /** Writes every dirty asset. Returns the number of files written. */
@@ -91,6 +162,7 @@ public final class StudioProject {
     public boolean save(Asset a) {
         if (a.parseError != null && a.rawText != null && !a.dirty) return false;
         try {
+            if (dir == null) return false; // in-memory preset project
             Path target = dir.resolve(a.path);
             Files.createDirectories(target.getParent() == null ? dir : target.getParent());
             Path tmp = target.resolveSibling(target.getFileName() + ".tmp");
@@ -106,7 +178,7 @@ public final class StudioProject {
     }
 
     /** Adds an asset without saving; used by templates. */
-    void putAsset(Asset a) {
+    public void putAsset(Asset a) {
         assets.put(a.path, a);
         revision++;
     }
@@ -250,8 +322,8 @@ public final class StudioProject {
     /** Moves the file into {@code .trash/} rather than deleting it, so a mistake is recoverable. */
     public void delete(Asset a) {
         try {
-            Path src = dir.resolve(a.path);
-            if (Files.exists(src)) {
+            Path src = dir == null ? null : dir.resolve(a.path);
+            if (dir != null && Files.exists(src)) {
                 Path trash = dir.resolve(".trash");
                 Files.createDirectories(trash);
                 Files.move(src, trash.resolve(a.id() + "-" + System.currentTimeMillis() + ".json"));
@@ -269,7 +341,7 @@ public final class StudioProject {
         String id = sanitize(rawName);
         Asset n = new Asset(a.type.folder + "/" + id + ".json", a.type, a.json);
         n.dirty = true;
-        try { Files.deleteIfExists(dir.resolve(a.path)); } catch (IOException ignored) {}
+        try { if (dir != null) Files.deleteIfExists(dir.resolve(a.path)); } catch (IOException ignored) {}
         assets.remove(a.path);
         assets.put(n.path, n);
         // keep dimension pools pointing at the renamed biome

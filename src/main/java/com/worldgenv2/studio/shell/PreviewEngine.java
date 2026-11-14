@@ -33,6 +33,8 @@ final class PreviewEngine {
     private volatile long latestGeneration;
     private volatile Frame ready;
     private volatile boolean busy;
+    /** When true, each zone's colour is blended over the biome colours. */
+    volatile boolean zoneTint;
     private volatile ProjectCompiler.Result cachedCompile;
     private volatile String cachedKey = "";
 
@@ -52,6 +54,7 @@ final class PreviewEngine {
     void request(StudioProject project, String dimId, long seedOverride, String compileKey,
                  double cx, double cz, double blocksPerSample, int texW, int texH) {
         final long gen = ++latestGeneration;
+        final boolean tint = zoneTint;
         busy = true;
         pool.execute(() -> {
             long t0 = System.currentTimeMillis();
@@ -79,7 +82,7 @@ final class PreviewEngine {
                         double wz = cz + (y - texH / 2.0) * blocksPerSample;
                         for (int x = 0; x < texW; x++) {
                             double wx = cx + (x - texW / 2.0) * blocksPerSample;
-                            f.argb[y * texW + x] = colorAt(res, s, (float) wx, (float) wz);
+                            f.argb[y * texW + x] = colorAt(res, s, (float) wx, (float) wz, tint);
                         }
                     }
                 }
@@ -94,7 +97,7 @@ final class PreviewEngine {
         });
     }
 
-    private static int colorAt(ProjectCompiler.Result res, WorldStructure s, float x, float z) {
+    private static int colorAt(ProjectCompiler.Result res, WorldStructure s, float x, float z, boolean tint) {
         if (s.isVoidColumn(x, z)) return 0xFF05060A;
         int id = s.getBiomeId(x, z);
         ProjectCompiler.BiomeBinding b = res.bindingById(id);
@@ -102,6 +105,14 @@ final class PreviewEngine {
         // slight per-biome variation so two biomes of one category are distinguishable
         int h = b == null ? 0 : (id * 2654435761L > 0 ? (int) ((id * 40503L) % 28) : 0) - 14;
         int r = clamp(((base >> 16) & 255) + h), g = clamp(((base >> 8) & 255) + h), bl = clamp((base & 255) + h);
+        if (tint && res.zones != null) {
+            var zone = res.zones.zoneAt(x, z);
+            if (zone != null) {
+                r = (int) (r * 0.45f + ((zone.color >> 16) & 255) * 0.55f);
+                g = (int) (g * 0.45f + ((zone.color >> 8) & 255) * 0.55f);
+                bl = (int) (bl * 0.45f + (zone.color & 255) * 0.55f);
+            }
+        }
         return 0xFF000000 | (r << 16) | (g << 8) | bl;
     }
 

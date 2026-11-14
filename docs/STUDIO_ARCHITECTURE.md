@@ -54,7 +54,29 @@ model) and is no longer used by the Studio. The graph edits the biome JSON direc
   (`StructurePlacement` stamped in `StagedChunkGenerator` stage 4b): spawn structure, landmarks, budgeted POIs.
 - Studio **Apply** saves, writes `active.json`, and `reload()`s every project-driven generator in the open world; **Regen** rebuilds chunks around the player; map right-click → **Teleport here**.
 
+### Nothing from vanilla runs
+`WorldGenV2ChunkGenerator` overrides `applyBiomeDecoration`, `createStructures` and `createReferences` as no-ops, so vanilla trees/ores/flowers/lakes and villages/strongholds
+never generate (the mapped Minecraft biome only supplies sky/foliage colour, mobs and music). Verified with block censuses: an old chunk had andesite/tuff/diorite/granite/gravel/dirt
+blobs and glow lichen; fresh chunks contain only stone, bedrock, what our materials paint, and our rules.
+
+### Systems, in generation order
+1. Terrain: biome density graphs blended by `BiCarta`, then rivers, caves, terrain shapes (`shapes`), spawn crater.
+2. Materials: each biome's `materialProvider` (strata, surface), river bed, underground biomes.
+3. Props (`props` in each biome): Hytale-style **positions → scanner → assignments → prop**, run **once per chunk** (`AssignmentsProp.generateInChunk`), only on columns the biome owns; per-column props (`BlockProp`, `MaskProp`...) still run per surface column.
+4. **Ores** (`ores` in a dimension): `OreRule` veins, chunk-order independent; restrict by Y, spread, biome or zone.
+5. **Structures**: spawn structure, landmarks, budgeted POIs (`StructurePlacement`), then roads.
+
+### Zones (Hytale-style macro regions)
+A dimension's `zones` array: each zone has a `kind` (`patch` weighted macro Voronoi cells, `radial` distance band, `noise` range, `everywhere` fallback, or an addon kind) and a **biome list**.
+First matching zone wins. Zone is decided at each biome cell's centre, so zone borders follow biome-cell borders and blend normally. Landmarks, POIs and ores can be restricted to a zone.
+(Radial terrain sculpting - islands, moats - is separate and called `shapes`; old projects are migrated automatically.) The map's **Zones** button tints regions; hover shows the zone.
+
+### Presets and addons
+Built-in presets (Blank, Starter, Four Zones, Spawn Island) use the same registry as addon presets: `pack.WorldGenV2Addons`. See `docs/ADDONS.md`.
+`Export as preset file` turns any project into a shippable bundle; `Add from preset / pack...` merges one into a project without overwriting.
+
 ## Known limits / next
+- Props at chunk borders are clipped: a prop is placed only from anchors inside its own chunk and writes outside the chunk are dropped, so a tree on a chunk edge can lose part of its canopy. Fix is a two-pass/halo scheme (Hytale's "context precision").
 - Heights are fixed by the world's dimension type (Standard -64..320, or the Hytale 512 type); `world.json` heights do not yet change the in-game dimension type.
 - Only the Overworld is project-driven; Nether/End stay vanilla. Landmark prefabs are not rotated (`yaw` ignored); spawn-lock (`lockSpawn`) is not yet wired to the world spawn point, so the player can spawn inside terrain/crater.
 - No node thumbnails (live density previews on graph nodes), spline editor, asset shelf, macros, or prefab editor yet. Terrain material/prop slots are editable in the graph but have no form view.

@@ -251,7 +251,35 @@ public final class WorldStructure {
     private volatile SpawnAnchorManager spawnAnchorManager = new SpawnAnchorManager();
     private volatile StructureBudgetManager structureBudgetManager = new StructureBudgetManager();
 
+    private final long worldSeed;
+    private volatile java.util.List<OreRule> oreRules = java.util.List.of();
+    private volatile ZoneLayout zoneLayout;
+
+    public long seed() { return worldSeed; }
+
+    public WorldStructure withOreRules(java.util.List<OreRule> rules) {
+        this.oreRules = rules == null ? java.util.List.of() : java.util.List.copyOf(rules);
+        return this;
+    }
+
+    public java.util.List<OreRule> getOreRules() { return oreRules; }
+
+    public ZoneLayout getZoneLayout() { return zoneLayout; }
+
+    /** Restricts biome selection per zone (Hytale-style macro zones). Pass null to remove. */
+    public WorldStructure withZoneLayout(ZoneLayout layout) {
+        this.zoneLayout = layout;
+        if (layout == null) {
+            biCarta.setZoneFilter(null);
+        } else {
+            layout.bind(biCarta.getTileBiomes());
+            biCarta.setZoneFilter(layout::eligibleIds);
+        }
+        return this;
+    }
+
     public WorldStructure(List<TileBiome> tileBiomes, List<CustomBiome> customBiomes, int cellSize, long seed) {
+        this.worldSeed = seed;
         this.biCarta = new BiCarta<>(tileBiomes, cellSize, seed);
         this.customBiomes = new ArrayList<>(customBiomes);
         // Sort custom biomes by descending priority

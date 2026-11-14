@@ -81,7 +81,59 @@ public final class Templates {
         JsonArray biomes = new JsonArray();
         if (p != null) for (Asset b : p.assetsOf(AssetType.BIOME)) biomes.add(poolEntry(b.id(), b.json));
         o.add("biomes", biomes);
+        o.add("ores", defaultOres());
         return o;
+    }
+
+    private static JsonObject ore(String id, String block, int size, int count, int minY, int maxY, boolean triangle) {
+        JsonObject o = new JsonObject();
+        o.addProperty("id", id);
+        o.addProperty("block", block);
+        o.addProperty("replaces", "");
+        J.setNum(o, "veinSize", size);
+        J.setNum(o, "count", count);
+        J.setNum(o, "minY", minY);
+        J.setNum(o, "maxY", maxY);
+        o.addProperty("distribution", triangle ? "triangle" : "uniform");
+        o.addProperty("zone", "");
+        o.add("biomes", new JsonArray());
+        return o;
+    }
+
+    /** Vanilla-like ore distribution as a starting point; every number is editable. */
+    public static JsonArray defaultOres() {
+        JsonArray a = new JsonArray();
+        a.add(ore("coal", "minecraft:coal_ore", 17, 20, 0, 192, false));
+        a.add(ore("iron", "minecraft:iron_ore", 9, 14, -24, 56, true));
+        a.add(ore("copper", "minecraft:copper_ore", 10, 8, -16, 112, true));
+        a.add(ore("gold", "minecraft:gold_ore", 9, 4, -64, 32, true));
+        a.add(ore("redstone", "minecraft:redstone_ore", 8, 8, -64, 16, false));
+        a.add(ore("lapis", "minecraft:lapis_ore", 7, 3, -64, 64, true));
+        a.add(ore("diamond", "minecraft:diamond_ore", 4, 3, -64, 16, true));
+        return a;
+    }
+
+    private static JsonObject zoneSpec(String id, String name, String kind, double weight, String... biomes) {
+        JsonObject z = new JsonObject();
+        z.addProperty("id", id);
+        z.addProperty("name", name);
+        z.addProperty("kind", kind);
+        J.setNum(z, "weight", weight);
+        JsonArray b = new JsonArray();
+        for (String s : biomes) b.add(s);
+        z.add("biomes", b);
+        return z;
+    }
+
+    /** Four weighted macro zones over the starter biomes: a worked example of Hytale-style zones. */
+    public static void addDemoZones(JsonObject dim) {
+        JsonArray zones = new JsonArray();
+        zones.add(zoneSpec("emerald_grove", "Zone 1: Emerald Grove", "patch", 3, "temperate_forest", "sunlit_plains", "old_growth_grove"));
+        zones.add(zoneSpec("howling_sands", "Zone 2: Howling Sands", "patch", 2, "arid_dunes"));
+        zones.add(zoneSpec("boreal_reach", "Zone 3: Boreal Reach", "patch", 2, "boreal_tundra"));
+        zones.add(zoneSpec("shattered_peaks", "Zone 4: Shattered Peaks", "patch", 1, "alpine_peaks"));
+        dim.add("zones", zones);
+        J.setNum(dim, "zoneScale", 1600);
     }
 
     /**
@@ -132,7 +184,7 @@ public final class Templates {
             }
             default -> {}
         }
-        d.add("zones", zones);
+        d.add("shapes", zones);
         d.add("rings", rings);
         d.add("bounds", bounds);
     }

@@ -65,6 +65,41 @@ public final class StudioApp {
         }
     }
 
+    public void createProject(String name, String presetId) {
+        try {
+            setProject(ProjectStore.create(name, presetId));
+            say("Created project '" + project.name + "'", Ui.GREEN);
+            openDoc(Asset.WORLD_PATH);
+        } catch (IOException e) {
+            say("Could not create project: " + e.getMessage(), Ui.RED);
+        }
+    }
+
+    /** Adds a preset's biomes/prefabs (or a whole world's assets) to the open project without overwriting anything. */
+    public void addFromPreset(String presetId) {
+        if (project == null) return;
+        var preset = com.worldgenv2.pack.WorldGenV2Addons.preset(presetId);
+        if (preset == null) { say("Preset not found.", Ui.RED); return; }
+        int n = project.importBundle(preset.bundle().get(), true, preset.isPack());
+        uiRevision++;
+        say(n == 0 ? "Nothing new to add from '" + preset.name() + "'." : "Added " + n + " asset" + (n == 1 ? "" : "s") + " from '" + preset.name() + "'. Save to keep them.", n == 0 ? Ui.TEXT_DIM : Ui.GREEN);
+    }
+
+    /** Writes the project as a bundle file addons can ship (worldgenv2_presets/). */
+    public void exportPreset() {
+        if (project == null) return;
+        try {
+            project.saveAll();
+            java.nio.file.Path dir = java.nio.file.Path.of("config", "worldgenv2", "exports");
+            java.nio.file.Files.createDirectories(dir);
+            java.nio.file.Path out = dir.resolve(project.name + ".json");
+            java.nio.file.Files.writeString(out, StudioProject.pretty(project.toBundle("custom:" + project.name, project.name, "", "world")));
+            say("Exported preset to " + out + "  (drop it in an addon's worldgenv2_presets/ folder)", Ui.GREEN);
+        } catch (IOException e) {
+            say("Export failed: " + e.getMessage(), Ui.RED);
+        }
+    }
+
     public void createProject(String name) {
         try {
             setProject(ProjectStore.create(name));
@@ -184,6 +219,8 @@ public final class StudioApp {
     public void teleportPlayer(int x, int z, int up) { LiveWorld.teleport(this, x, z, up); }
 
     public String probeWorld(int x, int z, int radius) { return LiveWorld.probe(x, z, radius); }
+
+    public String censusWorld(int x, int z) { return LiveWorld.census(x, z); }
 
     /** Combined stamp: changes whenever either app state or project content changed. */
     public long stamp() {

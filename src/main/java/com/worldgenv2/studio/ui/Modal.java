@@ -17,6 +17,28 @@ public class Modal extends UiRoot.Overlay {
     private int panelH, px, py;
     private String error = "";
     private java.util.function.Function<String, String> validator;
+    private Dropdown extra;
+    private java.util.function.BiConsumer<String, String> onOkTwo;
+
+    /** Name field plus a dropdown beneath it (e.g. new project + preset). */
+    public static Modal promptWithChoice(UiRoot root, String title, String message, String initial, List<String> options,
+                                         String selected, java.util.function.Function<String, String> display, String okLabel,
+                                         java.util.function.Function<String, String> validator,
+                                         java.util.function.BiConsumer<String, String> onOk) {
+        Modal m = new Modal(title, 460, okLabel, Button.Style.PRIMARY);
+        if (message != null) m.lines.add(message);
+        m.onOkTwo = onOk;
+        m.validator = validator;
+        m.input = m.add(new TextField().filter(TextField.Filter.TEXT));
+        m.input.onEnter = s -> m.accept();
+        m.input.onChange = s -> m.error = "";
+        m.extra = m.add(new Dropdown().options(options).selected(selected));
+        m.extra.display = display;
+        root.showOverlay(m);
+        m.input.focus();
+        m.input.setText(initial);
+        return m;
+    }
 
     private Modal(String title, int panelW, String okLabel, Button.Style okStyle) {
         this.title = title;
@@ -67,7 +89,8 @@ public class Modal extends UiRoot.Overlay {
             if (err != null) { error = err; return; }
         }
         dismiss();
-        if (onOk != null) onOk.accept(val);
+        if (onOkTwo != null) onOkTwo.accept(val, extra == null ? "" : extra.selected());
+        else if (onOk != null) onOk.accept(val);
     }
 
     @Override
@@ -78,12 +101,13 @@ public class Modal extends UiRoot.Overlay {
     @Override
     public void layout() {
         int rows = lines.size();
-        panelH = 30 + rows * 12 + (input != null || choice != null ? 26 : 4) + (error.isEmpty() ? 0 : 0) + 34;
+        panelH = 30 + rows * 12 + (input != null || choice != null ? 26 : 4) + (extra != null ? 24 : 0) + 34;
         px = (w - panelW) / 2;
         py = (h - panelH) / 2 - 20;
         int cy = py + 30 + rows * 12 + 4;
         if (input != null) input.setBounds(px + 12, cy, panelW - 24, Ui.FIELD_H);
         if (choice != null) choice.setBounds(px + 12, cy, panelW - 24, Ui.FIELD_H);
+        if (extra != null) extra.setBounds(px + 12, cy + 22, panelW - 24, Ui.FIELD_H);
         int by = py + panelH - 26;
         ok.setBounds(px + panelW - 12 - 70, by, 70, 18);
         cancel.setBounds(px + panelW - 12 - 70 - 6 - 70, by, 70, 18);

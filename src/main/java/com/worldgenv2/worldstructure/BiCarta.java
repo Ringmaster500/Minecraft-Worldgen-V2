@@ -309,22 +309,46 @@ public final class BiCarta<T> {
         return selected;
     }
 
+    /** Optional zone restriction: returns the biome ids a cell at (x, z) may use, or null for no restriction. */
+    private volatile java.util.function.BiFunction<Float, Float, java.util.Set<Integer>> zoneFilter;
+
+    public void setZoneFilter(java.util.function.BiFunction<Float, Float, java.util.Set<Integer>> filter) {
+        this.zoneFilter = filter;
+        this.cellBiomeCache.clear();
+    }
+
+    private List<TileBiome> poolFor(float x, float z) {
+        var f = zoneFilter;
+        if (f == null) return tileBiomes;
+        java.util.Set<Integer> ids = f.apply(x, z);
+        if (ids == null || ids.isEmpty()) return tileBiomes;
+        List<TileBiome> out = new java.util.ArrayList<>();
+        for (TileBiome b : tileBiomes) if (ids.contains(b.id())) out.add(b);
+        return out.isEmpty() ? tileBiomes : out;
+    }
+
     private TileBiome selectClimaticBiome(float pointX, float pointZ, long cellHash) {
+        List<TileBiome> pool = poolFor(pointX, pointZ);
         if (climateDriven) {
-            return selectByClimateSpace(pointX, pointZ);
+            return selectByClimateSpace(pointX, pointZ, pool);
         }
         float climate = macroClimateNoise.getNoise(pointX, pointZ);
         float microJitter = (((cellHash >>> 32) & 0xFFFF) / 65535.0f - 0.5f) * 0.03f;
         float u = Math.clamp(0.5f + climate * 0.55f + microJitter, 0.0f, 1.0f);
-        float target = u * totalWeight;
+        float poolWeight = totalWeight;
+        if (pool != tileBiomes) {
+            poolWeight = 0.0f;
+            for (TileBiome b : pool) poolWeight += b.weight();
+        }
+        float target = u * poolWeight;
         float accumulated = 0.0f;
-        for (TileBiome biome : tileBiomes) {
+        for (TileBiome biome : pool) {
             accumulated += biome.weight();
             if (target <= accumulated) {
                 return biome;
             }
         }
-        return tileBiomes.getLast();
+        return pool.getLast();
     }
 
     /**
@@ -351,11 +375,11 @@ public final class BiCarta<T> {
      * Nearest-target lookup in (continentalness, temperature, humidity) space. The weight of each
      * biome acts as a rarity bias (distance is divided by sqrt(weight)).
      */
-    private TileBiome selectByClimateSpace(float pointX, float pointZ) {
+    private TileBiome selectByClimateSpace(float pointX, float pointZ, List<TileBiome> pool) {
         ClimateTarget sample = sampleClimate(pointX, pointZ);
         TileBiome best = null;
         float bestScore = Float.MAX_VALUE;
-        for (TileBiome biome : tileBiomes) {
+        for (TileBiome biome : pool) {
             ClimateTarget target = biome.climate();
             if (target == null) {
                 continue;
@@ -369,7 +393,7 @@ public final class BiCarta<T> {
                 best = biome;
             }
         }
-        return best != null ? best : tileBiomes.getFirst();
+        return best != null ? best : pool.getFirst();
     }
 
     private static long hashCoordinates(int x, int z, long seed) {

@@ -69,6 +69,35 @@ final class Validator {
             if (pf.isBlank()) warn(a, "Spawn structure is enabled but no structure is chosen.");
             else if (!p.hasAsset("prefabs/" + pf + ".json")) err(a, "Spawn structure prefab \u0027" + pf + "\u0027 does not exist in this project.");
         }
+        JsonArray zonesArr = J.arr(o, "zones");
+        if (zonesArr != null) {
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (JsonElement ze : zonesArr) {
+                if (!ze.isJsonObject()) continue;
+                JsonObject z = ze.getAsJsonObject();
+                String zid = J.str(z, "id", "?");
+                if (!seen.add(zid)) err(a, "Two zones are both named '" + zid + "'.");
+                JsonArray zb = J.arr(z, "biomes");
+                if (zb == null || zb.isEmpty()) {
+                    if (!J.str(z, "kind", "everywhere").equals("everywhere")) warn(a, "Zone '" + zid + "' has no biomes, so it restricts nothing.");
+                } else {
+                    for (JsonElement be : zb) {
+                        if (!p.hasAsset("biomes/" + be.getAsString() + ".json")) err(a, "Zone '" + zid + "' lists biome '" + be.getAsString() + "', which does not exist.");
+                    }
+                }
+            }
+        }
+        JsonArray oresArr = J.arr(o, "ores");
+        if (oresArr != null) {
+            for (JsonElement oe : oresArr) {
+                if (!oe.isJsonObject()) continue;
+                JsonObject ore = oe.getAsJsonObject();
+                String oid = J.str(ore, "id", "?"), block = J.str(ore, "block", "");
+                if (block.isBlank()) err(a, "Ore '" + oid + "' has no block.");
+                else if (com.worldgenv2.minecraft.WorldGenV2ChunkGenerator.resolveBlockState(block, null) == null) warn(a, "Ore '" + oid + "' uses '" + block + "', which is not a registered block (is the mod installed?).");
+                if (J.integer(ore, "minY", 0) > J.integer(ore, "maxY", 0)) warn(a, "Ore '" + oid + "' has Min Y above Max Y.");
+            }
+        }
         for (String listKey : new String[]{"landmarks", "budgets"}) {
             JsonArray lst = J.arr(o, listKey);
             if (lst == null) continue;

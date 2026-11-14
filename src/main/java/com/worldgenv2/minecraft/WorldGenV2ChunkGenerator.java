@@ -201,6 +201,40 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
         return this.fallbackWorldStructure;
     }
 
+    // ---- Worldgen V2 owns all generation: nothing from vanilla's feature or structure pipeline may run ----
+
+    /** Vanilla trees, ores, flowers, lakes and springs come from the mapped Minecraft biome; they must not generate. */
+    @Override
+    public void applyBiomeDecoration(
+        net.minecraft.world.level.WorldGenLevel level,
+        net.minecraft.world.level.chunk.ChunkAccess chunk,
+        net.minecraft.world.level.StructureManager structureManager
+    ) {
+        // intentionally empty: props, ores and structures are produced by StagedChunkGenerator
+    }
+
+    /** Vanilla villages, strongholds, mineshafts etc. would otherwise be placed by biome tags. */
+    @Override
+    public void createStructures(
+        net.minecraft.core.RegistryAccess registryAccess,
+        net.minecraft.world.level.chunk.ChunkGeneratorStructureState structureState,
+        net.minecraft.world.level.StructureManager structureManager,
+        net.minecraft.world.level.chunk.ChunkAccess chunk,
+        net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templateManager,
+        net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension
+    ) {
+        // intentionally empty
+    }
+
+    @Override
+    public void createReferences(
+        net.minecraft.world.level.WorldGenLevel level,
+        net.minecraft.world.level.StructureManager structureManager,
+        net.minecraft.world.level.chunk.ChunkAccess chunk
+    ) {
+        // intentionally empty: there are no vanilla structure starts to reference
+    }
+
     private StagedChunkGenerator<BlockState> createStagedGenerator(WorldStructure structure) {
         return new StagedChunkGenerator<>(
             structure,

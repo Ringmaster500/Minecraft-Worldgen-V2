@@ -43,9 +43,16 @@ public final class ProjectStore {
 
     /** Creates a populated starter project and returns it opened. */
     public static StudioProject create(String rawName) throws IOException {
+        return create(rawName, "worldgenv2:starter");
+    }
+
+    /** Creates a project from a preset (built-in or from an addon). */
+    public static StudioProject create(String rawName, String presetId) throws IOException {
         String id = StudioProject.sanitize(rawName);
         StudioProject p = StudioProject.load(id, root().resolve(id));
-        Templates.populateStarter(p);
+        com.worldgenv2.pack.WorldGenV2Addons.Preset preset = com.worldgenv2.pack.WorldGenV2Addons.preset(presetId);
+        if (preset != null) p.importBundle(preset.bundle().get(), false, false);
+        else Templates.populateStarter(p);
         p.validateAll();
         p.saveAll();
         return p;

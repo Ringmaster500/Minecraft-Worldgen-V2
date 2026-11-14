@@ -57,6 +57,29 @@ final class DimensionEditor extends Editor {
         section("Biome pool", "which biomes this dimension may generate");
         block(new PoolTable());
 
+        // ---- zones: Hytale-style macro regions, each with its own biome set ----
+        section("Zones", "regions of the world that each use their own biomes (like Hytale's Zone 1-4)");
+        field("Patch scale", num("zoneScale", 2000, 256, 20000, 100, false, "Zone patch scale"),
+                "Average width in blocks of 'patch' zones. Bigger = larger, rarer regions.");
+        List<String> zoneKinds = new ArrayList<>(List.of("everywhere", "patch", "radial", "noise"));
+        zoneKinds.addAll(com.worldgenv2.worldstructure.ZoneLayout.extraMaskKinds());
+        block(new CardList(this, "zones", "zone", List.of(
+                CardList.Field.str("id", "Id", "Unique name other rules refer to."),
+                CardList.Field.str("name", "Label", "Shown in the map."),
+                CardList.Field.choice("kind", "Shape", () -> zoneKinds, DimensionEditor::zoneKindLabel,
+                        "patch: weighted macro cells.  radial: distance band.  noise: noise range.  everywhere: fallback."),
+                CardList.Field.num("weight", "Weight", 0.1, 100, 0.5, "Relative size of this zone among patch zones.").when(o -> J.str(o, "kind", "").equals("patch")),
+                CardList.Field.num("centerX", "Center X", -60000, 60000, 8, null).when(o -> J.str(o, "kind", "").equals("radial")),
+                CardList.Field.num("centerZ", "Center Z", -60000, 60000, 8, null).when(o -> J.str(o, "kind", "").equals("radial")),
+                CardList.Field.num("inner", "Inner radius", 0, 100000, 16, "Zone begins this far from the center.").when(o -> J.str(o, "kind", "").equals("radial")),
+                CardList.Field.num("outer", "Outer radius", 0, 100000, 16, "Zone ends this far from the center.").when(o -> J.str(o, "kind", "").equals("radial")),
+                CardList.Field.num("frequency", "Frequency", 0.00005, 0.01, 0.0001, "Lower = bigger regions.").when(o -> J.str(o, "kind", "").equals("noise")),
+                CardList.Field.num("min", "Noise min", -1, 1, 0.05, "Zone applies where noise is above this.").when(o -> J.str(o, "kind", "").equals("noise")),
+                CardList.Field.num("max", "Noise max", -1, 1, 0.05, "...and below this.").when(o -> J.str(o, "kind", "").equals("noise")),
+                CardList.Field.biomes("biomes", "Biomes", "Biomes allowed in this zone. They must also be in the pool above.")),
+                this::newZoneRegion, o -> J.str(o, "name", J.str(o, "id", "zone")) + "   [" + zoneKindLabel(J.str(o, "kind", "")) + "]",
+                "No zones: every biome in the pool can appear anywhere. Add zones to give regions their own character."));
+
         // ---- spawn: the "start with a structure" workflow ----
         section("Spawn structure", "a guaranteed structure where players start");
         field("Enabled", toggle("spawn.enabled", false, "Spawn enabled", "Place a structure at spawn"), null);
@@ -83,6 +106,7 @@ final class DimensionEditor extends Editor {
                 CardList.Field.toggle("road", "Connect by road", "Build a road between this landmark and its parent.").when(o -> !J.str(o, "parent", "").isEmpty()),
                 CardList.Field.num("roadWidth", "Road width", 2, 16, 1, null).when(o -> !J.str(o, "parent", "").isEmpty() && J.bool(o, "road", true)),
                 CardList.Field.num("shoulderWidth", "Shoulder", 0, 12, 1, null).when(o -> !J.str(o, "parent", "").isEmpty() && J.bool(o, "road", true)),
+                CardList.Field.choice("zone", "Only in zone", this::zoneOptions, s -> s.isEmpty() ? "(any zone)" : s, "Restrict to one of the zones above."),
                 CardList.Field.biomes("biomes", "Allowed in", "Biomes this landmark may be placed in. Empty = anywhere.")),
                 this::newLandmark, o -> J.str(o, "id", "landmark") + (J.str(o, "parent", "").isEmpty() ? "   (root)" : "   <- " + J.str(o, "parent", "")),
                 "None yet. Add a root landmark, then others that connect to it."));
@@ -98,13 +122,31 @@ final class DimensionEditor extends Editor {
                 CardList.Field.integer("maxQuota", "Max count", 1, 256, "Never more than this many, anywhere in the world."),
                 CardList.Field.num("separation", "Spacing", 32, 5000, 16, "Minimum distance between two of them."),
                 CardList.Field.str("loot", "Loot table", "Optional loot table override for chests inside."),
+                CardList.Field.choice("zone", "Only in zone", this::zoneOptions, s -> s.isEmpty() ? "(any zone)" : s, "Restrict to one of the zones above."),
                 CardList.Field.biomes("biomes", "Allowed in", "Empty = any biome.")),
                 this::newBudget, o -> J.str(o, "id", "poi") + "   " + J.integer(o, "minQuota", 1) + "-" + J.integer(o, "maxQuota", 1) + " total",
                 "None yet. Add one to scatter a finite set of structures."));
 
-        // ---- zones / rings / bounds ----
-        section("Zones", "circular regions that reshape terrain or force a biome");
-        block(new CardList(this, "zones", "zone", List.of(
+        // ---- ores: all of them are rules here; vanilla ore generation is switched off ----
+        section("Ores", "veins of ore; the only ore that generates is what is listed here");
+        block(new CardList(this, "ores", "ore", List.of(
+                CardList.Field.str("id", "Name", null),
+                CardList.Field.str("block", "Block", "e.g. minecraft:iron_ore or a modded ore id."),
+                CardList.Field.integer("veinSize", "Vein size", 1, 64, "Blocks per vein, roughly."),
+                CardList.Field.integer("count", "Veins / chunk", 0, 256, "Attempts per 16x16 chunk."),
+                CardList.Field.integer("minY", "Min Y", -2048, 4096, null),
+                CardList.Field.integer("maxY", "Max Y", -2048, 4096, null),
+                CardList.Field.choice("distribution", "Spread", () -> List.of("uniform", "triangle"),
+                        s -> s.equals("triangle") ? "Triangle (peaks mid-range)" : "Uniform", "Triangle concentrates veins in the middle of the Y range."),
+                CardList.Field.str("replaces", "Replaces", "Comma-separated block ids. Empty = stone, deepslate, andesite, granite, diorite, tuff and the base block."),
+                CardList.Field.choice("zone", "Only in zone", this::zoneOptions, s -> s.isEmpty() ? "(any zone)" : s, "Restrict to one of the zones above."),
+                CardList.Field.biomes("biomes", "Allowed in", "Empty = any biome.")),
+                this::newOre, o -> J.str(o, "id", "ore") + "   " + J.str(o, "block", "").replace("minecraft:", "") + "   " + J.integer(o, "count", 0) + "x" + J.integer(o, "veinSize", 0),
+                "No ores: the world is solid rock. Add some or pick a preset."));
+
+        // ---- terrain shapes / rings / bounds ----
+        section("Terrain shapes", "circular regions that sculpt terrain: islands, moats, floating archipelagos");
+        block(new CardList(this, "shapes", "shape", List.of(
                 CardList.Field.str("id", "Name", null),
                 CardList.Field.choice("mode", "Effect", () -> List.of("BIOME_OVERRIDE", "ISLAND_PLATEAU", "VOID_MOAT", "OUTER_ISLANDS"),
                         DimensionEditor::zoneLabel, "What this zone does to terrain."),
@@ -118,7 +160,7 @@ final class DimensionEditor extends Editor {
                 CardList.Field.num("thickness", "Thickness", 8, 400, 4, null),
                 CardList.Field.toggle("floating", "Floating", "Round off the underside so it floats.")),
                 this::newZone, o -> J.str(o, "id", "zone") + "   " + zoneLabel(J.str(o, "mode", "")) + "  r " + J.integer(o, "inner", 0) + "-" + J.integer(o, "outer", 0),
-                "No zones. The dimension is one endless landmass."));
+                "No shapes. The dimension is one endless landmass."));
 
         section("Pillar rings", "circular arrays of towers (e.g. the End's obsidian pillars)");
         block(new CardList(this, "rings", "ring", List.of(
@@ -182,6 +224,50 @@ final class DimensionEditor extends Editor {
         if (lms != null) for (JsonElement e : lms) {
             if (e.isJsonObject() && J.str(e.getAsJsonObject(), "parent", "").isEmpty()) o.add(J.str(e.getAsJsonObject(), "id", ""));
         }
+        return o;
+    }
+
+    private List<String> zoneOptions() {
+        List<String> o = new ArrayList<>();
+        o.add("");
+        Asset a = asset();
+        JsonArray zs = a == null ? null : J.arr(a.json, "zones");
+        if (zs != null) for (JsonElement e : zs) if (e.isJsonObject()) o.add(J.str(e.getAsJsonObject(), "id", ""));
+        return o;
+    }
+
+    private static String zoneKindLabel(String kind) {
+        return switch (kind) {
+            case "everywhere" -> "Everywhere (fallback)";
+            case "patch" -> "Patches";
+            case "radial" -> "Distance band";
+            case "noise" -> "Noise range";
+            default -> kind;
+        };
+    }
+
+    private JsonObject newZoneRegion(int n) {
+        JsonObject o = new JsonObject();
+        o.addProperty("id", "zone_" + (n + 1));
+        o.addProperty("name", "Zone " + (n + 1));
+        o.addProperty("kind", "patch");
+        J.setNum(o, "weight", 1);
+        o.add("biomes", new JsonArray());
+        return o;
+    }
+
+    private JsonObject newOre(int n) {
+        JsonObject o = new JsonObject();
+        o.addProperty("id", "ore_" + (n + 1));
+        o.addProperty("block", "minecraft:iron_ore");
+        J.setNum(o, "veinSize", 8);
+        J.setNum(o, "count", 10);
+        J.setNum(o, "minY", -64);
+        J.setNum(o, "maxY", 64);
+        o.addProperty("distribution", "uniform");
+        o.addProperty("replaces", "");
+        o.addProperty("zone", "");
+        o.add("biomes", new JsonArray());
         return o;
     }
 

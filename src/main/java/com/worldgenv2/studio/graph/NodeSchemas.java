@@ -49,31 +49,46 @@ public final class NodeSchemas {
         try (InputStream in = NodeSchemas.class.getClassLoader().getResourceAsStream("assets/worldgenv2/node_schema.json")) {
             if (in == null) return;
             JsonObject root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
-            for (var kindEntry : root.entrySet()) {
-                if (!kindEntry.getValue().isJsonObject()) continue;
-                String kind = kindEntry.getKey();
-                Map<String, NodeType> types = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-                for (var t : kindEntry.getValue().getAsJsonObject().entrySet()) {
-                    JsonObject o = t.getValue().getAsJsonObject();
-                    List<Param> params = new ArrayList<>();
-                    for (JsonElement pe : o.getAsJsonArray("params")) {
-                        JsonObject p = pe.getAsJsonObject();
-                        params.add(new Param(p.get("key").getAsString(), p.get("t").getAsString(),
-                                p.has("def") ? p.get("def") : null, p.has("alias") ? p.get("alias").getAsString() : null));
-                    }
-                    List<Slot> slots = new ArrayList<>();
-                    for (JsonElement se : o.getAsJsonArray("slots")) {
-                        JsonObject s = se.getAsJsonObject();
-                        slots.add(new Slot(s.get("key").getAsString(), s.get("kind").getAsString(), s.get("multi").getAsBoolean(),
-                                s.has("alias") ? s.get("alias").getAsString() : null));
-                    }
-                    types.put(t.getKey(), new NodeType(kind, t.getKey(), params, slots));
-                }
-                byKind.put(kind, types);
-            }
-            resolveAliases();
+            mergeSchema(root);
         } catch (Exception e) {
             // schema is an aid, not a requirement: the graph still works generically from the JSON
+        }
+        // Addons ship worldgenv2_node_schemas.json (same format) to add their own node types to the palette.
+        try {
+            var urls = NodeSchemas.class.getClassLoader().getResources("worldgenv2_node_schemas.json");
+            while (urls.hasMoreElements()) {
+                try (InputStream in = urls.nextElement().openStream()) {
+                    mergeSchema(JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject());
+                } catch (Exception ignored) {
+                    // one bad addon file must not hide the others
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        resolveAliases();
+    }
+
+    private static void mergeSchema(JsonObject root) {
+        for (var kindEntry : root.entrySet()) {
+            if (!kindEntry.getValue().isJsonObject()) continue;
+            String kind = kindEntry.getKey();
+            Map<String, NodeType> types = byKind.computeIfAbsent(kind, k -> new TreeMap<>(String.CASE_INSENSITIVE_ORDER));
+            for (var t : kindEntry.getValue().getAsJsonObject().entrySet()) {
+                JsonObject o = t.getValue().getAsJsonObject();
+                List<Param> params = new ArrayList<>();
+                for (JsonElement pe : o.getAsJsonArray("params")) {
+                    JsonObject p = pe.getAsJsonObject();
+                    params.add(new Param(p.get("key").getAsString(), p.get("t").getAsString(),
+                            p.has("def") ? p.get("def") : null, p.has("alias") ? p.get("alias").getAsString() : null));
+                }
+                List<Slot> slots = new ArrayList<>();
+                for (JsonElement se : o.getAsJsonArray("slots")) {
+                    JsonObject s = se.getAsJsonObject();
+                    slots.add(new Slot(s.get("key").getAsString(), s.get("kind").getAsString(), s.get("multi").getAsBoolean(),
+                            s.has("alias") ? s.get("alias").getAsString() : null));
+                }
+                types.put(t.getKey(), new NodeType(kind, t.getKey(), params, slots));
+            }
         }
     }
 

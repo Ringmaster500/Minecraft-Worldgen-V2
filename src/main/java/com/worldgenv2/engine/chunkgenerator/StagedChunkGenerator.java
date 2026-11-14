@@ -323,7 +323,7 @@ public final class StagedChunkGenerator<T> {
                 int hz = lz + 1;
 
                 WorldStructure.BiomeQueryResult biomeQuery = chunkBiomes[(lx << 4) | lz];
-                List<Prop<T>> activeProps = biomeQuery.resolveProps(surfaceProps);
+                List<Prop<T>> activeProps = columnarProps(biomeQuery.resolveProps(surfaceProps));
                 if (activeProps.isEmpty()) {
                     continue;
                 }
@@ -372,6 +372,9 @@ public final class StagedChunkGenerator<T> {
             }
         }
 
+        // Distribution-driven props (positions -> scanner -> assignments): once per chunk, not once per column
+        generateDistributedProps(chunkX, chunkZ, originX, originZ, stage1Space, chunkBiomes, chunkSeed);
+
         // Capture immutable snapshot at stage 1
         ImmutableChunkSnapshot<T> stage1Snapshot = ImmutableChunkSnapshot.capture(chunkX, chunkZ, voxelSpace, airBlock);
         contextCache.putSnapshot(chunkX, chunkZ, 1, stage1Snapshot);
@@ -381,6 +384,13 @@ public final class StagedChunkGenerator<T> {
             if (stageIdx >= 2) {
                 propRuntimePipeline.executeStage(stageIdx, chunkX, chunkZ, voxelSpace, chunkSeed, null);
             }
+        }
+
+        // =====================================================================
+        // Stage 4a: Ore veins (declarative OreRules; vanilla feature generation is never used)
+        // =====================================================================
+        if (prefabBlockResolver != null && !worldStructure.getOreRules().isEmpty()) {
+            generateOres(chunkX, chunkZ, voxelSpace);
         }
 
         // =====================================================================
@@ -403,6 +413,125 @@ public final class StagedChunkGenerator<T> {
             for (MacroFeatureGraph.PlacedLandmark landmark : worldStructure.getMacroFeatureGraph().getPlacedLandmarks().values()) {
                 if ((landmark.x() >> 4) == chunkX && (landmark.z() >> 4) == chunkZ) {
                     stampMacroLandmark(landmark, voxelSpace, roadDeckBlock, plinthBlock);
+                }
+            }
+        }
+    }
+
+    private final java.util.concurrent.ConcurrentHashMap<List<Prop<T>>, List<Prop<T>>> columnarCache =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** The part of a biome's prop list that works per surface column (everything except distribution props). */
+    private List<Prop<T>> columnarProps(List<Prop<T>> all) {
+        if (all.isEmpty()) return all;
+        return columnarCache.computeIfAbsent(all, list -> {
+            List<Prop<T>> out = new ArrayList<>();
+            for (Prop<T> p : list) if (!(p instanceof com.worldgenv2.props.AssignmentsProp<?>)) out.add(p);
+            return out;
+        });
+    }
+
+    /**
+     * Runs every AssignmentsProp of the biomes present in this chunk exactly once, limited to the columns each
+     * biome actually owns (so a forest's trees never spill into the neighbouring desert).
+     */
+    @SuppressWarnings("unchecked")
+    private void generateDistributedProps(int chunkX, int chunkZ, int originX, int originZ, VoxelSpace<T> space,
+                                          WorldStructure.BiomeQueryResult[] chunkBiomes, long chunkSeed) {
+        java.util.IdentityHashMap<com.worldgenv2.props.AssignmentsProp<T>, boolean[]> owners = new java.util.IdentityHashMap<>();
+        for (int i = 0; i < chunkBiomes.length; i++) {
+            for (Prop<T> p : chunkBiomes[i].resolveProps(surfaceProps)) {
+                if (p instanceof com.worldgenv2.props.AssignmentsProp<?> ap) {
+                    owners.computeIfAbsent((com.worldgenv2.props.AssignmentsProp<T>) ap, k -> new boolean[chunkBiomes.length])[i] = true;
+                }
+            }
+        }
+        for (var e : owners.entrySet()) {
+            boolean[] mask = e.getValue();
+            e.getKey().generateInChunk(originX, originZ, space, chunkSeed,
+                (x, z) -> mask[((x - originX) << 4) | (z - originZ)], b -> b != null && !b.equals(airBlock));
+        }
+    }
+
+    private record ResolvedOre<B>(B ore, java.util.Set<B> replaceable) {}
+
+    private final java.util.concurrent.ConcurrentHashMap<com.worldgenv2.worldstructure.OreRule, ResolvedOre<T>> oreCache =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final String[] DEFAULT_REPLACEABLE = {
+        "minecraft:stone", "minecraft:deepslate", "minecraft:andesite", "minecraft:granite", "minecraft:diorite", "minecraft:tuff"
+    };
+
+    private ResolvedOre<T> resolveOre(com.worldgenv2.worldstructure.OreRule rule) {
+        return oreCache.computeIfAbsent(rule, r -> {
+            T ore = prefabBlockResolver.apply(r.block());
+            java.util.Set<T> rep = new java.util.HashSet<>();
+            java.util.List<String> ids = r.replaces().isEmpty() ? java.util.List.of(DEFAULT_REPLACEABLE) : r.replaces();
+            for (String id : ids) {
+                T b = prefabBlockResolver.apply(id);
+                if (b != null) rep.add(b);
+            }
+            if (r.replaces().isEmpty() && baseSolidBlock != null) rep.add(baseSolidBlock);
+            return new ResolvedOre<>(ore, rep);
+        });
+    }
+
+    private static long mix(long a, long b, int x, int z) {
+        long h = a * 0x9E3779B97F4A7C15L + b * 0xBF58476D1CE4E5B9L + x * 0x94D049BB133111EBL + z * 0x2545F4914F6CDD1DL;
+        h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L;
+        h = (h ^ (h >>> 27)) * 0x94D049BB133111EBL;
+        return h ^ (h >>> 31);
+    }
+
+    /**
+     * Veins are anchored to the chunk they originate in and may spill at most ~6 blocks, so each chunk evaluates the
+     * veins of itself and its 8 neighbours (same seed each time) and keeps only the blocks that land inside it.
+     * That keeps veins identical regardless of generation order.
+     */
+    private void generateOres(int chunkX, int chunkZ, VoxelSpace<T> space) {
+        java.util.List<com.worldgenv2.worldstructure.OreRule> rules = worldStructure.getOreRules();
+        int minWorldY = space.getMinY(), maxWorldY = space.getMaxY();
+        for (com.worldgenv2.worldstructure.OreRule rule : rules) {
+            ResolvedOre<T> ro = resolveOre(rule);
+            if (ro.ore() == null) continue;
+            boolean biomeFilter = !rule.allowedBiomes().isEmpty();
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    int ox = chunkX + dx, oz = chunkZ + dz;
+                    java.util.SplittableRandom rnd = new java.util.SplittableRandom(mix(worldStructure.seed(), rule.id().hashCode(), ox, oz));
+                    for (int n = 0; n < rule.count(); n++) {
+                        int vx = (ox << 4) + rnd.nextInt(16), vz = (oz << 4) + rnd.nextInt(16);
+                        int range = Math.max(1, rule.maxY() - rule.minY());
+                        int vy = rule.triangle()
+                            ? rule.minY() + (rnd.nextInt(range / 2 + 1) + rnd.nextInt(range - range / 2 + 1))
+                            : rule.minY() + rnd.nextInt(range + 1);
+                        int sx = rnd.nextInt(3) - 1, sy = rnd.nextInt(3) - 1, sz = rnd.nextInt(3) - 1;
+                        long walkSeed = rnd.nextLong(); // always consumed so neighbouring chunks stay in sync
+                        if (vx < (chunkX << 4) - 8 || vx > (chunkX << 4) + 23 || vz < (chunkZ << 4) - 8 || vz > (chunkZ << 4) + 23) continue;
+                        if (biomeFilter) {
+                            var q = worldStructure.queryBiome(vx, vz);
+                            String name = q.primaryTileBiome() == null ? "" : q.primaryTileBiome().name();
+                            boolean ok = false;
+                            for (String a : rule.allowedBiomes()) {
+                                if (name.equalsIgnoreCase(a) || name.endsWith(":" + a)) { ok = true; break; }
+                            }
+                            if (!ok) continue;
+                        }
+                        java.util.SplittableRandom walk = new java.util.SplittableRandom(walkSeed);
+                        int px = vx, py = vy, pz = vz;
+                        for (int k = 0; k < rule.veinSize(); k++) {
+                            if ((px >> 4) == chunkX && (pz >> 4) == chunkZ && py >= minWorldY && py < maxWorldY) {
+                                T cur = space.getBlock(px, py, pz);
+                                if (ro.replaceable().contains(cur)) space.setBlock(px, py, pz, ro.ore());
+                            }
+                            px += walk.nextInt(3) - 1 + (walk.nextInt(4) == 0 ? sx : 0);
+                            py += walk.nextInt(3) - 1 + (walk.nextInt(4) == 0 ? sy : 0);
+                            pz += walk.nextInt(3) - 1 + (walk.nextInt(4) == 0 ? sz : 0);
+                            px = Math.max(vx - 6, Math.min(vx + 6, px));
+                            py = Math.max(vy - 6, Math.min(vy + 6, py));
+                            pz = Math.max(vz - 6, Math.min(vz + 6, pz));
+                        }
+                    }
                 }
             }
         }

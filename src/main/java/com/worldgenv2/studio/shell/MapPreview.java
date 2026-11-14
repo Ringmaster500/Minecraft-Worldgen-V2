@@ -38,7 +38,8 @@ final class MapPreview extends Widget {
     private long lastRequestTime;
     private boolean dragged;
 
-    private final Button zoomIn, zoomOut, home, fitBtn;
+    private final Button zoomIn, zoomOut, home, fitBtn, zonesBtn;
+    private boolean zoneTint;
     private boolean autoFit = true;
     private List<Asset.Problem> lastWarnings = List.of();
 
@@ -47,6 +48,8 @@ final class MapPreview extends Widget {
         zoomIn = add(new Button("+", () -> zoom(0.7)));
         zoomOut = add(new Button("-", () -> zoom(1.0 / 0.7)));
         home = add(new Button("Spawn", this::goHome));
+        zonesBtn = add(new Button("Zones", () -> { zoneTint = !zoneTint; engine.zoneTint = zoneTint; lastRequestKey = ""; }));
+        zonesBtn.tooltip = "Tint the map by zone";
         fitBtn = add(new Button("Fit", () -> autoFit = true));
         fitBtn.tooltip = "Zoom out to show every placed structure";
         zoomIn.tooltip = "Zoom in";
@@ -106,6 +109,7 @@ final class MapPreview extends Widget {
         zoomOut.setBounds(x + w - 22, y + 24, 16, 16);
         home.setBounds(x + w - 56, y + 42, 50, 16);
         fitBtn.setBounds(x + w - 56, y + 60, 50, 16);
+        zonesBtn.setBounds(x + w - 56, y + 78, 50, 16);
     }
 
     private long seedOverride() {
@@ -124,7 +128,8 @@ final class MapPreview extends Widget {
 
         int tw = Math.max(16, Math.min(420, (w - 2) / STEP)), th = Math.max(16, Math.min(420, (h - 2) / STEP));
         long now = System.currentTimeMillis();
-        String key = app.project.revision + "|" + dimId + "|" + (long) centerX / 8 + "|" + (long) centerZ / 8 + "|" + scale + "|" + tw + "x" + th;
+        zonesBtn.selected = zoneTint;
+        String key = app.project.revision + "|" + zoneTint + "|" + dimId + "|" + (long) centerX / 8 + "|" + (long) centerZ / 8 + "|" + scale + "|" + tw + "x" + th;
         if (!key.equals(lastRequestKey) && now - lastRequestTime > 90) {
             lastRequestKey = key;
             lastRequestTime = now;
@@ -280,7 +285,8 @@ final class MapPreview extends Widget {
         double wx = centerX + (mx - (x + w / 2.0)) * scale, wz = centerZ + (my - (y + h / 2.0)) * scale;
         WorldStructure s = frame.compiled.structure;
         ProjectCompiler.BiomeBinding b = frame.compiled.bindingById(s.getBiomeId((float) wx, (float) wz));
-        tooltip = String.format("x %d  z %d   %s", (int) wx, (int) wz, b == null ? "void" : b.name());
+        var zone = frame.compiled.zones == null ? null : frame.compiled.zones.zoneAt((float) wx, (float) wz);
+        tooltip = String.format("x %d  z %d   %s%s", (int) wx, (int) wz, b == null ? "void" : b.name(), zone == null ? "" : "   [" + zone.name + "]");
     }
 
     @Override

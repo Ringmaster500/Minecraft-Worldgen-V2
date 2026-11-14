@@ -51,11 +51,25 @@ final class Dialogs {
     }
 
     static void newProject(UiRoot ui, StudioApp app) {
-        Modal.prompt(ui, "New project", "Creates a starter pack with example biomes and the three dimensions.", "my_world", "Create",
-                ProjectStore::checkNewName, app::createProject);
+        var presets = com.worldgenv2.pack.WorldGenV2Addons.presets().stream().filter(p -> !p.isPack()).toList();
+        java.util.List<String> ids = new ArrayList<>();
+        java.util.Map<String, String> names = new java.util.HashMap<>();
+        for (var p : presets) { ids.add(p.id()); names.put(p.id(), p.name() + "  -  " + p.description()); }
+        Modal.promptWithChoice(ui, "New project", "Name it, then pick a starting point. Blank is the custom path.", "my_world", ids,
+                ids.contains("worldgenv2:starter") ? "worldgenv2:starter" : (ids.isEmpty() ? "" : ids.get(0)), s -> names.getOrDefault(s, s),
+                "Create", ProjectStore::checkNewName, (name, preset) -> app.createProject(name, preset));
     }
 
     /** Runs {@code then} immediately, or after confirming a discard when there are unsaved changes. */
+    static void addFromPreset(UiRoot ui, StudioApp app) {
+        var presets = com.worldgenv2.pack.WorldGenV2Addons.presets();
+        java.util.List<String> ids = new ArrayList<>();
+        java.util.Map<String, String> names = new java.util.HashMap<>();
+        for (var p : presets) { ids.add(p.id()); names.put(p.id(), (p.isPack() ? "[pack] " : "[world] ") + p.name()); }
+        Modal.choose(ui, "Add from preset", "Adds the preset's biomes and prefabs; existing assets are never overwritten.", ids,
+                ids.isEmpty() ? "" : ids.get(0), "Add", app::addFromPreset);
+    }
+
     static void guardUnsaved(UiRoot ui, StudioApp app, Runnable then) {
         if (app.project == null || !app.project.isDirty()) { then.run(); return; }
         Modal.confirm(ui, "Unsaved changes", app.project.dirtyCount() + " file(s) have unsaved changes.\nDiscard them and continue?",
@@ -72,6 +86,10 @@ final class Dialogs {
         if (items.isEmpty()) items.add(PopupMenu.Item.disabled("No projects yet"));
         items.add(PopupMenu.Item.sep());
         items.add(PopupMenu.Item.of("New project...", () -> guardUnsaved(ui, app, () -> newProject(ui, app))));
+        if (app.project != null) {
+            items.add(PopupMenu.Item.of("Add from preset / pack...", () -> addFromPreset(ui, app)));
+            items.add(PopupMenu.Item.of("Export as preset file", app::exportPreset));
+        }
         if (app.project != null) items.add(PopupMenu.Item.of("Close project", () -> guardUnsaved(ui, app, app::closeProject)));
         PopupMenu.open(ui, x, y, 190, items);
     }

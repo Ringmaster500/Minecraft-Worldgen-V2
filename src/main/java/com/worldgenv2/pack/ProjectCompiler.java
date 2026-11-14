@@ -43,6 +43,7 @@ public final class ProjectCompiler {
         public long seed;
         public String dimensionId = "";
         public SpawnAnchorManager.SpawnAnchorRule spawn;
+        public ZoneLayout zones;
         public final Map<String, String> biomeNameToAsset = new HashMap<>();
 
         public BiomeBinding bindingById(int id) {
@@ -158,6 +159,9 @@ public final class ProjectCompiler {
                     .withUndergroundBiomes(DefaultBiomeFactory.createUndergroundBiomes(), r.seed);
         }
         structure.withDimensionLayout(buildLayout(d, r));
+        r.zones = buildZones(d, r);
+        if (r.zones != null) structure.withZoneLayout(r.zones);
+        structure.withOreRules(buildOres(d, r));
 
         // ---- spawn anchor ----
         JsonObject spawn = J.obj(d, "spawn");
@@ -310,6 +314,7 @@ public final class ProjectCompiler {
         structure.withStructurePlacements(placements);
 
         r.structure = structure;
+        WorldGenV2Addons.runCompileHooks(project, r);
         return r;
     }
 
@@ -353,10 +358,80 @@ public final class ProjectCompiler {
     private static Set<String> biomeNames(JsonObject rule, Result r) {
         Set<String> out = new LinkedHashSet<>();
         JsonArray arr = J.arr(rule, "biomes");
-        if (arr == null) return out;
-        for (JsonElement e : arr) {
-            String assetId = e.getAsString();
-            for (BiomeBinding b : r.biomes) if (b.assetId().equals(assetId)) out.add(b.name());
+        if (arr != null) {
+            for (JsonElement e : arr) {
+                String assetId = e.getAsString();
+                for (BiomeBinding b : r.biomes) if (b.assetId().equals(assetId)) out.add(b.name());
+            }
+        }
+        // A rule can also be restricted to a zone; combined with an explicit biome list it must satisfy both.
+        String zoneId = J.str(rule, "zone", "");
+        if (!zoneId.isBlank()) {
+            Set<String> zoneNames = null;
+            if (r.zones != null) {
+                for (ZoneLayout.Zone z : r.zones.zones()) if (z.id.equals(zoneId)) zoneNames = new LinkedHashSet<>(z.biomeNames);
+            }
+            if (zoneNames == null) {
+                r.warnings.add("'" + J.str(rule, "id", "?") + "' is limited to zone '" + zoneId + "', which does not exist.");
+            } else if (out.isEmpty()) {
+                out = zoneNames;
+            } else {
+                out.retainAll(zoneNames);
+            }
+        }
+        return out;
+    }
+
+    private static final int[] ZONE_COLORS = {0xFF5FBF6A, 0xFFE3B341, 0xFF9FD8F0, 0xFFE5534B, 0xFFB37BE8, 0xFF3FC5FF, 0xFFE89A3C, 0xFF8BC34A};
+
+    /** Builds the Hytale-style zone layer from the dimension's {@code zones} array. */
+    private static ZoneLayout buildZones(JsonObject d, Result r) {
+        JsonArray za = J.arr(d, "zones");
+        if (za == null || za.isEmpty()) return null;
+        ZoneLayout.Builder zb = new ZoneLayout.Builder(r.seed, (float) J.num(d, "zoneScale", 2000));
+        int i = 0;
+        for (JsonElement e : za) {
+            if (!e.isJsonObject()) continue;
+            JsonObject z = e.getAsJsonObject();
+            String id = J.str(z, "id", "zone_" + i);
+            List<String> names = new ArrayList<>();
+            JsonArray ba = J.arr(z, "biomes");
+            if (ba != null) {
+                for (JsonElement be : ba) {
+                    String assetId = be.getAsString();
+                    boolean found = false;
+                    for (BiomeBinding b : r.biomes) if (b.assetId().equals(assetId)) { names.add(b.name()); found = true; }
+                    if (!found) r.warnings.add("Zone '" + id + "' lists biome '" + assetId + "', which is not in this dimension's biome pool.");
+                }
+            }
+            if (names.isEmpty() && !J.str(z, "kind", "everywhere").equals("everywhere")) {
+                r.warnings.add("Zone '" + id + "' has no biomes, so it does not restrict anything.");
+            }
+            zb.add(id, J.str(z, "name", id), ZONE_COLORS[i % ZONE_COLORS.length], J.str(z, "kind", "everywhere"), z, names);
+            i++;
+        }
+        return zb.build();
+    }
+
+    private static List<OreRule> buildOres(JsonObject d, Result r) {
+        List<OreRule> out = new ArrayList<>();
+        JsonArray oa = J.arr(d, "ores");
+        if (oa == null) return out;
+        for (JsonElement e : oa) {
+            if (!e.isJsonObject()) continue;
+            JsonObject o = e.getAsJsonObject();
+            String id = J.str(o, "id", "");
+            String block = J.str(o, "block", "");
+            if (id.isBlank() || block.isBlank()) continue;
+            if (WorldGenV2ChunkGenerator.resolveBlockState(block, null) == null) {
+                r.warnings.add("Ore '" + id + "' uses unknown block '" + block + "'; skipped.");
+                continue;
+            }
+            List<String> replaces = new ArrayList<>();
+            for (String s : J.str(o, "replaces", "").split(",")) if (!s.isBlank()) replaces.add(s.trim());
+            out.add(new OreRule(id, block, replaces, J.integer(o, "veinSize", 8), J.integer(o, "count", 10),
+                    J.integer(o, "minY", r.minY), J.integer(o, "maxY", r.maxY),
+                    "triangle".equals(J.str(o, "distribution", "uniform")), biomeNames(o, r)));
         }
         return out;
     }
@@ -368,7 +443,7 @@ public final class ProjectCompiler {
         OutsideBoundsFallback outside = parseEnum(OutsideBoundsFallback.class, J.str(bounds, "outside", "DEFAULT_BIOMES"), OutsideBoundsFallback.DEFAULT_BIOMES);
 
         List<RadialZoneRule> zones = new ArrayList<>();
-        JsonArray za = J.arr(d, "zones");
+        JsonArray za = J.arr(d, "shapes");
         if (za != null) for (JsonElement e : za) {
             if (!e.isJsonObject()) continue;
             JsonObject z = e.getAsJsonObject();

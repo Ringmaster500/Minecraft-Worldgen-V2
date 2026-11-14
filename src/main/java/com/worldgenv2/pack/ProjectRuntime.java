@@ -56,6 +56,19 @@ public final class ProjectRuntime {
         }
     }
 
+    /** {@code {"preset": "namespace:id"}} makes worlds generate straight from an installed preset. */
+    public static String activePresetId() {
+        try {
+            Path f = activeFile();
+            if (!Files.exists(f)) return null;
+            JsonObject o = JsonParser.parseString(Files.readString(f)).getAsJsonObject();
+            String n = J.str(o, "preset", "");
+            return n.isBlank() ? null : n;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public static void setActiveProject(String name) throws IOException {
         Files.createDirectories(activeFile().getParent());
         JsonObject o = new JsonObject();
@@ -72,12 +85,25 @@ public final class ProjectRuntime {
         if (ref == null || !ref.startsWith(REF_PREFIX)) return null;
         String dimAssetId = ref.substring(REF_PREFIX.length());
         String name = activeProjectName();
-        if (name == null) {
-            LOGGER.warn("World uses '{}' but config/worldgenv2/active.json names no project; using built-in generator.", ref);
+        String presetId = activePresetId();
+        if (name == null && presetId == null) {
+            LOGGER.warn("World uses '{}' but config/worldgenv2/active.json names no project or preset; using built-in generator.", ref);
             return null;
         }
         try {
-            StudioProject project = StudioProject.load(name, Path.of("config", "worldgenv2", "projects", name));
+            StudioProject project;
+            if (presetId != null) {
+                // an addon (or built-in) preset used directly, without a project folder
+                WorldGenV2Addons.Preset pr = WorldGenV2Addons.preset(presetId);
+                if (pr == null) {
+                    LOGGER.warn("active.json names preset '{}', which is not installed; using built-in generator.", presetId);
+                    return null;
+                }
+                name = pr.name();
+                project = StudioProject.fromBundle(name, pr.bundle().get());
+            } else {
+                project = StudioProject.load(name, Path.of("config", "worldgenv2", "projects", name));
+            }
             Asset dim = project.get("dimensions/" + dimAssetId + ".json");
             if (dim == null) {
                 LOGGER.warn("Project '{}' has no dimension '{}'; using built-in generator.", name, dimAssetId);
