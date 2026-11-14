@@ -57,6 +57,7 @@ public class GenNodeSchema {
     static final Pattern PARAM = Pattern.compile("\\bget(Float|Double|Int|String|Boolean|Bool)\\(\\s*json\\s*,\\s*\"(\\w+)\"\\s*,");
     static final Pattern CHILD = Pattern.compile("\\bcompileChild(\\w+)\\(\\s*json\\s*,\\s*\"(\\w+)\"(?:\\s*,\\s*\"(\\w+)\")?");
     static final Pattern LIST = Pattern.compile("\\bcompile(\\w+?)List\\(\\s*json\\s*,\\s*\"(\\w+)\"");
+    static final Pattern CHILD_MAP = Pattern.compile("json\\.getOrDefault\\(\\s*\"child\"\\s*,\\s*json\\.get\\(\"prop\"\\)\\)");
     static final Pattern GENERIC = Pattern.compile("\\bcompile(Density|Curve|VectorProvider|Pattern|Prop|MaterialProvider|PositionsProvider|Scanner|NodeSelector|BlockMask)\\([^;]*?json\\.get(?:OrDefault)?\\(\"(\\w+)\"");
 
     public static void main(String[] args) throws IOException {
@@ -116,6 +117,11 @@ public class GenNodeSchema {
                 if (!seenSlots.add(lm.group(2))) continue;
                 if (slots.length() > 0) slots.append(',');
                 slots.append("{\"key\":").append(q(lm.group(2))).append(",\"kind\":").append(q(slotKind(lm.group(1)))).append(",\"multi\":true}");
+            }
+            // wrapper props read their child as: (Map) json.getOrDefault("child", json.get("prop"))
+            if (kind.equals("prop") && CHILD_MAP.matcher(body).find() && seenSlots.add("child")) {
+                if (slots.length() > 0) slots.append(',');
+                slots.append("{\"key\":\"child\",\"kind\":\"prop\",\"multi\":false,\"alias\":\"prop\"}");
             }
             Matcher gm = GENERIC.matcher(body);
             while (gm.find()) {

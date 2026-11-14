@@ -69,6 +69,17 @@ public final class ProjectCompiler {
     }
 
     public static Result compile(StudioProject project, String dimensionAssetId, long seedOverride) {
+        var near = com.worldgenv2.props.StructureNearProp.beginCompile();
+        try {
+            Result r = compileInner(project, dimensionAssetId, seedOverride);
+            if (r.structure != null) near.bind(r.structure::structureNear);
+            return r;
+        } finally {
+            com.worldgenv2.props.StructureNearProp.endCompile();
+        }
+    }
+
+    private static Result compileInner(StudioProject project, String dimensionAssetId, long seedOverride) {
         Result r = new Result();
         JsonAstCompiler.registerBuiltInTypes();
 
@@ -298,7 +309,7 @@ public final class ProjectCompiler {
                 if (pf != null) {
                     int sy = structure.sampleSurfaceY(r.spawn.originX(), r.spawn.originZ(), r.minY, r.maxY) + 1;
                     JsonObject sp = J.obj(d, "spawn");
-                    placements.add(new StructurePlacement("spawn", turned(pf, sp, "spawn", r.seed), r.spawn.originX(), sy, r.spawn.originZ()));
+                    placements.add(new StructurePlacement("spawn", turned(pf, sp, "spawn", r.seed), r.spawn.originX(), sy - Math.max(0, J.integer(sp, "depth", 0)), r.spawn.originZ()));
                 }
             }
             Map<String, JsonObject> itemById = new HashMap<>();
@@ -311,7 +322,7 @@ public final class ProjectCompiler {
                 for (MacroFeatureGraph.PlacedLandmark l : graph.getPlacedLandmarks().values()) {
                     if (l.id().equals("spawn")) continue; // the spawn structure is stamped above
                     var pf = loadPrefab(project, l.prefabId(), prefabs, r);
-                    if (pf != null) placements.add(new StructurePlacement(l.id(), turned(pf, itemById.get(l.id()), l.id(), r.seed), l.x(), l.y(), l.z()));
+                    if (pf != null) placements.add(new StructurePlacement(l.id(), turned(pf, itemById.get(l.id()), l.id(), r.seed), l.x(), l.y() - Math.max(0, J.integer(itemById.get(l.id()), "depth", 0)), l.z()));
                 }
             }
             StructureBudgetManager bm = structure.getStructureBudgetManager();
@@ -321,7 +332,7 @@ public final class ProjectCompiler {
                     var pf = loadPrefab(project, f.prefabId(), prefabs, r);
                     if (pf != null) {
                         String pid = f.ruleId() + "_" + (n++);
-                        placements.add(new StructurePlacement(pid, turned(pf, itemById.get(f.ruleId()), pid, r.seed), f.x(), f.y(), f.z()));
+                        placements.add(new StructurePlacement(pid, turned(pf, itemById.get(f.ruleId()), pid, r.seed), f.x(), f.y() - Math.max(0, J.integer(itemById.get(f.ruleId()), "depth", 0)), f.z()));
                     }
                 }
             }

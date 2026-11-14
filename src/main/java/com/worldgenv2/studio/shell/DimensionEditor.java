@@ -72,6 +72,7 @@ final class DimensionEditor extends Editor {
         field("Position X", num("spawn.x", 0, -30000, 30000, 8, true, "Spawn X"), "World X of the structure's origin.");
         field("Position Z", num("spawn.z", 0, -30000, 30000, 8, true, "Spawn Z"), "World Z of the structure's origin.");
         field("Rotation", choice("spawn.rotation", "0", ROTATIONS, DimensionEditor::rotationLabel, "Spawn rotation"), "Turn the structure clockwise (seen from above).");
+        field("Buried depth", num("spawn.depth", 0, 0, 200, 1, true, "Spawn depth"), "Sink the structure this many blocks below the surface (0 = on the surface).");
         field("Crater radius", num("spawn.craterRadius", 0, 0, 400, 2, false, "Crater radius"), "0 = no crater. A crash site excavates the ground around it.");
         field("Crater depth", num("spawn.craterDepth", 0, 0, 64, 1, false, "Crater depth"), "How deep the crater is carved.");
         field("Crater rim", num("spawn.rimHeight", 0, 0, 32, 1, false, "Crater rim"), "Height of the raised lip around the crater.");
@@ -84,6 +85,7 @@ final class DimensionEditor extends Editor {
                 CardList.Field.str("id", "Name", "Unique name; other landmarks refer to it."),
                 CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
                 CardList.Field.choice("rotation", "Rotation", () -> ROTATIONS, DimensionEditor::rotationLabel, "Turn the structure clockwise (seen from above)."),
+                CardList.Field.integer("depth", "Buried depth", 0, 200, "Sink the structure this many blocks below the surface, for hidden vaults. Props can react to it with StructureNear."),
                 CardList.Field.choice("parent", "Placed from", this::parentOptions,
                         s -> s.isEmpty() ? "(world origin)" : s.equals("spawn") ? "Spawn structure" : s, "Root landmarks are placed from the origin; others around a root landmark."),
                 CardList.Field.num("minDistance", "Min distance", 0, 20000, 8, "Blocks from the origin (root) or from its parent."),
@@ -105,6 +107,7 @@ final class DimensionEditor extends Editor {
                 CardList.Field.str("id", "Name", "Unique name."),
                 CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
                 CardList.Field.choice("rotation", "Rotation", () -> ROTATIONS, DimensionEditor::rotationLabel, "Random turns each copy a stable, different way."),
+                CardList.Field.integer("depth", "Buried depth", 0, 200, "Sink each structure this many blocks below the surface. Props can react to it with StructureNear."),
                 CardList.Field.num("minRadius", "Min radius", 0, 30000, 50, "Closest distance from spawn."),
                 CardList.Field.num("maxRadius", "Max radius", 0, 30000, 50, "Farthest distance from spawn."),
                 CardList.Field.integer("minQuota", "Min count", 1, 256, "At least this many are placed."),

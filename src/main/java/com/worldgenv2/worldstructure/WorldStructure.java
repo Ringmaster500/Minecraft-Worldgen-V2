@@ -479,6 +479,31 @@ public final class WorldStructure {
         return spanPlacer;
     }
 
+    /**
+     * True when a placed structure whose id contains {@code filter} (empty = any) has a footprint within {@code radius}
+     * blocks of (x, z) and a vertical extent overlapping [y + yMin, y + yMax].
+     */
+    public boolean structureNear(int x, int y, int z, String filter, int radius, int yMin, int yMax) {
+        java.util.List<StructurePlacement> all = structurePlacements;
+        SpanPlacer sp = spanPlacer;
+        if (sp != null) {
+            all = new java.util.ArrayList<>(all);
+            for (int cx = (x - radius - 32) >> 4; cx <= (x + radius + 32) >> 4; cx++)
+                for (int cz = (z - radius - 32) >> 4; cz <= (z + radius + 32) >> 4; cz++)
+                    all.addAll(sp.forChunk(this, cx, cz));
+        }
+        for (StructurePlacement p : all) {
+            if (filter != null && !filter.isEmpty() && !p.id().contains(filter)) continue;
+            var a = p.prefab().anchor();
+            var s = p.prefab().size();
+            int bx = p.x() - a.x(), by = p.y() - a.y(), bz = p.z() - a.z();
+            if (x < bx - radius || x > bx + s.x() - 1 + radius || z < bz - radius || z > bz + s.z() - 1 + radius) continue;
+            if (by + s.y() - 1 < y + yMin || by > y + yMax) continue;
+            return true;
+        }
+        return false;
+    }
+
     /** Fixed placements plus gap-spanning placements (fallen-log bridges and the like) that touch the chunk. */
     public java.util.List<StructurePlacement> placementsForChunk(int chunkX, int chunkZ) {
         SpanPlacer sp = spanPlacer;

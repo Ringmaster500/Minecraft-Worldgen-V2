@@ -1893,6 +1893,23 @@ public final class JsonAstCompiler {
             }
         });
 
+        WorldGenV2Registries.PROP_TYPE.register("StructureNearProp", new WorldGenV2Registries.PropDeserializer() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> Prop<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
+                Map<String, Object> childMap = (Map<String, Object>) json.getOrDefault("child", json.get("prop"));
+                Prop<T> child = compileProp(childMap, context, blockResolver);
+                return new com.worldgenv2.props.StructureNearProp<>(
+                    com.worldgenv2.props.StructureNearProp.current(),
+                    getString(json, "structure", ""),
+                    getInt(json, "radius", 8),
+                    getInt(json, "yMin", -64),
+                    getInt(json, "yMax", 64),
+                    getBoolean(json, "invert", false),
+                    child);
+            }
+        });
+
         WorldGenV2Registries.PROP_TYPE.register("RandomRotatorProp", new WorldGenV2Registries.PropDeserializer() {
             @Override
             @SuppressWarnings("unchecked")
