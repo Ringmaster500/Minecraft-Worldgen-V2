@@ -55,6 +55,12 @@ public final class SpawnAnchorManager {
         }
     }
 
+    /**
+     * Terrain density is normalised (about -1..1 across a layer ~32 blocks thick), so one block of vertical shift is
+     * roughly 1/32 of a density unit. Crater depth and rim height are authored in blocks and converted with this.
+     */
+    private static final float BLOCKS_PER_DENSITY_UNIT = 32.0f;
+
     private SpawnAnchorRule activeRule;
     private final FastNoiseLite craterWarpNoise;
     private BlockPos resolvedSpawnPos;
@@ -116,12 +122,12 @@ public final class SpawnAnchorManager {
                 float normalizedDist = effectiveDist / radius;
                 float excavation = depth * (1.0f - (normalizedDist * normalizedDist));
                 // Negative density carves air
-                column[i] -= excavation * 1.2f;
+                column[i] -= excavation / BLOCKS_PER_DENSITY_UNIT;
             } else if (effectiveDist <= rimRadius && rimHeight > 0.0f) {
                 // On crater rim: slight positive density ridge
                 float rimT = (effectiveDist - radius) / (rimRadius - radius);
                 float rimBump = (float) Math.sin(rimT * Math.PI) * rimHeight;
-                column[i] += rimBump * 0.6f;
+                column[i] += rimBump / BLOCKS_PER_DENSITY_UNIT;
             }
         }
     }

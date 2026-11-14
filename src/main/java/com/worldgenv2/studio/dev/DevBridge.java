@@ -217,6 +217,18 @@ public final class DevBridge {
                 if (v != null && app.activeDoc != null) app.setView(app.activeDoc, com.worldgenv2.studio.shell.StudioApp.View.valueOf(v.toUpperCase()));
                 return ok();
             });
+            case "/tp" -> onRender(() -> {
+                com.worldgenv2.studio.shell.StudioApp.get().teleportPlayer((int) d(q, "x"), (int) d(q, "z"), (int) d(q, "up", 0));
+                return ok();
+            });
+            case "/probe" -> {
+                String res = com.worldgenv2.studio.shell.StudioApp.get().probeWorld((int) d(q, "x"), (int) d(q, "z"), (int) d(q, "r", 6));
+                yield "{\"probe\":\"" + esc(res).replace("\n", "\\n") + "\"}";
+            }
+            case "/regen" -> onRender(() -> {
+                com.worldgenv2.studio.shell.StudioApp.get().regenAroundPlayer();
+                return ok();
+            });
             case "/save" -> onRender(() -> {
                 com.worldgenv2.studio.shell.StudioApp.get().save();
                 return ok();

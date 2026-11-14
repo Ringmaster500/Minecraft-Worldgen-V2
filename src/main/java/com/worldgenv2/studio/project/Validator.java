@@ -63,6 +63,24 @@ final class Validator {
             }
         }
         if (native_ && needsPool && enabled == 0) warn(a, "Every biome in the pool is disabled.");
+        JsonObject spawn = J.obj(o, "spawn");
+        if (spawn != null && J.bool(spawn, "enabled", false)) {
+            String pf = J.str(spawn, "prefab", "");
+            if (pf.isBlank()) warn(a, "Spawn structure is enabled but no structure is chosen.");
+            else if (!p.hasAsset("prefabs/" + pf + ".json")) err(a, "Spawn structure prefab \u0027" + pf + "\u0027 does not exist in this project.");
+        }
+        for (String listKey : new String[]{"landmarks", "budgets"}) {
+            JsonArray lst = J.arr(o, listKey);
+            if (lst == null) continue;
+            for (JsonElement e : lst) {
+                if (!e.isJsonObject()) continue;
+                JsonObject item = e.getAsJsonObject();
+                String pf = J.str(item, "prefab", "");
+                String nm = J.str(item, "id", "?");
+                if (pf.isBlank()) warn(a, "\u0027" + nm + "\u0027 has no structure chosen.");
+                else if (!p.hasAsset("prefabs/" + pf + ".json")) err(a, "\u0027" + nm + "\u0027 uses prefab \u0027" + pf + "\u0027, which does not exist.");
+            }
+        }
     }
 
     private static void biome(Asset a) {

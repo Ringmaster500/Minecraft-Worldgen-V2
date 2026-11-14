@@ -38,7 +38,8 @@ final class MapPreview extends Widget {
     private long lastRequestTime;
     private boolean dragged;
 
-    private final Button zoomIn, zoomOut, home;
+    private final Button zoomIn, zoomOut, home, fitBtn;
+    private boolean autoFit = true;
     private List<Asset.Problem> lastWarnings = List.of();
 
     MapPreview(StudioApp app) {
@@ -46,6 +47,8 @@ final class MapPreview extends Widget {
         zoomIn = add(new Button("+", () -> zoom(0.7)));
         zoomOut = add(new Button("-", () -> zoom(1.0 / 0.7)));
         home = add(new Button("Spawn", this::goHome));
+        fitBtn = add(new Button("Fit", () -> autoFit = true));
+        fitBtn.tooltip = "Zoom out to show every placed structure";
         zoomIn.tooltip = "Zoom in";
         zoomOut.tooltip = "Zoom out";
         home.tooltip = "Center on the spawn anchor / origin";
@@ -55,6 +58,7 @@ final class MapPreview extends Widget {
         if (!dimensionAssetId.equals(dimId)) {
             dimId = dimensionAssetId;
             frame = null;
+            autoFit = true;
             lastRequestKey = "";
             centerX = centerZ = 0;
             goHome();
@@ -63,6 +67,27 @@ final class MapPreview extends Widget {
 
     private void zoom(double f) {
         scale = Math.max(0.5, Math.min(160, scale * f));
+        lastRequestKey = "";
+    }
+
+    /** Frames every placed feature (spawn, landmarks, POIs, zone edges up to a sane distance). */
+    private void fitToContent(ProjectCompiler.Result res) {
+        double minX = 0, maxX = 0, minZ = 0, maxZ = 0;
+        boolean any = false;
+        if (res.spawn != null) { minX = maxX = res.spawn.originX(); minZ = maxZ = res.spawn.originZ(); any = true; }
+        var g = res.structure.getMacroFeatureGraph();
+        if (g != null) for (var l : g.getPlacedLandmarks().values()) {
+            minX = Math.min(minX, l.x()); maxX = Math.max(maxX, l.x()); minZ = Math.min(minZ, l.z()); maxZ = Math.max(maxZ, l.z()); any = true;
+        }
+        var bm = res.structure.getStructureBudgetManager();
+        if (bm != null) for (var f : bm.getPlacedFeatures()) {
+            minX = Math.min(minX, f.x()); maxX = Math.max(maxX, f.x()); minZ = Math.min(minZ, f.z()); maxZ = Math.max(maxZ, f.z()); any = true;
+        }
+        if (!any) return;
+        double spanX = Math.max(400, maxX - minX) * 1.25, spanZ = Math.max(400, maxZ - minZ) * 1.25;
+        scale = Math.max(0.5, Math.min(160, Math.max(spanX / Math.max(50, w), spanZ / Math.max(50, h))));
+        centerX = (minX + maxX) / 2;
+        centerZ = (minZ + maxZ) / 2;
         lastRequestKey = "";
     }
 
@@ -80,6 +105,7 @@ final class MapPreview extends Widget {
         zoomIn.setBounds(x + w - 22, y + 6, 16, 16);
         zoomOut.setBounds(x + w - 22, y + 24, 16, 16);
         home.setBounds(x + w - 56, y + 42, 50, 16);
+        fitBtn.setBounds(x + w - 56, y + 60, 50, 16);
     }
 
     private long seedOverride() {
@@ -110,6 +136,7 @@ final class MapPreview extends Widget {
             frame = f;
             if (f.argb != null) uploadFrame(f);
             publishWarnings(f);
+            if (autoFit && f.compiled != null && f.compiled.structure != null) { fitToContent(f.compiled); autoFit = false; }
         }
 
         g.clip(x + 1, y + 1, w - 2, h - 2);

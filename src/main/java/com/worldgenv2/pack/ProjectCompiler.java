@@ -185,6 +185,19 @@ public final class ProjectCompiler {
             // The engine connects a child to a parent through a typed anchor the parent exports. Creators just pick
             // a parent and a side, so the anchors are synthesised here: one LINK_<child> anchor per child.
             Set<String> roots = new LinkedHashSet<>();
+            boolean spawnParent = false;
+            for (JsonElement e : lms) if (e.isJsonObject() && "spawn".equals(J.str(e.getAsJsonObject(), "parent", ""))) spawnParent = true;
+            if (spawnParent) {
+                if (r.spawn == null) {
+                    r.warnings.add("Landmarks are connected to the spawn structure, but the spawn structure is not enabled.");
+                } else {
+                    if (Math.abs(r.spawn.originX()) > 16 || Math.abs(r.spawn.originZ()) > 16) {
+                        r.warnings.add("Connecting to the spawn structure works best with spawn near 0, 0; it is at "
+                                + r.spawn.originX() + ", " + r.spawn.originZ() + ".");
+                    }
+                    roots.add("spawn");
+                }
+            }
             Map<String, List<JsonObject>> childrenOf = new LinkedHashMap<>();
             for (JsonElement e : lms) {
                 if (!e.isJsonObject()) continue;
@@ -193,6 +206,17 @@ public final class ProjectCompiler {
                 if (id.isBlank()) continue;
                 if (parent.isBlank()) roots.add(id);
                 else childrenOf.computeIfAbsent(parent, k -> new ArrayList<>()).add(l);
+            }
+            if (roots.contains("spawn")) {
+                // the spawn structure takes part in the graph as a root landmark pinned to the origin
+                List<MacroFeatureGraph.MacroAnchorDef> anchors = new ArrayList<>();
+                List<JsonObject> kids = childrenOf.getOrDefault("spawn", List.of());
+                for (int i = 0; i < kids.size(); i++) {
+                    JsonObject kid = kids.get(i);
+                    float[] dir = direction(J.str(kid, "direction", "auto"), i, kids.size());
+                    anchors.add(new MacroFeatureGraph.MacroAnchorDef("to_" + J.str(kid, "id", "child"), "LINK_" + J.str(kid, "id", "child"), dir[0], dir[1]));
+                }
+                g.addPrimaryLandmark(new MacroFeatureGraph.PrimaryLandmarkRule("spawn", r.spawn.prefabId(), Set.of(), 0f, 1f, anchors));
             }
             for (JsonElement e : lms) {
                 if (!e.isJsonObject()) continue;
@@ -253,8 +277,58 @@ public final class ProjectCompiler {
             }
         }
 
+        // ---- stamp list: what the chunk generator will actually build ----
+        Map<String, com.worldgenv2.prefab.Prefab> prefabs = new HashMap<>();
+        List<StructurePlacement> placements = new ArrayList<>();
+        try {
+            if (r.spawn != null) {
+                var pf = loadPrefab(project, r.spawn.prefabId(), prefabs, r);
+                if (pf != null) {
+                    int sy = structure.sampleSurfaceY(r.spawn.originX(), r.spawn.originZ(), r.minY, r.maxY) + 1;
+                    placements.add(new StructurePlacement("spawn", pf, r.spawn.originX(), sy, r.spawn.originZ()));
+                }
+            }
+            MacroFeatureGraph graph = structure.getMacroFeatureGraph();
+            if (graph != null) {
+                for (MacroFeatureGraph.PlacedLandmark l : graph.getPlacedLandmarks().values()) {
+                    if (l.id().equals("spawn")) continue; // the spawn structure is stamped above
+                    var pf = loadPrefab(project, l.prefabId(), prefabs, r);
+                    if (pf != null) placements.add(new StructurePlacement(l.id(), pf, l.x(), l.y(), l.z()));
+                }
+            }
+            StructureBudgetManager bm = structure.getStructureBudgetManager();
+            if (bm != null) {
+                int n = 0;
+                for (StructureBudgetManager.PlacedBudgetedFeature f : bm.getPlacedFeatures()) {
+                    var pf = loadPrefab(project, f.prefabId(), prefabs, r);
+                    if (pf != null) placements.add(new StructurePlacement(f.ruleId() + "_" + (n++), pf, f.x(), f.y(), f.z()));
+                }
+            }
+        } catch (Throwable ex) {
+            r.warnings.add("Placing structures failed: " + ex.getMessage());
+        }
+        structure.withStructurePlacements(placements);
+
         r.structure = structure;
         return r;
+    }
+
+    private static com.worldgenv2.prefab.Prefab loadPrefab(StudioProject project, String id, Map<String, com.worldgenv2.prefab.Prefab> cache, Result r) {
+        if (id == null || id.isBlank()) return null;
+        if (cache.containsKey(id)) return cache.get(id);
+        com.worldgenv2.prefab.Prefab pf = null;
+        Asset a = project.get("prefabs/" + id + ".json");
+        if (a == null) {
+            r.warnings.add("Prefab '" + id + "' does not exist in this project; nothing is placed for it.");
+        } else {
+            try {
+                pf = new com.worldgenv2.prefab.PrefabLoader().parseJson(a.json.toString());
+            } catch (Throwable ex) {
+                r.warnings.add("Prefab '" + id + "' could not be read: " + ex.getMessage());
+            }
+        }
+        cache.put(id, pf);
+        return pf;
     }
 
     /** Unit vector for a compass side; "auto" spreads children evenly around the parent starting north. */

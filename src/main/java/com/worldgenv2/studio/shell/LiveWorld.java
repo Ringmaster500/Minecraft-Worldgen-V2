@@ -92,8 +92,48 @@ final class LiveWorld {
         });
     }
 
+    /** Describes the terrain column at (x, z) and the structure placements near it; used by dev tooling to verify generation. */
+    static String probe(int x, int z, int radius) {
+        MinecraftServer server = server();
+        if (server == null) return "no world";
+        try {
+            return server.submit(() -> {
+                ServerLevel level = server.overworld();
+                level.getChunk(x >> 4, z >> 4);
+                StringBuilder sb = new StringBuilder();
+                int top = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
+                sb.append("surfaceY=").append(top).append(" column(top->down): ");
+                for (int y = top; y > top - 6; y--) {
+                    sb.append(y).append("=").append(level.getBlockState(new net.minecraft.core.BlockPos(x, y, z)).getBlock().builtInRegistryHolder().key().identifier().getPath()).append(" ");
+                }
+                if (level.getChunkSource().getGenerator() instanceof WorldGenV2ChunkGenerator v2) {
+                    var ws = v2.getActiveWorldStructure();
+                    sb.append("\nplacements=").append(ws.getStructurePlacements().size());
+                    for (var p : ws.getStructurePlacements()) {
+                        int solid = 0, total = 0;
+                        for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) for (int dy = 0; dy < 12; dy++) {
+                            if (p.x() + dx != x + dx && false) continue;
+                            level.getChunk((p.x() + dx) >> 4, (p.z() + dz) >> 4);
+                            var bs = level.getBlockState(new net.minecraft.core.BlockPos(p.x() + dx, p.y() + dy, p.z() + dz));
+                            total++;
+                            if (!bs.isAir() && !bs.getFluidState().isSource()) solid++;
+                        }
+                        sb.append("\n  ").append(p.id()).append(" at ").append(p.x()).append(",").append(p.y()).append(",").append(p.z())
+                          .append(" prefabSize=").append(p.prefab().size()).append(" solidBlocksInBox=").append(solid).append("/").append(total);
+                        if (sb.length() > 1500) break;
+                    }
+                }
+                return sb.toString();
+            }).get(20, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            return "probe failed: " + t;
+        }
+    }
+
     /** Teleports the player to the surface at world (x, z), generating the chunk if needed. */
-    static void teleport(StudioApp app, int x, int z) {
+    static void teleport(StudioApp app, int x, int z) { teleport(app, x, z, 0); }
+
+    static void teleport(StudioApp app, int x, int z, int upOffset) {
         MinecraftServer server = server();
         if (server == null) {
             app.say("Open a world to teleport.", Ui.YELLOW);
@@ -104,7 +144,7 @@ final class LiveWorld {
             ServerPlayer p = server.getPlayerList().getPlayers().get(0);
             ServerLevel level = (ServerLevel) p.level();
             level.getChunk(x >> 4, z >> 4); // forces generation so the height is real
-            int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z) + 1;
+            int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z) + 1 + upOffset;
             p.teleportTo(x + 0.5, y, z + 0.5);
             Minecraft.getInstance().execute(() -> app.say("Teleported to " + x + ", " + y + ", " + z, Ui.GREEN));
         });

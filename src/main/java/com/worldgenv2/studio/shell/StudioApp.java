@@ -179,6 +179,12 @@ public final class StudioApp {
 
     public void regenAroundPlayer() { LiveWorld.regenAround(this, 5); }
 
+    public void teleportPlayer(int x, int z) { LiveWorld.teleport(this, x, z); }
+
+    public void teleportPlayer(int x, int z, int up) { LiveWorld.teleport(this, x, z, up); }
+
+    public String probeWorld(int x, int z, int radius) { return LiveWorld.probe(x, z, radius); }
+
     /** Combined stamp: changes whenever either app state or project content changed. */
     public long stamp() {
         return (project == null ? 0 : (long) project.revision * 1_000_003L) + uiRevision;

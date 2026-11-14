@@ -75,7 +75,7 @@ final class DimensionEditor extends Editor {
                 CardList.Field.str("id", "Name", "Unique name; other landmarks refer to it."),
                 CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
                 CardList.Field.choice("parent", "Placed from", this::parentOptions,
-                        s -> s.isEmpty() ? "(world origin)" : s, "Root landmarks are placed from the origin; others around a root landmark."),
+                        s -> s.isEmpty() ? "(world origin)" : s.equals("spawn") ? "Spawn structure" : s, "Root landmarks are placed from the origin; others around a root landmark."),
                 CardList.Field.num("minDistance", "Min distance", 0, 20000, 8, "Blocks from the origin (root) or from its parent."),
                 CardList.Field.num("maxDistance", "Max distance", 0, 20000, 8, "Maximum blocks away."),
                 CardList.Field.choice("direction", "Direction", () -> List.of("auto", "N", "NE", "E", "SE", "S", "SW", "W", "NW"),
@@ -177,6 +177,7 @@ final class DimensionEditor extends Editor {
         List<String> o = new ArrayList<>();
         o.add("");
         Asset a = asset();
+        if (a != null && J.bool(J.obj(a.json, "spawn"), "enabled", false)) o.add("spawn");
         JsonArray lms = a == null ? null : J.arr(a.json, "landmarks");
         if (lms != null) for (JsonElement e : lms) {
             if (e.isJsonObject() && J.str(e.getAsJsonObject(), "parent", "").isEmpty()) o.add(J.str(e.getAsJsonObject(), "id", ""));

@@ -210,7 +210,7 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
             this.defaultBlockState,
             ROAD_DECK,
             ROAD_SHOULDER
-        );
+        ).withPrefabResolver(id -> resolveBlockState(id, null));
     }
 
     /**

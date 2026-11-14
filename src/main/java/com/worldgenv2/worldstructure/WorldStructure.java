@@ -389,6 +389,32 @@ public final class WorldStructure {
         return this;
     }
 
+    private volatile java.util.List<StructurePlacement> structurePlacements = java.util.List.of();
+
+    public WorldStructure withStructurePlacements(java.util.List<StructurePlacement> placements) {
+        this.structurePlacements = placements == null ? java.util.List.of() : java.util.List.copyOf(placements);
+        return this;
+    }
+
+    public java.util.List<StructurePlacement> getStructurePlacements() {
+        return structurePlacements;
+    }
+
+    /**
+     * Surface height at (x, z) exactly as chunk generation will produce it: blended biome density, then the global
+     * terrain modifiers (rivers, caves, zones, spawn crater). Returns minY when the column is empty.
+     */
+    public int sampleSurfaceY(float x, float z, int minY, int maxY) {
+        float[] col = new float[Math.max(1, maxY - minY)];
+        float[] scratch = new float[col.length];
+        queryBiome(x, z).computeBlendedColumn(x, z, minY, maxY, col, scratch);
+        applyTerrainModifiers(x, z, minY, maxY, col);
+        for (int y = maxY - 1; y >= minY; y--) {
+            if (col[y - minY] > 0.0f) return y;
+        }
+        return minY;
+    }
+
     public StructureBudgetManager getStructureBudgetManager() {
         return structureBudgetManager;
     }

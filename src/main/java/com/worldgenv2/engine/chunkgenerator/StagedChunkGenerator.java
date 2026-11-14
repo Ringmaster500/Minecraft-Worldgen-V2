@@ -65,6 +65,13 @@ public final class StagedChunkGenerator<T> {
     private final T roadShoulderBlock;
     private final StageContextCache<T> contextCache;
     private final PropRuntimePipeline<T> propRuntimePipeline;
+    private java.util.function.Function<String, T> prefabBlockResolver;
+
+    /** Enables stamping of {@link com.worldgenv2.worldstructure.StructurePlacement}s (spawn structure, landmarks, POIs). */
+    public StagedChunkGenerator<T> withPrefabResolver(java.util.function.Function<String, T> resolver) {
+        this.prefabBlockResolver = resolver;
+        return this;
+    }
 
     public StagedChunkGenerator(
         WorldStructure worldStructure,
@@ -373,6 +380,18 @@ public final class StagedChunkGenerator<T> {
         for (int stageIdx : propRuntimePipeline.getStageIndices()) {
             if (stageIdx >= 2) {
                 propRuntimePipeline.executeStage(stageIdx, chunkX, chunkZ, voxelSpace, chunkSeed, null);
+            }
+        }
+
+        // =====================================================================
+        // Stage 4b: Project structures (spawn structure, landmark and POI prefabs)
+        // =====================================================================
+        if (prefabBlockResolver != null && !worldStructure.getStructurePlacements().isEmpty()) {
+            for (com.worldgenv2.worldstructure.StructurePlacement placement : worldStructure.getStructurePlacements()) {
+                if (!placement.touchesChunk(chunkX, chunkZ)) continue;
+                long seed = chunkSeed ^ placement.id().hashCode();
+                new com.worldgenv2.prefab.PrefabProp<T>(placement.prefab(), prefabBlockResolver)
+                    .generate(new Prop.Context<>(placement.x(), placement.y(), placement.z(), 0.0f, 1.0f, 0.0f, voxelSpace, seed));
             }
         }
 

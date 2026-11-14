@@ -1,58 +1,77 @@
 # Studio Architecture & Dev Loop
 
-The Studio is an **asset IDE**: a project is a folder of JSON assets, the UI edits those assets through one model,
-and everything else (preview, export, in-world apply) reads from that model. This replaces the older tab/drill-down
-screens (`WorldExplorerTab`, `NodeCanvasTab`, ... — still in the tree, currently unreachable, to be re-hosted or removed).
+The Studio is an **asset IDE**. A project is a folder of JSON assets; the UI edits them through one model; a compiler
+turns them into the engine's `WorldStructure`; the same compiler drives both the Studio preview and the real world.
 
-## Layers (top depends on bottom)
+```
+ Studio UI  ──edit──▶  StudioProject (JSON assets, undo, validation)
+                              │
+                              ▼
+                      ProjectCompiler  ──▶  WorldStructure  ──▶  MapPreview (Studio)
+                              │                              └─▶  chunk generation (game world)
+                              └── ProjectRuntime (config/worldgenv2/active.json) ◀── "WorldGen V2: Active Studio Project" world type
+```
+
+## Layers
 
 | Package | Role |
 | :-- | :-- |
-| `studio.gui.WorldGenStudioScreen` | Minecraft `Screen` host. Renders the widget tree on the Studio's own pixel grid (default 2 device px per virtual px, `Ctrl +/-` to change), converts input, routes global shortcuts. No layout, no state. |
-| `studio.shell` | Application. `StudioApp` (session state + commands), `Shell` (the one place that lays out panes), `Explorer`, `DocPane`, `TopBar`, `StatusBar`, `ProblemsPanel`, `HomeView`, `Dialogs`, and one `Editor` per asset type (`WorldEditor`, `DimensionEditor`, `BiomeEditor`, `JsonView`). |
-| `studio.ui` | Widget toolkit: `Widget` (owns bounds; single `layout()` pass; hit-test and render read the same fields), `UiRoot` (focus, drag capture, overlays), `TextField`, `Button`, `Dropdown`, `Toggle`, `Tree`, `TabBar`, `Form`, `PopupMenu`, `Modal`, `Splitter`, `Pair`. |
-| `studio.project` | Model. `StudioProject` (assets on disk, undo/redo, dirty tracking, validation, soft-delete to `.trash/`), `Asset`, `AssetType`, `Validator`, `Templates`, `ProjectStore`, `J` (null-safe JSON access). **UI code never touches files.** |
+| `studio.gui.WorldGenStudioScreen` | Minecraft `Screen` host. Renders the widget tree on the Studio's own pixel grid (default 2 device px per virtual px, `Ctrl +/-`), converts input, routes shortcuts. No layout, no state. |
+| `studio.shell` | Application: `StudioApp` (session state + commands), `Shell` (the one place that lays out panes), `Explorer`, `DocPane`, `TopBar`, `StatusBar`, `ProblemsPanel`, `HomeView`, `Dialogs`; editors `WorldEditor`, `DimensionEditor` (+`CardList`), `BiomeEditor`, `GraphEditor` (+`NodePalette`), `JsonView`; `MapPreview` + `PreviewEngine`; `LiveWorld` (apply / regen / teleport / probe). |
+| `studio.graph` | `NodeSchemas` (what the engine accepts, generated), `GraphOps` (structural edits on a biome's JSON AST). |
+| `studio.ui` | Widget toolkit: `Widget` (owns bounds; one `layout()` pass), `UiRoot` (focus, drag, overlays), `TextField`, `Button`, `Dropdown`, `Toggle`, `Tree`, `TabBar`, `Form`, `PopupMenu`, `Checklist`, `Modal`, `Splitter`, `Pair`. |
+| `studio.project` | Model: `StudioProject` (assets on disk, undo/redo, dirty, validation, soft-delete to `.trash/`), `Asset`, `Validator`, `Templates`, `ProjectStore`, `J`. **UI code never touches files.** |
+| `pack` | `ProjectCompiler` (project JSON → `WorldStructure`, server-safe) and `ProjectRuntime` (loads the active project for the biome source). |
 
 Rules that keep it from becoming a mess again:
 1. Widgets never compute coordinates for other widgets; parents assign bounds in `layout()`.
-2. Editors write through `StudioProject.edit(asset, label, mutator)` only. That gives undo, dirty marking and validation for free.
-3. Editors bind widgets to JSON paths (`Editor.num/str/choice/toggle`); never copy values into parallel state.
-4. State that must outlive the Screen lives in `StudioApp` or `StudioProject`.
+2. Editors write through `StudioProject.edit(asset, label, mutator)` only (undo, dirty, validation for free).
+3. Editors bind widgets to JSON paths; never copy values into parallel state.
+4. Anything the preview shows must come from `ProjectCompiler`, so preview == game.
+5. State that must outlive the Screen lives in `StudioApp` or `StudioProject`.
 
-## Project layout on disk (`config/worldgenv2/projects/<name>/`)
+## Project on disk (`config/worldgenv2/projects/<name>/`)
 
 ```
-world.json              vertical range: preset, minY, genDepth, seaLevel
-dimensions/*.json       id, generator (worldgenv2|vanilla), layout, seed, cellSize, biome pool [{biome, enabled, weight, size, transition}]
-biomes/*.json           same JSON AST the engine already compiles (name, category, weight, climate, terrain{...})
-prefabs/*.json
-.trash/                 deleted assets (recoverable)
+world.json              preset, minY, genDepth, seaLevel
+dimensions/*.json       id, generator (worldgenv2|vanilla), layout, seed, seedMode (world|fixed), cellSize, biomes[] pool,
+                        spawn{prefab,x,z,craterRadius,craterDepth,rimHeight,lockSpawn}, landmarks[], budgets[], zones[], rings[], bounds{}
+biomes/*.json           the engine's own JSON AST (name, category, minecraftBiome, climate, terrain{}, materialProvider{}, props[])
+prefabs/*.json          engine prefab format
+.trash/                 deleted assets
 ```
+`config/worldgenv2/active.json` = `{"project":"<name>"}` selects the project worlds generate from.
 
-## Not done yet (honest list)
-- **Nothing in the runtime reads a project yet.** The README says `config/worldgenv2/` is auto-mounted as a datapack; there is no
-  pack-finder hook in the code. Next: a loader that turns a project into the live `WorldStructure`/datapack, plus an "Apply to world" action
-  (`StudioLiveCompiler` already hot-swaps biomes into the integrated server).
-- Graph view for biome terrain (re-host `NodeCanvasTab` on `studio.ui`); today the terrain is shown as a read-only outline + JSON.
-- Zones, rings and landmarks editors for dimensions; spline editor; asset shelf; macros; map preview.
-- Old tabs/`StudioState` are dead code until re-hosted or deleted.
+## Node graph
+`tools/GenNodeSchema.java` scans `JsonAstCompiler.java` and writes `assets/worldgenv2/node_schema.json` (349 node types: params with defaults,
+child slots, kinds). Re-run it after adding engine node types. The old `StudioNodeCatalog` did **not** match the compiler (different type names, different socket
+model) and is no longer used by the Studio. The graph edits the biome JSON directly; the whole biome is one graph (Biome output → terrain / materials / props / placement).
+
+## What generates in game
+- World type **WorldGen V2: Active Studio Project** (`worldgenv2:project`): Overworld uses `layout_preset: "project:overworld"`.
+  `WorldGenV2BiomeSource` calls `ProjectRuntime.build`, which compiles the project and maps each project biome onto a Minecraft biome (`minecraftBiome`, any registered id incl. mods).
+- Placed in chunks: biomes, terrain, materials, props, rivers/caves, zones, spawn crater, roads (existing) **and now prefab structures**
+  (`StructurePlacement` stamped in `StagedChunkGenerator` stage 4b): spawn structure, landmarks, budgeted POIs.
+- Studio **Apply** saves, writes `active.json`, and `reload()`s every project-driven generator in the open world; **Regen** rebuilds chunks around the player; map right-click → **Teleport here**.
+
+## Known limits / next
+- Heights are fixed by the world's dimension type (Standard -64..320, or the Hytale 512 type); `world.json` heights do not yet change the in-game dimension type.
+- Only the Overworld is project-driven; Nether/End stay vanilla. Landmark prefabs are not rotated (`yaw` ignored); spawn-lock (`lockSpawn`) is not yet wired to the world spawn point, so the player can spawn inside terrain/crater.
+- No node thumbnails (live density previews on graph nodes), spline editor, asset shelf, macros, or prefab editor yet. Terrain material/prop slots are editable in the graph but have no form view.
+- Landmarks connect only parent→child one level deep (engine limit); parent can be `spawn`.
+- `WorldExplorerTab`, `NodeCanvasTab`, `ChunkViewportTab`, `CodexWikiTab`, `StudioState`, `StudioNodeCatalog` are dead code kept for reference; delete once nothing is wanted from them.
 
 ## Dev loop (no manual game restarts for most edits)
-
-`tools/dev.ps1` (PowerShell):
-
+`tools/dev.ps1`:
 ```
-.\tools\dev.ps1 start               # build + launch the client, wait until the title screen is reached
+.\tools\dev.ps1 start                 # build + launch the client, wait for the title screen
 .\tools\dev.ps1 call "/open?screen=studio"
-.\tools\dev.ps1 shot name           # run\devbridge\name.png  (1920x1080)
-.\tools\dev.ps1 reload              # gradle compileJava + hot-swap changed classes over JDWP (127.0.0.1:5005)
+.\tools\dev.ps1 shot name             # run\devbridge\name.png (1920x1080)
+.\tools\dev.ps1 reload                # compile + hot-swap changed classes (method bodies only) over JDWP 127.0.0.1:5005
 .\tools\dev.ps1 stop
 ```
-
-- `DevBridge` (`studio/dev`) is a loopback-only HTTP server inside the client, enabled by `-Dworldgenv2.devbridge=5006` (set in `build.gradle`'s client run).
-  Routes: `/state /screenshot /open /close /world /click /move /drag /scroll /key /type /guiscale`. Coordinates can be GUI units (`x`,`y`) or
-  screenshot pixels (`px`,`py`), so you can click exactly what you see in a screenshot.
-- `reload` can only swap **method bodies**. Adding/removing fields, methods or changing signatures prints `RESTART_REQUIRED`; then `stop` + `start`.
-  New classes need no action. Hash state is kept in `tools/.reload-hashes`.
-- The JDWP port is bound to `127.0.0.1` only (it was `*:5005`, i.e. reachable from the network).
-- Known quirk: PowerShell `Set-Content -Encoding UTF8` writes a BOM that javac rejects; use `[IO.File]::WriteAllText(path, text, New-Object Text.UTF8Encoding($false))`.
+`DevBridge` (loopback only, `-Dworldgenv2.devbridge=5006`) routes: `/state /screenshot /open /close /world?name= /click /move /drag /scroll /key /type /guiscale`
+(coordinates in GUI units `x,y` or screenshot pixels `px,py`) and Studio drivers `/openproject?name= /doc?path=&view=form|graph|json /save /apply /regen /tp?x&z&up /probe?x&z&r /patch?path=&json=`.
+`/probe` reports the real terrain column and how many solid blocks exist at each structure placement, which is how placement was verified.
+- `reload` cannot add/remove fields or methods (or lambdas): it prints `RESTART_REQUIRED`; then `stop` + `start`. New classes need no action.
+- PowerShell `Set-Content -Encoding UTF8` writes a BOM javac rejects; write sources with `[IO.File]::WriteAllText(path, text, New-Object Text.UTF8Encoding($false))`.
