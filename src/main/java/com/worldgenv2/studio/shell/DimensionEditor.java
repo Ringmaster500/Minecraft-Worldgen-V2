@@ -71,6 +71,7 @@ final class DimensionEditor extends Editor {
                 "Which prefab to build. Add prefabs under Prefabs in the explorer.");
         field("Position X", num("spawn.x", 0, -30000, 30000, 8, true, "Spawn X"), "World X of the structure's origin.");
         field("Position Z", num("spawn.z", 0, -30000, 30000, 8, true, "Spawn Z"), "World Z of the structure's origin.");
+        field("Rotation", choice("spawn.rotation", "0", ROTATIONS, DimensionEditor::rotationLabel, "Spawn rotation"), "Turn the structure clockwise (seen from above).");
         field("Crater radius", num("spawn.craterRadius", 0, 0, 400, 2, false, "Crater radius"), "0 = no crater. A crash site excavates the ground around it.");
         field("Crater depth", num("spawn.craterDepth", 0, 0, 64, 1, false, "Crater depth"), "How deep the crater is carved.");
         field("Crater rim", num("spawn.rimHeight", 0, 0, 32, 1, false, "Crater rim"), "Height of the raised lip around the crater.");
@@ -82,6 +83,7 @@ final class DimensionEditor extends Editor {
         block(new CardList(this, "landmarks", "landmark", List.of(
                 CardList.Field.str("id", "Name", "Unique name; other landmarks refer to it."),
                 CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
+                CardList.Field.choice("rotation", "Rotation", () -> ROTATIONS, DimensionEditor::rotationLabel, "Turn the structure clockwise (seen from above)."),
                 CardList.Field.choice("parent", "Placed from", this::parentOptions,
                         s -> s.isEmpty() ? "(world origin)" : s.equals("spawn") ? "Spawn structure" : s, "Root landmarks are placed from the origin; others around a root landmark."),
                 CardList.Field.num("minDistance", "Min distance", 0, 20000, 8, "Blocks from the origin (root) or from its parent."),
@@ -102,6 +104,7 @@ final class DimensionEditor extends Editor {
         block(new CardList(this, "budgets", "point of interest", List.of(
                 CardList.Field.str("id", "Name", "Unique name."),
                 CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
+                CardList.Field.choice("rotation", "Rotation", () -> ROTATIONS, DimensionEditor::rotationLabel, "Random turns each copy a stable, different way."),
                 CardList.Field.num("minRadius", "Min radius", 0, 30000, 50, "Closest distance from spawn."),
                 CardList.Field.num("maxRadius", "Max radius", 0, 30000, 50, "Farthest distance from spawn."),
                 CardList.Field.integer("minQuota", "Min count", 1, 256, "At least this many are placed."),
@@ -112,6 +115,22 @@ final class DimensionEditor extends Editor {
                 CardList.Field.biomes("biomes", "Allowed in", "Empty = any biome.")),
                 this::newBudget, o -> J.str(o, "id", "poi") + "   " + J.integer(o, "minQuota", 1) + "-" + J.integer(o, "maxQuota", 1) + " total",
                 "None yet. Add one to scatter a finite set of structures."));
+        }
+
+        // ---- spans: a structure that bridges a gap (a fallen log over a river) ----
+        if (feature("spans", "Natural bridges", "structures that cross a gap in the terrain, like a fallen log over a river", false)) {
+        block(new CardList(this, "spans", "bridge", List.of(
+                CardList.Field.str("id", "Name", "Unique name."),
+                CardList.Field.prefabs("prefabs", "Structures", "Candidates. The one that reaches both banks without overshooting is used, and it is turned to cross the gap. Build them with the long side along X."),
+                CardList.Field.integer("minGap", "Min gap", 1, 200, "Shortest stretch of water to cross."),
+                CardList.Field.integer("maxGap", "Max gap", 1, 200, "Longest stretch of water to cross."),
+                CardList.Field.integer("maxBankDiff", "Bank height diff", 0, 32, "Largest height difference allowed between the two banks."),
+                CardList.Field.integer("yOffset", "Height offset", -16, 16, "Raise (+) or sink (-) the structure relative to the higher bank."),
+                CardList.Field.integer("cell", "Search cell", 16, 1024, "World is searched in squares this wide; one bridge at most per square. Bigger = rarer."),
+                CardList.Field.num("chance", "Chance", 0, 1, 0.05, "Chance that a square is searched at all."),
+                CardList.Field.biomes("biomes", "Allowed in", "Empty = any biome.")),
+                this::newSpan, o -> J.str(o, "id", "bridge") + "   gap " + J.integer(o, "minGap", 4) + "-" + J.integer(o, "maxGap", 14),
+                "None yet. Add one, pick a long structure, and it will appear wherever water can be crossed."));
         }
 
         // ---- ores: all of them are rules here; vanilla ore generation is switched off ----
@@ -179,7 +198,26 @@ final class DimensionEditor extends Editor {
 
     // ---- feature modes: Off / Default (built in) / Custom ----
     private String builtFeatures = "";
-    private static final List<String> FEATURE_KEYS = List.of("zones", "spawn", "landmarks", "budgets", "ores", "shapes", "rings");
+    private static final List<String> FEATURE_KEYS = List.of("zones", "spawn", "landmarks", "budgets", "spans", "ores", "shapes", "rings");
+    private static final List<String> ROTATIONS = List.of("0", "90", "180", "270", "random");
+
+    private static String rotationLabel(String s) {
+        return switch (s) { case "random" -> "Random (stable per structure)"; case "90", "180", "270" -> s + " degrees"; default -> "None (as built)"; };
+    }
+
+    private JsonObject newSpan(int n) {
+        JsonObject o = new JsonObject();
+        o.addProperty("id", "bridge_" + (n + 1));
+        o.add("prefabs", new JsonArray());
+        J.setNum(o, "minGap", 5);
+        J.setNum(o, "maxGap", 14);
+        J.setNum(o, "maxBankDiff", 3);
+        J.setNum(o, "yOffset", 0);
+        J.setNum(o, "cell", 64);
+        J.setNum(o, "chance", 0.6);
+        o.add("biomes", new JsonArray());
+        return o;
+    }
 
     /** Current mode of a feature: explicit {@code features.<key>}, otherwise inferred from whether it has data. */
     private String modeOf(String key) {

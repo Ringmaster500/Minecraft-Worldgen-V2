@@ -431,6 +431,26 @@ public final class WorldStructure {
         return structurePlacements;
     }
 
+    private volatile SpanPlacer spanPlacer;
+
+    public WorldStructure withSpanPlacer(SpanPlacer placer) {
+        this.spanPlacer = placer == null || placer.isEmpty() ? null : placer;
+        return this;
+    }
+
+    public SpanPlacer getSpanPlacer() {
+        return spanPlacer;
+    }
+
+    /** Fixed placements plus gap-spanning placements (fallen-log bridges and the like) that touch the chunk. */
+    public java.util.List<StructurePlacement> placementsForChunk(int chunkX, int chunkZ) {
+        SpanPlacer sp = spanPlacer;
+        if (sp == null) return structurePlacements;
+        java.util.List<StructurePlacement> all = new java.util.ArrayList<>(structurePlacements);
+        all.addAll(sp.forChunk(this, chunkX, chunkZ));
+        return all;
+    }
+
     /**
      * Surface height at (x, z) exactly as chunk generation will produce it: blended biome density, then the global
      * terrain modifiers (rivers, caves, zones, spawn crater). Returns minY when the column is empty.

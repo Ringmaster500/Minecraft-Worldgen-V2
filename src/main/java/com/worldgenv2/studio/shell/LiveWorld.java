@@ -130,6 +130,43 @@ final class LiveWorld {
         }
     }
 
+    /** Runs a server command as the server (dev tooling: set the time, move the camera, change game mode). */
+    static String command(String cmd) {
+        MinecraftServer server = server();
+        if (server == null) return "no world";
+        try {
+            return server.submit(() -> {
+                server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), cmd);
+                return "ran: " + cmd;
+            }).get(20, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            return "command failed: " + t;
+        }
+    }
+
+    /** Lists the gap-spanning placements (log bridges etc.) found within {@code radius} blocks of (x, z). */
+    static String spans(int x, int z, int radius) {
+        MinecraftServer server = server();
+        if (server == null) return "no world";
+        try {
+            return server.submit(() -> {
+                ServerLevel level = server.overworld();
+                if (!(level.getChunkSource().getGenerator() instanceof WorldGenV2ChunkGenerator v2)) return "not a worldgenv2 world";
+                var ws = v2.getActiveWorldStructure();
+                var sp = ws.getSpanPlacer();
+                if (sp == null) return "no span rules";
+                java.util.Map<String, String> found = new java.util.TreeMap<>();
+                for (int cx = (x - radius) >> 4; cx <= (x + radius) >> 4; cx++)
+                    for (int cz = (z - radius) >> 4; cz <= (z + radius) >> 4; cz++)
+                        for (var p : sp.forChunk(ws, cx, cz))
+                            found.put(p.id(), p.id() + " at " + p.x() + "," + p.y() + "," + p.z() + " size=" + p.prefab().size());
+                return found.size() + " spans\n" + String.join("\n", found.values());
+            }).get(120, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            return "spans failed: " + t;
+        }
+    }
+
     /** Counts every block type in the chunk containing (x, z): proof of what generation actually produced. */
     static String census(int x, int z) {
         MinecraftServer server = server();

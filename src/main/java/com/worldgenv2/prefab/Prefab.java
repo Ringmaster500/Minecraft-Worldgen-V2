@@ -181,6 +181,82 @@ public final class Prefab {
         this.adaptiveFoundations = List.copyOf(adaptiveFoundations);
     }
 
+    /**
+     * A copy turned clockwise (seen from above) by {@code quarterTurns} * 90 degrees around the vertical axis.
+     * Voxels, sockets, foundations and the anchor are turned together, and block-state properties that depend on
+     * direction ({@code facing}, {@code axis}, {@code rotation}, fence/wall sides) are turned to match.
+     */
+    public Prefab rotated(int quarterTurns) {
+        int t = Math.floorMod(quarterTurns, 4);
+        if (t == 0) return this;
+        Prefab cur = this;
+        for (int i = 0; i < t; i++) cur = cur.turnOnce();
+        return cur;
+    }
+
+    private Prefab turnOnce() {
+        int sx = size.x(), sz = size.z();
+        Vec3i newSize = new Vec3i(sz, size.y(), sx);
+        Vec3i newAnchor = new Vec3i(sz - 1 - anchor.z(), anchor.y(), anchor.x());
+        List<PaletteEntry> pal = new java.util.ArrayList<>();
+        for (PaletteEntry e : palette) pal.add(PaletteEntry.of(e.id(), e.blockId(), turnProperties(e.properties())));
+        List<VoxelEntry> vox = new java.util.ArrayList<>(blocks.size());
+        for (VoxelEntry v : blocks) vox.add(new VoxelEntry(sz - 1 - v.z(), v.y(), v.x(), v.paletteIndex()));
+        List<PrefabSocket> soc = new java.util.ArrayList<>();
+        for (PrefabSocket s : sockets) {
+            Vec3i p = s.position();
+            soc.add(new PrefabSocket(s.name(), s.type(), s.gender(), new Vec3i(sz - 1 - p.z(), p.y(), p.x()),
+                    turnFacing(s.facing()), s.compatibleTags()));
+        }
+        List<AdaptiveFoundation> fnd = new java.util.ArrayList<>();
+        for (AdaptiveFoundation f : adaptiveFoundations) {
+            fnd.add(new AdaptiveFoundation(sz - 1 - f.maxZ(), f.minX(), sz - 1 - f.minZ(), f.maxX(), f.fillMaterial(), f.maxDepth()));
+        }
+        return new Prefab(name, version, newSize, newAnchor, pal, vox, soc, fnd);
+    }
+
+    private static Facing turnFacing(Facing f) {
+        return switch (f) {
+            case NORTH -> Facing.EAST;
+            case EAST -> Facing.SOUTH;
+            case SOUTH -> Facing.WEST;
+            case WEST -> Facing.NORTH;
+            default -> f;
+        };
+    }
+
+    private static String turnCompass(String v) {
+        return switch (v) {
+            case "north" -> "east";
+            case "east" -> "south";
+            case "south" -> "west";
+            case "west" -> "north";
+            default -> v;
+        };
+    }
+
+    private static Map<String, String> turnProperties(Map<String, String> props) {
+        if (props.isEmpty()) return props;
+        Map<String, String> out = new HashMap<>();
+        for (Map.Entry<String, String> e : props.entrySet()) {
+            String k = e.getKey(), v = e.getValue();
+            switch (k) {
+                case "facing" -> out.put(k, turnCompass(v));
+                case "axis" -> out.put(k, v.equals("x") ? "z" : v.equals("z") ? "x" : v);
+                case "rotation" -> {
+                    try { out.put(k, Integer.toString((Integer.parseInt(v) + 4) & 15)); } catch (NumberFormatException ex) { out.put(k, v); }
+                }
+                // fence / wall / vine style sides: the value that was on 'north' is now on 'east', etc.
+                case "north" -> out.put("east", v);
+                case "east" -> out.put("south", v);
+                case "south" -> out.put("west", v);
+                case "west" -> out.put("north", v);
+                default -> out.put(k, v);
+            }
+        }
+        return out;
+    }
+
     public String name() {
         return name;
     }

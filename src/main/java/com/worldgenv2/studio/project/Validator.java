@@ -126,6 +126,20 @@ final class Validator {
                 if (J.integer(ore, "minY", 0) > J.integer(ore, "maxY", 0)) warn(a, "Ore '" + oid + "' has Min Y above Max Y.");
             }
         }
+        JsonArray spansArr = J.arr(o, "spans");
+        if (spansArr != null && com.worldgenv2.pack.ProjectCompiler.on(o, "spans", !spansArr.isEmpty())) {
+            for (JsonElement e : spansArr) {
+                if (!e.isJsonObject()) continue;
+                JsonObject s = e.getAsJsonObject();
+                String nm = J.str(s, "id", "?");
+                JsonArray pf = J.arr(s, "prefabs");
+                if (pf == null || pf.isEmpty()) { warn(a, "Bridge '" + nm + "' has no structures chosen, so nothing is placed."); }
+                else for (JsonElement pe : pf) {
+                    if (!p.hasAsset("prefabs/" + pe.getAsString() + ".json")) err(a, "Bridge '" + nm + "' uses prefab '" + pe.getAsString() + "', which does not exist.");
+                }
+                if (J.integer(s, "minGap", 4) > J.integer(s, "maxGap", 14)) warn(a, "Bridge '" + nm + "' has Min gap above Max gap, so it can never be placed.");
+            }
+        }
         for (String listKey : new String[]{"landmarks", "budgets"}) {
             JsonArray lst = J.arr(o, listKey);
             if (lst == null) continue;

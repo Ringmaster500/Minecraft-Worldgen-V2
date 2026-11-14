@@ -289,15 +289,21 @@ public final class ProjectCompiler {
                 var pf = loadPrefab(project, r.spawn.prefabId(), prefabs, r);
                 if (pf != null) {
                     int sy = structure.sampleSurfaceY(r.spawn.originX(), r.spawn.originZ(), r.minY, r.maxY) + 1;
-                    placements.add(new StructurePlacement("spawn", pf, r.spawn.originX(), sy, r.spawn.originZ()));
+                    JsonObject sp = J.obj(d, "spawn");
+                    placements.add(new StructurePlacement("spawn", turned(pf, sp, "spawn", r.seed), r.spawn.originX(), sy, r.spawn.originZ()));
                 }
+            }
+            Map<String, JsonObject> itemById = new HashMap<>();
+            for (String listKey : new String[]{"landmarks", "budgets"}) {
+                JsonArray lst = J.arr(d, listKey);
+                if (lst != null) for (JsonElement e : lst) if (e.isJsonObject()) itemById.put(J.str(e.getAsJsonObject(), "id", ""), e.getAsJsonObject());
             }
             MacroFeatureGraph graph = structure.getMacroFeatureGraph();
             if (graph != null) {
                 for (MacroFeatureGraph.PlacedLandmark l : graph.getPlacedLandmarks().values()) {
                     if (l.id().equals("spawn")) continue; // the spawn structure is stamped above
                     var pf = loadPrefab(project, l.prefabId(), prefabs, r);
-                    if (pf != null) placements.add(new StructurePlacement(l.id(), pf, l.x(), l.y(), l.z()));
+                    if (pf != null) placements.add(new StructurePlacement(l.id(), turned(pf, itemById.get(l.id()), l.id(), r.seed), l.x(), l.y(), l.z()));
                 }
             }
             StructureBudgetManager bm = structure.getStructureBudgetManager();
@@ -305,7 +311,10 @@ public final class ProjectCompiler {
                 int n = 0;
                 for (StructureBudgetManager.PlacedBudgetedFeature f : bm.getPlacedFeatures()) {
                     var pf = loadPrefab(project, f.prefabId(), prefabs, r);
-                    if (pf != null) placements.add(new StructurePlacement(f.ruleId() + "_" + (n++), pf, f.x(), f.y(), f.z()));
+                    if (pf != null) {
+                        String pid = f.ruleId() + "_" + (n++);
+                        placements.add(new StructurePlacement(pid, turned(pf, itemById.get(f.ruleId()), pid, r.seed), f.x(), f.y(), f.z()));
+                    }
                 }
             }
         } catch (Throwable ex) {
@@ -313,9 +322,48 @@ public final class ProjectCompiler {
         }
         structure.withStructurePlacements(placements);
 
+        // ---- spans: prefabs that bridge a gap in the terrain (a fallen log over a river) ----
+        JsonArray spans = on(d, "spans", nonEmpty(J.arr(d, "spans"))) ? J.arr(d, "spans") : null;
+        if (spans != null && !spans.isEmpty()) {
+            try {
+                List<SpanPlacer.Rule> rules = new ArrayList<>();
+                for (JsonElement e : spans) {
+                    if (!e.isJsonObject()) continue;
+                    JsonObject s = e.getAsJsonObject();
+                    String id = J.str(s, "id", "");
+                    if (id.isBlank()) continue;
+                    List<com.worldgenv2.prefab.Prefab> pfs = new ArrayList<>();
+                    JsonArray pa = J.arr(s, "prefabs");
+                    if (pa != null) for (JsonElement pe : pa) { var pf = loadPrefab(project, pe.getAsString(), prefabs, r); if (pf != null) pfs.add(pf); }
+                    String single = J.str(s, "prefab", "");
+                    if (!single.isBlank()) { var pf = loadPrefab(project, single, prefabs, r); if (pf != null) pfs.add(pf); }
+                    int minGap = J.integer(s, "minGap", 4), maxGap = J.integer(s, "maxGap", 14);
+                    rules.add(new SpanPlacer.Rule(id, pfs, minGap, Math.max(minGap, maxGap), J.integer(s, "maxBankDiff", 3),
+                            J.integer(s, "cell", 64), (float) J.num(s, "chance", 0.6), J.integer(s, "yOffset", 0), biomeNames(s, r)));
+                }
+                structure.withSpanPlacer(new SpanPlacer(r.seed, r.minY, r.maxY, r.seaLevel, rules));
+            } catch (Throwable ex) {
+                r.warnings.add("Spans failed: " + ex.getMessage());
+            }
+        }
+
         r.structure = structure;
         WorldGenV2Addons.runCompileHooks(project, r);
         return r;
+    }
+
+    /** Applies an item's "rotation" (0-3 quarter turns, 0/90/180/270 degrees, or "random"; random is stable per id). */
+    private static com.worldgenv2.prefab.Prefab turned(com.worldgenv2.prefab.Prefab pf, JsonObject item, String id, long seed) {
+        if (item == null || !item.has("rotation")) return pf;
+        var el = item.get("rotation");
+        int turns;
+        if (el.isJsonPrimitive() && el.getAsJsonPrimitive().isString()) {
+            String s = el.getAsString().trim().toLowerCase();
+            if (s.equals("random")) turns = (int) Math.floorMod(seed ^ id.hashCode() * 0x9E3779B1L, 4L);
+            else try { turns = Integer.parseInt(s); } catch (NumberFormatException ex) { turns = 0; }
+        } else turns = el.getAsInt();
+        if (turns >= 90) turns /= 90;
+        return pf.rotated(turns);
     }
 
     private static com.worldgenv2.prefab.Prefab loadPrefab(StudioProject project, String id, Map<String, com.worldgenv2.prefab.Prefab> cache, Result r) {

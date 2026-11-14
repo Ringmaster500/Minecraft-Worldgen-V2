@@ -221,6 +221,8 @@ public final class StudioApp {
     public String probeWorld(int x, int z, int radius) { return LiveWorld.probe(x, z, radius); }
 
     public String censusWorld(int x, int z) { return LiveWorld.census(x, z); }
+    public String serverCommand(String cmd) { return LiveWorld.command(cmd); }
+    public String spansNear(int x, int z, int radius) { return LiveWorld.spans(x, z, radius); }
 
     /** Combined stamp: changes whenever either app state or project content changed. */
     public long stamp() {

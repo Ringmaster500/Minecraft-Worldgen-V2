@@ -19,7 +19,7 @@ import java.util.function.Supplier;
  */
 final class CardList extends Widget {
 
-    enum Kind { STR, NUM, INT, CHOICE, TOGGLE, BIOMES }
+    enum Kind { STR, NUM, INT, CHOICE, TOGGLE, BIOMES, PREFABS }
 
     record Field(String key, String label, Kind kind, double min, double max, double step,
                  Supplier<List<String>> options, Function<String, String> display, String hint,
@@ -42,6 +42,9 @@ final class CardList extends Widget {
         }
         static Field biomes(String key, String label, String hint) {
             return new Field(key, label, Kind.BIOMES, 0, 0, 0, null, null, hint, true, null);
+        }
+        static Field prefabs(String key, String label, String hint) {
+            return new Field(key, label, Kind.PREFABS, 0, 0, 0, null, null, hint, true, null);
         }
         Field when(Predicate<JsonObject> p) {
             return new Field(key, label, kind, min, max, step, options, display, hint, wide, p);
@@ -178,7 +181,7 @@ final class CardList extends Widget {
     private void openBiomes(int idx, Field f, Widget anchor) {
         if (root == null || ed.project() == null) return;
         Map<String, String> items = new LinkedHashMap<>();
-        for (Asset b : ed.project().assetsOf(AssetType.BIOME)) items.put(b.id(), b.displayName());
+        for (Asset b : ed.project().assetsOf(f.kind() == Kind.PREFABS ? AssetType.PREFAB : AssetType.BIOME)) items.put(b.id(), b.displayName());
         Set<String> cur = new LinkedHashSet<>();
         JsonArray ja = J.arr(item(idx), f.key());
         if (ja != null) for (JsonElement e : ja) cur.add(e.getAsString());
@@ -212,7 +215,8 @@ final class CardList extends Widget {
                     default -> {
                         JsonArray ja = J.arr(o, f.key());
                         int n = ja == null ? 0 : ja.size();
-                        ((Button) w).label = n == 0 ? "any biome" : n + (n == 1 ? " biome" : " biomes");
+                        boolean pf = f.kind() == Kind.PREFABS;
+                        ((Button) w).label = n == 0 ? (pf ? "none chosen" : "any biome") : n + (pf ? (n == 1 ? " structure" : " structures") : (n == 1 ? " biome" : " biomes"));
                     }
                 }
             }

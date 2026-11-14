@@ -240,6 +240,14 @@ public final class DevBridge {
                 app.createProject(q.getOrDefault("name", "dev_new"), q.getOrDefault("preset", "worldgenv2:starter"));
                 return app.project == null ? "{\"error\":\"failed\"}" : ok();
             });
+            case "/cmd" -> {
+                String res = com.worldgenv2.studio.shell.StudioApp.get().serverCommand(q.getOrDefault("c", ""));
+                yield "{\"cmd\":\"" + esc(res) + "\"}";
+            }
+            case "/spans" -> {
+                String res = com.worldgenv2.studio.shell.StudioApp.get().spansNear((int) d(q, "x"), (int) d(q, "z"), q.containsKey("r") ? (int) d(q, "r") : 400);
+                yield "{\"spans\":\"" + esc(res) + "\"}";
+            }
             case "/census" -> {
                 String res = com.worldgenv2.studio.shell.StudioApp.get().censusWorld((int) d(q, "x"), (int) d(q, "z"));
                 yield "{\"census\":\"" + esc(res) + "\"}";

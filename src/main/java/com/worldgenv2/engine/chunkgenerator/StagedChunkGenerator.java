@@ -396,11 +396,11 @@ public final class StagedChunkGenerator<T> {
         // =====================================================================
         // Stage 4b: Project structures (spawn structure, landmark and POI prefabs)
         // =====================================================================
-        if (prefabBlockResolver != null && !worldStructure.getStructurePlacements().isEmpty()) {
-            for (com.worldgenv2.worldstructure.StructurePlacement placement : worldStructure.getStructurePlacements()) {
+        if (prefabBlockResolver != null) {
+            for (com.worldgenv2.worldstructure.StructurePlacement placement : worldStructure.placementsForChunk(chunkX, chunkZ)) {
                 if (!placement.touchesChunk(chunkX, chunkZ)) continue;
                 long seed = chunkSeed ^ placement.id().hashCode();
-                new com.worldgenv2.prefab.PrefabProp<T>(placement.prefab(), prefabBlockResolver)
+                new com.worldgenv2.prefab.PrefabProp<T>(placement.prefab(), prefabBlockResolver, false, true, List.of(), 0, null)
                     .generate(new Prop.Context<>(placement.x(), placement.y(), placement.z(), 0.0f, 1.0f, 0.0f, voxelSpace, seed));
             }
         }

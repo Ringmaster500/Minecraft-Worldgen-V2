@@ -143,13 +143,29 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
             return fallback;
         }
         try {
-            Identifier loc = Identifier.tryParse(blockId);
+            int br = blockId.indexOf('[');
+            String base = br < 0 ? blockId : blockId.substring(0, br);
+            Identifier loc = Identifier.tryParse(base);
             if (loc != null && BuiltInRegistries.BLOCK.containsKey(loc)) {
-                return BuiltInRegistries.BLOCK.getValue(loc).defaultBlockState();
+                BlockState st = BuiltInRegistries.BLOCK.getValue(loc).defaultBlockState();
+                if (br >= 0 && blockId.endsWith("]")) {
+                    for (String kv : blockId.substring(br + 1, blockId.length() - 1).split(",")) {
+                        int eq = kv.indexOf('=');
+                        if (eq <= 0) continue;
+                        net.minecraft.world.level.block.state.properties.Property<?> p =
+                                st.getBlock().getStateDefinition().getProperty(kv.substring(0, eq).trim());
+                        if (p != null) st = withProperty(st, p, kv.substring(eq + 1).trim());
+                    }
+                }
+                return st;
             }
         } catch (Exception ignored) {
         }
         return fallback;
+    }
+
+    private static <V extends Comparable<V>> BlockState withProperty(BlockState s, net.minecraft.world.level.block.state.properties.Property<V> p, String value) {
+        return p.getValue(value).map(v -> s.setValue(p, v)).orElse(s);
     }
 
     public WorldHeightConfig getHeightConfig() {
@@ -481,21 +497,11 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
                         effectiveFluid = resolveBlockState(tileBiome.fluidBlock(), effectiveFluid);
                     }
 
-                    // 3. Find topmost solid block (bounded below ceiling if ceiling exists)
-                    int searchTop = this.hasCeiling
-                        ? Math.min(this.ceilingY - this.ceilingThickness, voxelSpace.getMaxY() - 1)
-                        : voxelSpace.getMaxY() - 1;
-                    int topSolid = floorY;
-                    for (int y = searchTop; y > floorY; y--) {
-                        if (!voxelSpace.isAir(worldX, y, worldZ)) {
-                            topSolid = y;
-                            break;
-                        }
-                    }
-
-                    // Fill sky-open air below effective sea level with effective fluid
+                    // 3. Fill the air at and below sea level downward until the first solid block. Starting from the sea
+                    // surface (rather than above the topmost solid) keeps water under anything that stands above it:
+                    // a fallen-log bridge, an arch, a pier.
                     if (!effectiveFluid.isAir()) {
-                        for (int y = topSolid + 1; y <= effectiveSeaLevel; y++) {
+                        for (int y = effectiveSeaLevel; y > floorY && voxelSpace.isAir(worldX, y, worldZ); y--) {
                             voxelSpace.setBlock(worldX, y, worldZ, effectiveFluid);
                         }
                     }
