@@ -54,6 +54,7 @@ public final class WorldGenV2Addons {
 
     private static final Map<String, Preset> REGISTERED = new LinkedHashMap<>();
     private static final List<CompileHook> HOOKS = new ArrayList<>();
+    private static Supplier<JsonArray> defaultOres = com.worldgenv2.studio.project.Templates::defaultOres;
     private static List<Preset> discovered;
     private static boolean builtinsDone;
 
@@ -61,6 +62,16 @@ public final class WorldGenV2Addons {
 
     public static synchronized void registerPreset(Preset preset) {
         REGISTERED.put(preset.id(), preset);
+    }
+
+    /** Replaces what "Default" ore generation means (e.g. a modpack with its own ores). Returns the veins as ore-rule JSON. */
+    public static synchronized void setDefaultOres(Supplier<JsonArray> supplier) {
+        defaultOres = supplier;
+    }
+
+    /** The ore rules used when a dimension\'s ores are set to Default. */
+    public static synchronized JsonArray defaultOres() {
+        return defaultOres.get();
     }
 
     public static synchronized void registerCompileHook(CompileHook hook) {

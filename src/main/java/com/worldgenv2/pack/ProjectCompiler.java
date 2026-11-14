@@ -159,13 +159,13 @@ public final class ProjectCompiler {
                     .withUndergroundBiomes(DefaultBiomeFactory.createUndergroundBiomes(), r.seed);
         }
         structure.withDimensionLayout(buildLayout(d, r));
-        r.zones = buildZones(d, r);
+        r.zones = on(d, "zones", nonEmpty(J.arr(d, "zones"))) ? buildZones(d, r) : null;
         if (r.zones != null) structure.withZoneLayout(r.zones);
-        structure.withOreRules(buildOres(d, r));
+        structure.withOreRules(resolveOres(d, r));
 
         // ---- spawn anchor ----
         JsonObject spawn = J.obj(d, "spawn");
-        if (spawn != null && J.bool(spawn, "enabled", true) && !J.str(spawn, "prefab", "").isBlank()) {
+        if (on(d, "spawn", spawn != null && J.bool(spawn, "enabled", false)) && spawn != null && !J.str(spawn, "prefab", "").isBlank()) {
             JsonArray off = J.arr(spawn, "offset");
             r.spawn = new SpawnAnchorManager.SpawnAnchorRule(
                     "spawn_anchor", J.str(spawn, "prefab", ""),
@@ -183,7 +183,7 @@ public final class ProjectCompiler {
         }
 
         // ---- landmarks + roads ----
-        JsonArray lms = J.arr(d, "landmarks");
+        JsonArray lms = on(d, "landmarks", nonEmpty(J.arr(d, "landmarks"))) ? J.arr(d, "landmarks") : null;
         if (lms != null && !lms.isEmpty()) {
             MacroFeatureGraph g = new MacroFeatureGraph();
             // The engine connects a child to a parent through a typed anchor the parent exports. Creators just pick
@@ -260,7 +260,7 @@ public final class ProjectCompiler {
         }
 
         // ---- finite budgeted structures ----
-        JsonArray budgets = J.arr(d, "budgets");
+        JsonArray budgets = on(d, "budgets", nonEmpty(J.arr(d, "budgets"))) ? J.arr(d, "budgets") : null;
         if (budgets != null && !budgets.isEmpty()) {
             StructureBudgetManager bm = new StructureBudgetManager();
             for (JsonElement e : budgets) {
@@ -413,6 +413,41 @@ public final class ProjectCompiler {
         return zb.build();
     }
 
+    // ---- feature modes: every optional feature can be Off, Default (built in) or Custom (the project's own data) ----
+
+    private static boolean nonEmpty(JsonArray a) { return a != null && !a.isEmpty(); }
+
+    /** Explicit {@code features.<name>} wins ("off" disables); otherwise a feature is on when it has data. */
+    public static boolean on(JsonObject dim, String feature, boolean inferred) {
+        JsonObject f = J.obj(dim, "features");
+        String m = f == null ? "" : J.str(f, feature, "");
+        return switch (m) {
+            case "off" -> false;
+            case "custom", "default" -> true;
+            default -> inferred;
+        };
+    }
+
+    /** {@code off}, {@code default} or {@code custom} for ores. A project with no ore data uses the built-in default. */
+    public static String oresMode(JsonObject dim) {
+        JsonObject f = J.obj(dim, "features");
+        String m = f == null ? "" : J.str(f, "ores", "");
+        if (m.equals("off") || m.equals("default") || m.equals("custom")) return m;
+        return dim.has("ores") ? "custom" : "default";
+    }
+
+    private static List<OreRule> resolveOres(JsonObject d, Result r) {
+        return switch (oresMode(d)) {
+            case "off" -> List.of();
+            case "default" -> {
+                JsonObject tmp = new JsonObject();
+                tmp.add("ores", WorldGenV2Addons.defaultOres());
+                yield buildOres(tmp, r);
+            }
+            default -> buildOres(d, r);
+        };
+    }
+
     private static List<OreRule> buildOres(JsonObject d, Result r) {
         List<OreRule> out = new ArrayList<>();
         JsonArray oa = J.arr(d, "ores");
@@ -443,7 +478,7 @@ public final class ProjectCompiler {
         OutsideBoundsFallback outside = parseEnum(OutsideBoundsFallback.class, J.str(bounds, "outside", "DEFAULT_BIOMES"), OutsideBoundsFallback.DEFAULT_BIOMES);
 
         List<RadialZoneRule> zones = new ArrayList<>();
-        JsonArray za = J.arr(d, "shapes");
+        JsonArray za = on(d, "shapes", nonEmpty(J.arr(d, "shapes"))) ? J.arr(d, "shapes") : null;
         if (za != null) for (JsonElement e : za) {
             if (!e.isJsonObject()) continue;
             JsonObject z = e.getAsJsonObject();
@@ -456,7 +491,7 @@ public final class ProjectCompiler {
                     biomeName, (float) J.num(z, "elevation", 70), (float) J.num(z, "thickness", 32), J.bool(z, "floating", false)));
         }
         List<RingLandmarkRule> rings = new ArrayList<>();
-        JsonArray ra = J.arr(d, "rings");
+        JsonArray ra = on(d, "rings", nonEmpty(J.arr(d, "rings"))) ? J.arr(d, "rings") : null;
         if (ra != null) for (JsonElement e : ra) {
             if (!e.isJsonObject()) continue;
             JsonObject o = e.getAsJsonObject();

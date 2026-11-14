@@ -71,9 +71,20 @@ A dimension's `zones` array: each zone has a `kind` (`patch` weighted macro Voro
 First matching zone wins. Zone is decided at each biome cell's centre, so zone borders follow biome-cell borders and blend normally. Landmarks, POIs and ores can be restricted to a zone.
 (Radial terrain sculpting - islands, moats - is separate and called `shapes`; old projects are migrated automatically.) The map's **Zones** button tints regions; hover shows the zone.
 
-### Presets and addons
-Built-in presets (Blank, Starter, Four Zones, Spawn Island) use the same registry as addon presets: `pack.WorldGenV2Addons`. See `docs/ADDONS.md`.
-`Export as preset file` turns any project into a shippable bundle; `Add from preset / pack...` merges one into a project without overwriting.
+### Freedom model: Default, and Off / Default / Custom per feature
+There is exactly one built-in starting point, **Default** (`BuiltinPresets`): example biomes, the three dimensions, nothing else turned on.
+With no setup chosen, worlds generate from it, so the mod works with zero configuration.
+
+Each optional feature of a dimension has a mode in `features.<name>`:
+`off` (does nothing, your data is kept), `default` (built in, no setup; currently ores only), `custom` (the setup's own data).
+Features: `zones`, `spawn`, `landmarks`, `budgets`, `ores`, `shapes`, `rings`; rivers and caves are plain on/off toggles.
+When `features.<name>` is absent the mode is inferred (has data -> custom; ores with no data -> default), so older setups keep working.
+"Default ores" is `WorldGenV2Addons.defaultOres()`; an addon/modpack can replace what Default means with `setDefaultOres(...)`.
+The Studio collapses a feature that is not Custom to one line; "Copy the default ores here so I can edit them" turns Default into Custom.
+
+### Addons
+Addons use the same bundle registry (`pack.WorldGenV2Addons`; see `docs/ADDONS.md`) to offer extra starting content; players see it under
+"Import from addon..." only if an addon is installed. "Export as shareable file" turns any setup into a bundle an addon can ship.
 
 ## Known limits / next
 - Props at chunk borders are clipped: a prop is placed only from anchors inside its own chunk and writes outside the chunk are dropped, so a tree on a chunk edge can lose part of its canopy. Fix is a two-pass/halo scheme (Hytale's "context precision").

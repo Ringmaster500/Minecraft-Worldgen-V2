@@ -41,7 +41,7 @@ final class LiveWorld {
         }
         MinecraftServer server = server();
         if (server == null) {
-            app.say("Saved and set '" + app.project.name + "' as the active project. Create a world with the 'Active Studio Project' world type to use it.", Ui.GREEN);
+            app.say("Saved and set '" + app.project.name + "' as the active setup. Create a world with the 'WorldGen V2' world type to use it.", Ui.GREEN);
             return;
         }
         AtomicInteger applied = new AtomicInteger();
@@ -58,7 +58,7 @@ final class LiveWorld {
                 if (applied.get() > 0) {
                     app.say("Applied to the open world. New chunks use the updated project; use Regen to rebuild nearby ones.", Ui.GREEN);
                 } else {
-                    app.say("Saved and set active. This world was not created with the 'Active Studio Project' world type, so it is unchanged.", Ui.YELLOW);
+                    app.say("Saved and set active. This world was not created with the 'WorldGen V2' world type, so it is unchanged.", Ui.YELLOW);
                 }
             });
         });

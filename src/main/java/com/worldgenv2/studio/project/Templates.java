@@ -81,7 +81,6 @@ public final class Templates {
         JsonArray biomes = new JsonArray();
         if (p != null) for (Asset b : p.assetsOf(AssetType.BIOME)) biomes.add(poolEntry(b.id(), b.json));
         o.add("biomes", biomes);
-        o.add("ores", defaultOres());
         return o;
     }
 

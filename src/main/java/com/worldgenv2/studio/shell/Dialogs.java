@@ -51,22 +51,21 @@ final class Dialogs {
     }
 
     static void newProject(UiRoot ui, StudioApp app) {
-        var presets = com.worldgenv2.pack.WorldGenV2Addons.presets().stream().filter(p -> !p.isPack()).toList();
-        java.util.List<String> ids = new ArrayList<>();
-        java.util.Map<String, String> names = new java.util.HashMap<>();
-        for (var p : presets) { ids.add(p.id()); names.put(p.id(), p.name() + "  -  " + p.description()); }
-        Modal.promptWithChoice(ui, "New project", "Name it, then pick a starting point. Blank is the custom path.", "my_world", ids,
-                ids.contains("worldgenv2:starter") ? "worldgenv2:starter" : (ids.isEmpty() ? "" : ids.get(0)), s -> names.getOrDefault(s, s),
-                "Create", ProjectStore::checkNewName, (name, preset) -> app.createProject(name, preset));
+        Modal.prompt(ui, "New world setup", "Starts from the Default. Turn features on or off, or customise them, as you go.", "my_world", "Create",
+                ProjectStore::checkNewName, app::createProject);
     }
 
-    /** Runs {@code then} immediately, or after confirming a discard when there are unsaved changes. */
+    /** True when an addon mod has installed something beyond the built-in Default. */
+    static boolean hasAddons() {
+        return com.worldgenv2.pack.WorldGenV2Addons.presets().stream().anyMatch(p -> !p.id().startsWith("worldgenv2:"));
+    }
+
     static void addFromPreset(UiRoot ui, StudioApp app) {
-        var presets = com.worldgenv2.pack.WorldGenV2Addons.presets();
+        var presets = com.worldgenv2.pack.WorldGenV2Addons.presets().stream().filter(p -> !p.id().startsWith("worldgenv2:")).toList();
         java.util.List<String> ids = new ArrayList<>();
         java.util.Map<String, String> names = new java.util.HashMap<>();
         for (var p : presets) { ids.add(p.id()); names.put(p.id(), (p.isPack() ? "[pack] " : "[world] ") + p.name()); }
-        Modal.choose(ui, "Add from preset", "Adds the preset's biomes and prefabs; existing assets are never overwritten.", ids,
+        Modal.choose(ui, "Import from addon", "Adds the addon's content's biomes and prefabs; existing assets are never overwritten.", ids,
                 ids.isEmpty() ? "" : ids.get(0), "Add", app::addFromPreset);
     }
 
@@ -87,8 +86,8 @@ final class Dialogs {
         items.add(PopupMenu.Item.sep());
         items.add(PopupMenu.Item.of("New project...", () -> guardUnsaved(ui, app, () -> newProject(ui, app))));
         if (app.project != null) {
-            items.add(PopupMenu.Item.of("Add from preset / pack...", () -> addFromPreset(ui, app)));
-            items.add(PopupMenu.Item.of("Export as preset file", app::exportPreset));
+            if (hasAddons()) items.add(PopupMenu.Item.of("Import from addon...", () -> addFromPreset(ui, app)));
+            items.add(PopupMenu.Item.of("Export as shareable file", app::exportPreset));
         }
         if (app.project != null) items.add(PopupMenu.Item.of("Close project", () -> guardUnsaved(ui, app, app::closeProject)));
         PopupMenu.open(ui, x, y, 190, items);

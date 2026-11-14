@@ -86,13 +86,14 @@ public final class ProjectRuntime {
         String dimAssetId = ref.substring(REF_PREFIX.length());
         String name = activeProjectName();
         String presetId = activePresetId();
-        if (name == null && presetId == null) {
-            LOGGER.warn("World uses '{}' but config/worldgenv2/active.json names no project or preset; using built-in generator.", ref);
-            return null;
-        }
+        boolean useDefault = name == null && presetId == null;
         try {
             StudioProject project;
-            if (presetId != null) {
+            if (useDefault) {
+                // nothing chosen: the built-in Default, so the mod works with zero configuration
+                name = "Default";
+                project = StudioProject.fromBundle(name, BuiltinPresets.defaultBundle());
+            } else if (presetId != null) {
                 // an addon (or built-in) preset used directly, without a project folder
                 WorldGenV2Addons.Preset pr = WorldGenV2Addons.preset(presetId);
                 if (pr == null) {

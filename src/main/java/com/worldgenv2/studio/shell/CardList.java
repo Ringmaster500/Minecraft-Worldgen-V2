@@ -59,6 +59,7 @@ final class CardList extends Widget {
     private final String emptyHint;
 
     private String signature = "";
+    private boolean built;
     private long syncedRev = -1;
     private int count;
     private final List<Widget[]> editors = new ArrayList<>();   // [card][field] (null when hidden)
@@ -265,12 +266,12 @@ final class CardList extends Widget {
             }
             cy += ch + 4;
         }
-        if (addBtn != null) addBtn.setBounds(x, cy + 4, 120, 16);
+        if (addBtn != null) addBtn.setBounds(x, cy + (count == 0 ? 20 : 4), 120, 16);
     }
 
     @Override
     protected void render(Gfx g, int mx, int my) {
-        if (!signature.equals(sig())) { rebuild(); }
+        if (!built || !signature.equals(sig())) { rebuild(); built = true; }
         if (syncedRev != ed.project().revision) syncValues();
         layout();
         int cy = y;

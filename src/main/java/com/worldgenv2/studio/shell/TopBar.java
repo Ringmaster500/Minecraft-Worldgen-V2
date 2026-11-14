@@ -30,7 +30,7 @@ final class TopBar extends Widget {
         int by = y + (h - 18) / 2;
         Gfx g = Probe2.g();
         int tx = x + 10 + g.width("WORLDGEN STUDIO") + 14;
-        project.label = app.project == null ? "No project" : app.project.name;
+        project.label = app.project == null ? "No setup open" : app.project.name;
         project.dot = app.project == null ? 0 : 0xFFFFAA00;
         project.setBounds(tx, by, Math.max(110, Math.min(220, g.width(project.label) + 30)), 18);
         boolean has = app.project != null;

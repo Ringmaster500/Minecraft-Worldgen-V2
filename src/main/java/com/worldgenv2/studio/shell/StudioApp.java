@@ -59,7 +59,7 @@ public final class StudioApp {
     public void openProject(String name) {
         try {
             setProject(ProjectStore.open(name));
-            say("Opened project '" + name + "'");
+            say("Opened '" + name + "'");
         } catch (IOException e) {
             say("Could not open '" + name + "': " + e.getMessage(), Ui.RED);
         }
@@ -68,7 +68,7 @@ public final class StudioApp {
     public void createProject(String name, String presetId) {
         try {
             setProject(ProjectStore.create(name, presetId));
-            say("Created project '" + project.name + "'", Ui.GREEN);
+            say("Created '" + project.name + "'", Ui.GREEN);
             openDoc(Asset.WORLD_PATH);
         } catch (IOException e) {
             say("Could not create project: " + e.getMessage(), Ui.RED);
@@ -103,7 +103,7 @@ public final class StudioApp {
     public void createProject(String name) {
         try {
             setProject(ProjectStore.create(name));
-            say("Created project '" + project.name + "' with starter biomes and dimensions", Ui.GREEN);
+            say("Created '" + project.name + "' with starter biomes and dimensions", Ui.GREEN);
             openDoc(Asset.WORLD_PATH);
         } catch (IOException e) {
             say("Could not create project: " + e.getMessage(), Ui.RED);

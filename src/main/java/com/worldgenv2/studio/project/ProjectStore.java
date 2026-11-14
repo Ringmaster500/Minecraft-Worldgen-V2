@@ -43,7 +43,7 @@ public final class ProjectStore {
 
     /** Creates a populated starter project and returns it opened. */
     public static StudioProject create(String rawName) throws IOException {
-        return create(rawName, "worldgenv2:starter");
+        return create(rawName, com.worldgenv2.pack.BuiltinPresets.DEFAULT_ID);
     }
 
     /** Creates a project from a preset (built-in or from an addon). */

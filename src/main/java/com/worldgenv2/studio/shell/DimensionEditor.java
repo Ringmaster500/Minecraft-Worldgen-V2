@@ -37,6 +37,7 @@ final class DimensionEditor extends Editor {
         }
 
         builtRefs = refSignature();
+        builtFeatures = featureSignature();
 
         section("Layout", "macro structure of the dimension");
         Dropdown layout = new Dropdown();
@@ -58,7 +59,7 @@ final class DimensionEditor extends Editor {
         block(new PoolTable());
 
         // ---- zones: Hytale-style macro regions, each with its own biome set ----
-        section("Zones", "regions of the world that each use their own biomes (like Hytale's Zone 1-4)");
+        if (feature("zones", "Zones", "regions of the world that each use their own biomes (like Hytale's Zone 1-4)", false)) {
         field("Patch scale", num("zoneScale", 2000, 256, 20000, 100, false, "Zone patch scale"),
                 "Average width in blocks of 'patch' zones. Bigger = larger, rarer regions.");
         List<String> zoneKinds = new ArrayList<>(List.of("everywhere", "patch", "radial", "noise"));
@@ -78,11 +79,11 @@ final class DimensionEditor extends Editor {
                 CardList.Field.num("max", "Noise max", -1, 1, 0.05, "...and below this.").when(o -> J.str(o, "kind", "").equals("noise")),
                 CardList.Field.biomes("biomes", "Biomes", "Biomes allowed in this zone. They must also be in the pool above.")),
                 this::newZoneRegion, o -> J.str(o, "name", J.str(o, "id", "zone")) + "   [" + zoneKindLabel(J.str(o, "kind", "")) + "]",
-                "No zones: every biome in the pool can appear anywhere. Add zones to give regions their own character."));
+                "No zones yet. Add one to give a region its own biomes."));
+        }
 
         // ---- spawn: the "start with a structure" workflow ----
-        section("Spawn structure", "a guaranteed structure where players start");
-        field("Enabled", toggle("spawn.enabled", false, "Spawn enabled", "Place a structure at spawn"), null);
+        if (feature("spawn", "Spawn structure", "a guaranteed structure where players start", false)) {
         field("Structure", choice("spawn.prefab", "", prefabOptions(), prefabLabel(), "Spawn prefab"),
                 "Which prefab to build. Add prefabs under Prefabs in the explorer.");
         field("Position X", num("spawn.x", 0, -30000, 30000, 8, true, "Spawn X"), "World X of the structure's origin.");
@@ -91,9 +92,10 @@ final class DimensionEditor extends Editor {
         field("Crater depth", num("spawn.craterDepth", 0, 0, 64, 1, false, "Crater depth"), "How deep the crater is carved.");
         field("Crater rim", num("spawn.rimHeight", 0, 0, 32, 1, false, "Crater rim"), "Height of the raised lip around the crater.");
         field("Lock player spawn", toggle("spawn.lockSpawn", true, "Lock spawn", "New players always start here"), null);
+        }
 
         // ---- landmarks: connected structures ----
-        section("Connected structures", "landmarks placed relative to each other, optionally joined by roads");
+        if (feature("landmarks", "Connected structures", "landmarks placed relative to each other, optionally joined by roads", false)) {
         block(new CardList(this, "landmarks", "landmark", List.of(
                 CardList.Field.str("id", "Name", "Unique name; other landmarks refer to it."),
                 CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
@@ -110,9 +112,10 @@ final class DimensionEditor extends Editor {
                 CardList.Field.biomes("biomes", "Allowed in", "Biomes this landmark may be placed in. Empty = anywhere.")),
                 this::newLandmark, o -> J.str(o, "id", "landmark") + (J.str(o, "parent", "").isEmpty() ? "   (root)" : "   <- " + J.str(o, "parent", "")),
                 "None yet. Add a root landmark, then others that connect to it."));
+        }
 
         // ---- budgets: finite points of interest ----
-        section("Points of interest", "a fixed number of structures scattered between two distances from spawn");
+        if (feature("budgets", "Points of interest", "a fixed number of structures scattered between two distances from spawn", false)) {
         block(new CardList(this, "budgets", "point of interest", List.of(
                 CardList.Field.str("id", "Name", "Unique name."),
                 CardList.Field.choice("prefab", "Structure", this::prefabOptions, prefabLabel(), "Prefab to place."),
@@ -126,9 +129,10 @@ final class DimensionEditor extends Editor {
                 CardList.Field.biomes("biomes", "Allowed in", "Empty = any biome.")),
                 this::newBudget, o -> J.str(o, "id", "poi") + "   " + J.integer(o, "minQuota", 1) + "-" + J.integer(o, "maxQuota", 1) + " total",
                 "None yet. Add one to scatter a finite set of structures."));
+        }
 
         // ---- ores: all of them are rules here; vanilla ore generation is switched off ----
-        section("Ores", "veins of ore; the only ore that generates is what is listed here");
+        if (feature("ores", "Ores", "veins of ore; nothing from vanilla generates, so ore comes only from here", true)) {
         block(new CardList(this, "ores", "ore", List.of(
                 CardList.Field.str("id", "Name", null),
                 CardList.Field.str("block", "Block", "e.g. minecraft:iron_ore or a modded ore id."),
@@ -142,10 +146,11 @@ final class DimensionEditor extends Editor {
                 CardList.Field.choice("zone", "Only in zone", this::zoneOptions, s -> s.isEmpty() ? "(any zone)" : s, "Restrict to one of the zones above."),
                 CardList.Field.biomes("biomes", "Allowed in", "Empty = any biome.")),
                 this::newOre, o -> J.str(o, "id", "ore") + "   " + J.str(o, "block", "").replace("minecraft:", "") + "   " + J.integer(o, "count", 0) + "x" + J.integer(o, "veinSize", 0),
-                "No ores: the world is solid rock. Add some or pick a preset."));
+                "No ores: the world is solid rock. Add some, or switch to Default."));
+        }
 
         // ---- terrain shapes / rings / bounds ----
-        section("Terrain shapes", "circular regions that sculpt terrain: islands, moats, floating archipelagos");
+        if (feature("shapes", "Terrain shapes", "circular regions that sculpt terrain: islands, moats, floating archipelagos", false)) {
         block(new CardList(this, "shapes", "shape", List.of(
                 CardList.Field.str("id", "Name", null),
                 CardList.Field.choice("mode", "Effect", () -> List.of("BIOME_OVERRIDE", "ISLAND_PLATEAU", "VOID_MOAT", "OUTER_ISLANDS"),
@@ -160,9 +165,10 @@ final class DimensionEditor extends Editor {
                 CardList.Field.num("thickness", "Thickness", 8, 400, 4, null),
                 CardList.Field.toggle("floating", "Floating", "Round off the underside so it floats.")),
                 this::newZone, o -> J.str(o, "id", "zone") + "   " + zoneLabel(J.str(o, "mode", "")) + "  r " + J.integer(o, "inner", 0) + "-" + J.integer(o, "outer", 0),
-                "No shapes. The dimension is one endless landmass."));
+                "No shapes yet."));
+        }
 
-        section("Pillar rings", "circular arrays of towers (e.g. the End's obsidian pillars)");
+        if (feature("rings", "Pillar rings", "circular arrays of towers (e.g. the End's obsidian pillars)", false)) {
         block(new CardList(this, "rings", "ring", List.of(
                 CardList.Field.str("id", "Name", null),
                 CardList.Field.integer("count", "Count", 1, 64, null),
@@ -173,7 +179,8 @@ final class DimensionEditor extends Editor {
                 CardList.Field.str("block", "Block", "e.g. minecraft:obsidian"),
                 CardList.Field.str("cap", "Cap block", "e.g. minecraft:bedrock")),
                 this::newRing, o -> J.str(o, "id", "ring") + "   " + J.integer(o, "count", 0) + " pillars",
-                "None."));
+                "None yet."));
+        }
 
         section("World edge & materials", "what happens beyond a finite world, and the base blocks");
         field("Outside bounds", choice("bounds.outside", "DEFAULT_BIOMES", List.of("DEFAULT_BIOMES", "VOID", "OCEAN", "VANILLA_DEFAULT"),
@@ -185,6 +192,65 @@ final class DimensionEditor extends Editor {
         field("Fluid", str("defaultFluid", "minecraft:water", "Fluid"), "Liquid for oceans and rivers. Use minecraft:air for none.");
         field("Rivers", toggle("rivers", true, "Rivers", "Carve rivers"), null);
         field("Caves", toggle("caves", true, "Caves", "Carve caves and underground biomes"), null);
+    }
+
+    // ---- feature modes: Off / Default (built in) / Custom ----
+    private String builtFeatures = "";
+    private static final List<String> FEATURE_KEYS = List.of("zones", "spawn", "landmarks", "budgets", "ores", "shapes", "rings");
+
+    /** Current mode of a feature: explicit {@code features.<key>}, otherwise inferred from whether it has data. */
+    private String modeOf(String key) {
+        Asset a = asset();
+        JsonObject d = a == null ? new JsonObject() : a.json;
+        String m = J.str(J.obj(d, "features"), key, "");
+        if (!m.isEmpty()) return m;
+        return switch (key) {
+            case "ores" -> com.worldgenv2.pack.ProjectCompiler.oresMode(d);
+            case "spawn" -> J.bool(J.obj(d, "spawn"), "enabled", false) ? "custom" : "off";
+            default -> { JsonArray arr = J.arr(d, key); yield arr != null && !arr.isEmpty() ? "custom" : "off"; }
+        };
+    }
+
+    private String featureSignature() {
+        StringBuilder sb = new StringBuilder();
+        for (String k : FEATURE_KEYS) sb.append(k).append('=').append(modeOf(k)).append(';');
+        return sb.toString();
+    }
+
+    /**
+     * Adds a section header with an Off / Default / Custom switch. Returns true only for Custom, in which case the caller
+     * builds the editing UI; otherwise a one-line explanation is shown and the section stays collapsed.
+     * Switching a feature off never deletes its data.
+     */
+    private boolean feature(String key, String title, String subtitle, boolean hasDefault) {
+        String mode = modeOf(key);
+        section(title, subtitle);
+        Dropdown d = new Dropdown();
+        d.options(hasDefault ? List.of("off", "default", "custom") : List.of("off", "custom"));
+        d.display = s -> switch (s) {
+            case "off" -> "Off - not used";
+            case "default" -> "Default - built in, nothing to set up";
+            default -> "Custom - I'll set this up";
+        };
+        d.onSelect = v -> edit("Feature " + key, j -> J.objOrCreate(j, "features").addProperty(key, v));
+        bind(() -> d.selected(modeOf(key)));
+        field("Use", d, "Off: the feature does nothing here (your settings are kept). Default: the built-in behaviour, no setup. Custom: you define it.");
+        if (mode.equals("off")) {
+            note("Off. Nothing from this feature is generated in this dimension.", Ui.TEXT_FAINT);
+            return false;
+        }
+        if (mode.equals("default")) {
+            note("Using the built-in setup. Choose Custom to edit it.", Ui.TEXT_FAINT);
+            if (key.equals("ores")) {
+                block(new Button("Copy the default ores here so I can edit them", () ->
+                        edit("Customize ores", j -> {
+                            j.add("ores", com.worldgenv2.pack.WorldGenV2Addons.defaultOres());
+                            J.objOrCreate(j, "features").addProperty("ores", "custom");
+                        })));
+            }
+            return false;
+        }
+        return true;
     }
 
     // ---- option sources ----
@@ -219,7 +285,7 @@ final class DimensionEditor extends Editor {
         List<String> o = new ArrayList<>();
         o.add("");
         Asset a = asset();
-        if (a != null && J.bool(J.obj(a.json, "spawn"), "enabled", false)) o.add("spawn");
+        if (modeOf("spawn").equals("custom")) o.add("spawn");
         JsonArray lms = a == null ? null : J.arr(a.json, "landmarks");
         if (lms != null) for (JsonElement e : lms) {
             if (e.isJsonObject() && J.str(e.getAsJsonObject(), "parent", "").isEmpty()) o.add(J.str(e.getAsJsonObject(), "id", ""));
@@ -363,7 +429,8 @@ final class DimensionEditor extends Editor {
 
     @Override
     protected void onSynced() {
-        if (!getStr("generator", "worldgenv2").equals(builtGenerator) || !refSignature().equals(builtRefs)) rebuild();
+        if (!getStr("generator", "worldgenv2").equals(builtGenerator) || !refSignature().equals(builtRefs)
+                || (builtGenerator.equals("worldgenv2") && !featureSignature().equals(builtFeatures))) rebuild();
     }
 
     private JsonArray pool() {

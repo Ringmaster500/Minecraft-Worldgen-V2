@@ -64,7 +64,7 @@ final class Validator {
         }
         if (native_ && needsPool && enabled == 0) warn(a, "Every biome in the pool is disabled.");
         JsonObject spawn = J.obj(o, "spawn");
-        if (spawn != null && J.bool(spawn, "enabled", false)) {
+        if (spawn != null && com.worldgenv2.pack.ProjectCompiler.on(o, "spawn", J.bool(spawn, "enabled", false))) {
             String pf = J.str(spawn, "prefab", "");
             if (pf.isBlank()) warn(a, "Spawn structure is enabled but no structure is chosen.");
             else if (!p.hasAsset("prefabs/" + pf + ".json")) err(a, "Spawn structure prefab \u0027" + pf + "\u0027 does not exist in this project.");
