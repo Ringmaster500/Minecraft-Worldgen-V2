@@ -203,10 +203,24 @@ tasks.register('verifyPhase22', JavaExec) {
     mainClass = 'com.worldgenv2.Phase22VerificationTest'
 }
 
+tasks.register('verifyPhase23', JavaExec) {
+    group = 'verification'
+    description = 'Verifies Hytale material providers'
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.worldgenv2.Phase23VerificationTest'
+}
+
+tasks.register('probeHytaleMaterial', JavaExec) {
+    group = 'verification'
+    description = 'Developer probe: Hytale-format material providers'
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.worldgenv2.HytaleMaterialProbe'
+}
+
 tasks.register('verifyEngine', JavaExec) {
     group = 'verification'
     description = 'Runs the standalone verification suites'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.worldgenv2.Phase2VerificationTest'
-    finalizedBy('verifyPhase3And4', 'verifyPhase7', 'verifyPhase8', 'verifyPhase9', 'verifyPhase10', 'verifyPhase11', 'verifyPhase12', 'verifyPhase13', 'verifyPhase14', 'verifyPhase15', 'verifyPhase16', 'verifyPhase17', 'verifyPhase18', 'verifyPhase19', 'verifyPhase20', 'verifyPhase21', 'verifyPhase22', 'verifyWorldHeight')
+    finalizedBy('verifyPhase3And4', 'verifyPhase7', 'verifyPhase8', 'verifyPhase9', 'verifyPhase10', 'verifyPhase11', 'verifyPhase12', 'verifyPhase13', 'verifyPhase14', 'verifyPhase15', 'verifyPhase16', 'verifyPhase17', 'verifyPhase18', 'verifyPhase19', 'verifyPhase20', 'verifyPhase21', 'verifyPhase22', 'verifyPhase23', 'verifyWorldHeight')
 }

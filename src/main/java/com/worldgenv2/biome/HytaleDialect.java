@@ -5,6 +5,7 @@ import com.worldgenv2.density.DensityFunction;
 import com.worldgenv2.hytale.HPattern;
 import com.worldgenv2.hytale.HProps;
 import com.worldgenv2.hytale.HDensity;
+import com.worldgenv2.hytale.HMaterials;
 import com.worldgenv2.hytale.HMoreProps;
 import com.worldgenv2.hytale.HPositions;
 import com.worldgenv2.material.ConstantMaterialProvider;
@@ -242,6 +243,7 @@ final class HytaleDialect {
         registerPositions();
         registerMoreProps();
         registerDensity();
+        registerMaterials();
         WorldGenV2Registries.PROP_TYPE.register("Locator", new WorldGenV2Registries.PropDeserializer() {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
@@ -524,5 +526,99 @@ final class HytaleDialect {
         R.register("Distance", (j, ctx) -> HDensity.distance(JsonAstCompiler.compileCurve(get(j, "curve"), ctx)));
         R.register("Axis", (j, ctx) -> { double[] a = vecD(get(j, "axis"), 0.0); return HDensity.axis(a[0], a[1], a[2], JsonAstCompiler.compileCurve(get(j, "curve"), ctx)); });
         R.register("CellWallDistance", (j, ctx) -> HDensity.cellWallDistance());
+    }
+
+    // ================================================================== Hytale material providers
+
+    @FunctionalInterface
+    @SuppressWarnings("rawtypes")
+    private interface HMat {
+        MaterialProvider make(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function r);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void overMat(String name, java.util.function.Predicate<Map<String, Object>> isHytale, HMat hy) {
+        WorldGenV2Registries.MaterialProviderDeserializer legacy = WorldGenV2Registries.MATERIAL_PROVIDER_TYPE.get(name);
+        WorldGenV2Registries.MATERIAL_PROVIDER_TYPE.register(name, new WorldGenV2Registries.MaterialProviderDeserializer() {
+            @Override
+            public <T> MaterialProvider<T> deserialize(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> r) {
+                if (legacy == null || isHytale.test(j)) return (MaterialProvider<T>) hy.make(j, ctx, r);
+                return legacy.deserialize(j, ctx, r);
+            }
+        });
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static MaterialProvider slot(Object o, JsonAstCompiler.CompileContext ctx, Function r) {
+        return JsonAstCompiler.compileMaterialProvider(o, ctx, r);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static java.util.function.IntPredicate compileCondition(Object raw) {
+        Map<String, Object> m = obj(raw);
+        if (m == null) return s -> true;
+        String type = String.valueOf(get(m, "type"));
+        List<java.util.function.IntPredicate> kids = new ArrayList<>();
+        if (get(m, "conditions") instanceof List<?> l) for (Object o : l) kids.add(compileCondition(o));
+        if (get(m, "condition") != null) kids.add(compileCondition(get(m, "condition")));
+        int value = num(get(m, "value", "threshold"), 0);
+        return HMaterials.condition(type, String.valueOf(get(m, "contexttocheck")), value, kids);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static HMaterials.Layer compileLayer(Map<String, Object> lm, JsonAstCompiler.CompileContext ctx, Function r) {
+        MaterialProvider p = slot(get(lm, "material"), ctx, r);
+        String type = String.valueOf(get(lm, "type")).toLowerCase(Locale.ROOT);
+        long seed = seedOf(get(lm, "seed"), ctx);
+        switch (type) {
+            case "rangethickness": return HMaterials.rangeThickness(p, num(get(lm, "rangemin"), 1), num(get(lm, "rangemax"), 1), seed);
+            case "weightedthickness": {
+                List<Integer> ts = new ArrayList<>();
+                List<Double> ws = new ArrayList<>();
+                if (get(lm, "possiblethicknesses") instanceof List<?> l) for (Object o : l) { Map<String, Object> m = obj(o); if (m != null) { ts.add(num(get(m, "thickness", "value"), 1)); ws.add(dnum(get(m, "weight"), 1.0)); } }
+                return HMaterials.weightedThickness(p, ts, ws, seed);
+            }
+            case "noisethickness": return HMaterials.noiseThickness(p, JsonAstCompiler.compileDensity(obj(get(lm, "thicknessfunctionxz")), ctx));
+            default: return HMaterials.constantThickness(p, num(get(lm, "thickness"), 1));
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static void registerMaterials() {
+        overMat("Transparent", j -> true, (j, ctx, r) -> HMaterials.transparent());
+        overMat("Solidity", j -> j.containsKey("solid") || j.containsKey("empty"), (j, ctx, r) -> HMaterials.solidity(slot(get(j, "solid"), ctx, r), j.containsKey("empty") ? slot(get(j, "empty"), ctx, r) : null));
+        overMat("Queue", j -> true, (j, ctx, r) -> {
+            List<MaterialProvider> q = new ArrayList<>();
+            if (get(j, "queue") instanceof List<?> l) for (Object o : l) q.add(slot(o, ctx, r));
+            return HMaterials.queue((List) q);
+        });
+        overMat("SimpleHorizontal", j -> j.containsKey("topy") || j.containsKey("bottomy"), (j, ctx, r) -> {
+            String tb = String.valueOf(get(j, "topbaseheight", "topbaseheightname")), bb = String.valueOf(get(j, "bottombaseheight", "bottombaseheightname"));
+            java.util.function.DoubleSupplier top = get(j, "topbaseheight", "topbaseheightname") == null ? null : () -> ctx.decimalConstants().getOrDefault(tb, 0.0);
+            java.util.function.DoubleSupplier bottom = get(j, "bottombaseheight", "bottombaseheightname") == null ? null : () -> ctx.decimalConstants().getOrDefault(bb, 0.0);
+            return HMaterials.simpleHorizontal(num(get(j, "topy"), 256), num(get(j, "bottomy"), 0), top, bottom, slot(get(j, "material"), ctx, r));
+        });
+        overMat("Striped", j -> j.containsKey("stripes") && get(j, "stripes") instanceof List<?> l && !l.isEmpty() && obj(l.get(0)) != null && obj(l.get(0)).containsKey("topy"), (j, ctx, r) -> {
+            List<int[]> stripes = new ArrayList<>();
+            if (get(j, "stripes") instanceof List<?> l) for (Object o : l) { Map<String, Object> m = obj(o); if (m != null) stripes.add(new int[]{num(get(m, "topy"), 0), num(get(m, "bottomy"), 0)}); }
+            return HMaterials.striped(stripes, slot(get(j, "material"), ctx, r));
+        });
+        overMat("Weighted", j -> true, (j, ctx, r) -> {
+            List<MaterialProvider> ps = new ArrayList<>();
+            List<Double> ws = new ArrayList<>();
+            if (get(j, "weightedmaterials") instanceof List<?> l) for (Object o : l) { Map<String, Object> m = obj(o); if (m != null) { ps.add(slot(get(m, "material"), ctx, r)); ws.add(dnum(get(m, "weight"), 1.0)); } }
+            return HMaterials.weighted(seedOf(get(j, "seed"), ctx), dnum(get(j, "skipchance"), 0.0), (List) ps, ws);
+        });
+        overMat("FieldFunction", j -> true, (j, ctx, r) -> {
+            List<HMaterials.Delimiter> ds = new ArrayList<>();
+            if (get(j, "delimiters") instanceof List<?> l) for (Object o : l) { Map<String, Object> m = obj(o); if (m != null) ds.add(new HMaterials.Delimiter(dnum(get(m, "from", "min"), -1e9), dnum(get(m, "to", "max"), 1e9), slot(get(m, "material"), ctx, r))); }
+            return HMaterials.fieldFunction(JsonAstCompiler.compileDensity(obj(get(j, "fieldfunction", "density")), ctx), (List) ds);
+        });
+        overMat("SpaceAndDepth", j -> j.containsKey("layercontext") || (get(j, "layers") instanceof List<?> l && !l.isEmpty() && obj(l.get(0)) != null && obj(l.get(0)).containsKey("type")), (j, ctx, r) -> {
+            List<HMaterials.Layer> layers = new ArrayList<>();
+            if (get(j, "layers") instanceof List<?> l) for (Object o : l) { Map<String, Object> m = obj(o); if (m != null) layers.add(compileLayer(m, ctx, r)); }
+            boolean floor = !String.valueOf(get(j, "layercontext")).toUpperCase(Locale.ROOT).contains("CEILING");
+            return HMaterials.spaceAndDepth(floor, get(j, "condition") == null ? null : compileCondition(get(j, "condition")), (List) layers);
+        });
     }
 }
