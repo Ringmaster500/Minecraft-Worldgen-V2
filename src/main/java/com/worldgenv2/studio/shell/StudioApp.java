@@ -220,6 +220,15 @@ public final class StudioApp {
 
     public void applyToWorld() { LiveWorld.apply(this); }
 
+    /** In a world, the Studio edits the setup that world was made from. Called when the Studio opens. */
+    public void syncToWorld() {
+        if (!LiveWorld.inWorld() || !com.worldgenv2.pack.ProjectRuntime.isWorldLinked()) return;
+        String want = com.worldgenv2.pack.ProjectRuntime.activeProjectName();
+        if (want == null || (project != null && project.name.equals(want))) return;
+        if (project != null && project.isDirty()) { say("This world uses the setup '" + want + "', but you have unsaved changes in '" + project.name + "'. Save, then reopen the Studio.", Ui.YELLOW); return; }
+        if (com.worldgenv2.studio.project.ProjectStore.list().stream().anyMatch(e -> e.name().equals(want))) openProject(want);
+    }
+
     public void regenAroundPlayer() { LiveWorld.regenWorld(this); }
 
     // ---- live preview: rebuild a chosen square of chunks after each edit ----

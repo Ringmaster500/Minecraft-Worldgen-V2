@@ -61,6 +61,12 @@ final class TopBar extends Widget {
         g.fill(x, y, w, h, Ui.BG_APP);
         g.hline(x, y + h - 1, w, Ui.LINE_STRONG);
         g.textMid("WORLDGEN STUDIO", x + 10, y, h, Ui.ACCENT);
+        if (LiveWorld.inWorld() && com.worldgenv2.pack.ProjectRuntime.isWorldLinked()) {
+            String ws = com.worldgenv2.pack.ProjectRuntime.activeProjectName();
+            boolean same = ws != null && app.project != null && ws.equals(app.project.name);
+            String msg = ws == null ? "this world: built-in default" : same ? "editing this world's setup" : "this world uses '" + ws + "' - Apply will switch it";
+            g.textMid(g.fit(msg, Math.max(40, (app.live ? pinBtn.x : liveBtn.x) - 200 - (project.x + project.w))), project.x + project.w + 10, y, h, same ? Ui.TEXT_FAINT : Ui.YELLOW);
+        }
         boolean has = app.project != null;
         undo.enabled = has && app.project.canUndo();
         redo.enabled = has && app.project.canRedo();

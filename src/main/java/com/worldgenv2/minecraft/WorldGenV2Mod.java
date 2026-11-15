@@ -58,6 +58,7 @@ public final class WorldGenV2Mod {
 
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::onCreateSpawnPosition);
+        NeoForge.EVENT_BUS.register(WorldProjectLink.class);   // each world remembers the setup it was made from
 
         if (net.neoforged.fml.loading.FMLEnvironment.getDist().isClient()) {
             com.worldgenv2.studio.WorldGenStudioClient.init(modEventBus);

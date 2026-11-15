@@ -47,6 +47,7 @@ public class WorldGenStudioScreen extends Screen {
     protected void init() {
         super.init();
         refreshScale();
+        app.syncToWorld();
     }
 
     private void refreshScale() {

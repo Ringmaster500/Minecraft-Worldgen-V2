@@ -46,8 +46,8 @@ public class WorldGenCustomizeScreen extends Screen {
 
     private void loadEntries() {
         entries.clear();
-        String activeProj = ProjectRuntime.activeProjectName();
-        String activePreset = ProjectRuntime.activePresetId();
+        String activeProj = ProjectRuntime.globalProjectName();
+        String activePreset = ProjectRuntime.globalPresetId();
         for (ProjectStore.Entry p : ProjectStore.list()) {
             entries.add(new Entry(true, p.name(), "Project: " + p.name()));
             if (p.name().equals(activeProj)) selectedIdx = entries.size() - 1;
@@ -60,6 +60,15 @@ public class WorldGenCustomizeScreen extends Screen {
         if (entries.isEmpty()) {
             entries.add(new Entry(false, "worldgenv2:default", "Preset: Default"));
         }
+    }
+
+    private int detailY;
+
+    private String shortLabel(int i) {
+        if (entries.isEmpty()) return "";
+        Entry e = entries.get(Math.max(0, Math.min(i, entries.size() - 1)));
+        String n = (e.isProject() ? "" : "Preset: ") + e.id().replaceFirst("^worldgenv2:", "");
+        return n.length() > 24 ? n.substring(0, 23) + "…" : n;
     }
 
     private void applySelection() {
@@ -99,11 +108,20 @@ public class WorldGenCustomizeScreen extends Screen {
         this.radarWidget.updateSeed(currentSeed, biomeScale);
 
         int row1Y = previewY + previewH + 8;
-        Entry cur = entries.get(Math.max(0, Math.min(selectedIdx, entries.size() - 1)));
-        this.addRenderableWidget(Button.builder(Component.literal(cur.label()), btn -> {
+        this.detailY = row1Y + 66;
+        Button name = Button.builder(Component.literal(shortLabel(selectedIdx)), btn -> {
             selectedIdx = (selectedIdx + 1) % entries.size();
-            btn.setMessage(Component.literal(entries.get(selectedIdx).label()));
-        }).bounds(centerX - 155, row1Y, 200, 20).build());
+            btn.setMessage(Component.literal(shortLabel(selectedIdx)));
+        }).bounds(centerX - 133, row1Y, 166, 20).build();
+        this.addRenderableWidget(Button.builder(Component.literal("<"), btn -> {
+            selectedIdx = (selectedIdx - 1 + entries.size()) % entries.size();
+            name.setMessage(Component.literal(shortLabel(selectedIdx)));
+        }).bounds(centerX - 155, row1Y, 20, 20).build());
+        this.addRenderableWidget(name);
+        this.addRenderableWidget(Button.builder(Component.literal(">"), btn -> {
+            selectedIdx = (selectedIdx + 1) % entries.size();
+            name.setMessage(Component.literal(shortLabel(selectedIdx)));
+        }).bounds(centerX + 35, row1Y, 20, 20).build());
 
         this.addRenderableWidget(Button.builder(Component.literal("Open Studio"), btn -> {
             Entry sel = entries.get(Math.max(0, Math.min(selectedIdx, entries.size() - 1)));
@@ -143,6 +161,19 @@ public class WorldGenCustomizeScreen extends Screen {
 
         // Render Centered Live Seed Radar Widget
         this.radarWidget.render(graphics, font, mouseX, mouseY);
+
+        // which world setup the new world will be made from, and what it brings
+        if (!entries.isEmpty()) {
+            Entry sel = entries.get(Math.max(0, Math.min(selectedIdx, entries.size() - 1)));
+            graphics.centeredText(font, "World setup for this world", width / 2, detailY - 10, StudioTheme.TEXT_GOLD);
+            String detail = "";
+            if (sel.isProject()) {
+                int[] h = com.worldgenv2.minecraft.WorldHeightDimensions.heightOf(sel.id());
+                if (h != null) detail = "Height Y " + h[0] + " to " + (h[0] + h[1]);
+            } else detail = "Built-in or addon preset";
+            graphics.centeredText(font, detail, width / 2, detailY, 0xFFAAAAAA);
+            graphics.centeredText(font, "The world keeps this setup. Studio edits apply to it.", width / 2, detailY + 11, 0xFF777777);
+        }
 
         super.extractRenderState(graphics, mouseX, mouseY, a);
     }

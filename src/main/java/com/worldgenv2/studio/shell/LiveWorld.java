@@ -25,6 +25,13 @@ final class LiveWorld {
         return Minecraft.getInstance().getSingleplayerServer();
     }
 
+    /** Makes the open Studio setup the one this world generates from (saved with the world); with no world open it is what new worlds start from. */
+    private static void setActiveFor(StudioApp app) throws IOException {
+        MinecraftServer s = server();
+        if (s != null) com.worldgenv2.minecraft.WorldProjectLink.link(s, app.project.name);
+        else ProjectRuntime.setActiveProject(app.project.name);
+    }
+
     static boolean inWorld() {
         return server() != null && Minecraft.getInstance().player != null;
     }
@@ -34,7 +41,7 @@ final class LiveWorld {
         if (app.project == null) return;
         app.project.saveAll();
         try {
-            ProjectRuntime.setActiveProject(app.project.name);
+            setActiveFor(app);
         } catch (IOException e) {
             app.say("Could not write active.json: " + e.getMessage(), Ui.RED);
             return;
@@ -74,7 +81,7 @@ final class LiveWorld {
         if (server == null) { done.run(); return; }
         long t0 = System.currentTimeMillis();
         app.project.saveAll();
-        try { ProjectRuntime.setActiveProject(app.project.name); } catch (IOException e) { app.say("Live: could not write active.json: " + e.getMessage(), Ui.RED); done.run(); return; }
+        try { setActiveFor(app); } catch (IOException e) { app.say("Live: could not write active.json: " + e.getMessage(), Ui.RED); done.run(); return; }
         server.execute(() -> {
             int chunks = 0;
             try {
@@ -107,7 +114,7 @@ final class LiveWorld {
         if (server == null || Minecraft.getInstance().player == null) { app.say("Open a world to regenerate it.", Ui.YELLOW); return; }
         if (app.project != null) {
             app.project.saveAll();
-            try { ProjectRuntime.setActiveProject(app.project.name); } catch (IOException e) { app.say("Could not write active.json: " + e.getMessage(), Ui.RED); return; }
+            try { setActiveFor(app); } catch (IOException e) { app.say("Could not write active.json: " + e.getMessage(), Ui.RED); return; }
         }
         server.execute(() -> {
             ServerLevel level = server.overworld();

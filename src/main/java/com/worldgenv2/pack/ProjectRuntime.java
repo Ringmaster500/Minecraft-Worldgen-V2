@@ -43,7 +43,23 @@ public final class ProjectRuntime {
 
     public static Path activeFile() { return Path.of("config", "worldgenv2", "active.json"); }
 
+    // The world currently open links to its own setup (saved in the world's folder); while linked it wins over active.json,
+    // which only says what NEW worlds start from.
+    private static volatile boolean worldLinked;
+    private static volatile String worldProject, worldPreset;
+
+    public static void linkWorld(String project, String preset) { worldProject = project; worldPreset = preset; worldLinked = true; }
+    public static void unlinkWorld() { worldLinked = false; worldProject = null; worldPreset = null; }
+    public static boolean isWorldLinked() { return worldLinked; }
+
+    /** The setup the open world generates from, or the one new worlds will start from when no world is open. */
     public static String activeProjectName() {
+        if (worldLinked) return worldProject == null || worldProject.isBlank() ? null : worldProject;
+        return globalProjectName();
+    }
+
+    /** The setup new worlds start from (active.json), whatever world is open. */
+    public static String globalProjectName() {
         try {
             Path f = activeFile();
             if (!Files.exists(f)) return null;
@@ -58,6 +74,11 @@ public final class ProjectRuntime {
 
     /** {@code {"preset": "namespace:id"}} makes worlds generate straight from an installed preset. */
     public static String activePresetId() {
+        if (worldLinked) return worldPreset == null || worldPreset.isBlank() ? null : worldPreset;
+        return globalPresetId();
+    }
+
+    public static String globalPresetId() {
         try {
             Path f = activeFile();
             if (!Files.exists(f)) return null;
