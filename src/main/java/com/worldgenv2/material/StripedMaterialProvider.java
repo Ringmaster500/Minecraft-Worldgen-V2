@@ -33,14 +33,22 @@ public final class StripedMaterialProvider<T> implements MaterialProvider<T> {
 
     @Override
     public T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
+        return getMaterial(x, y, z, depth, space, -1, 0, slopeAngle, spaceRef);
+    }
+
+    @Override
+    public T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                         int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef) {
         int modY = Math.floorMod(y, totalPeriod);
         int acc = 0;
         for (Stripe<T> stripe : stripes) {
             acc += stripe.thickness;
             if (modY < acc) {
-                return stripe.provider.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+                return stripe.provider.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                        depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
             }
         }
-        return stripes.get(0).provider.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+        return stripes.get(0).provider.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
     }
 }

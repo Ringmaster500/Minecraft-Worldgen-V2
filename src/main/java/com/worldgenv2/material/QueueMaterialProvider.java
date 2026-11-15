@@ -37,15 +37,23 @@ public final class QueueMaterialProvider<T> implements MaterialProvider<T> {
 
     @Override
     public T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
+        return getMaterial(x, y, z, depth, space, -1, 0, slopeAngle, spaceRef);
+    }
+
+    @Override
+    public T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                         int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef) {
         for (int i = 0, size = rules.size(); i < size; i++) {
             ConditionalRule<T> rule = rules.get(i);
-            if (rule.pattern().matches(x, y, z, depth, space, slopeAngle, spaceRef)) {
-                T result = rule.provider().getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+            if (rule.pattern().matches(x, y, z, depthIntoFloor, spaceAboveFloor, slopeAngle, spaceRef)) {
+                T result = rule.provider().getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                        depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
                 if (result != null) {
                     return result;
                 }
             }
         }
-        return fallbackProvider.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+        return fallbackProvider.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
     }
 }

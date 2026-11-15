@@ -246,6 +246,7 @@ public final class HytaleDialect {
         registerMoreProps();
         registerDensity();
         registerMaterials();
+        registerPatterns();
         WorldGenV2Registries.PROP_TYPE.register("Locator", new WorldGenV2Registries.PropDeserializer() {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
@@ -583,6 +584,10 @@ public final class HytaleDialect {
         R.register("SmoothMax", (j, ctx) -> HDensity.smoothMax(input(j, 0, ctx), input(j, 1, ctx), (float) dnum(get(j, "range"), 0.2)));
         R.register("SmoothMin", (j, ctx) -> HDensity.smoothMin(input(j, 0, ctx), input(j, 1, ctx), (float) dnum(get(j, "range"), 0.2)));
         R.register("SmoothClamp", (j, ctx) -> HDensity.smoothClamp(input(j, 0, ctx), (float) dnum(get(j, "walla"), 0), (float) dnum(get(j, "wallb"), 1), (float) dnum(get(j, "range"), 0.2)));
+        overD(R, "Clamp", j -> get(j, "walla") != null || get(j, "wallb") != null, (j, ctx) -> {
+            float a = (float) dnum(get(j, "walla"), -1.0), b = (float) dnum(get(j, "wallb"), 1.0);
+            return new com.worldgenv2.density.ClampDensity(input(j, 0, ctx), Math.min(a, b), Math.max(a, b));
+        });
         R.register("Inverter", (j, ctx) -> HDensity.inverter(input(j, 0, ctx)));
         R.register("Scale", (j, ctx) -> HDensity.scale(input(j, 0, ctx), (float) dnum(get(j, "x"), 1), (float) dnum(get(j, "y"), 1), (float) dnum(get(j, "z"), 1)));
         R.register("Normalizer", (j, ctx) -> HDensity.normalizer(input(j, 0, ctx), (float) dnum(get(j, "frommin"), 0), (float) dnum(get(j, "frommax"), 1), (float) dnum(get(j, "tomin"), 0), (float) dnum(get(j, "tomax"), 1)));
@@ -701,12 +706,11 @@ public final class HytaleDialect {
         return JsonAstCompiler.compileMaterialProvider(o, ctx, r);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static java.util.function.IntPredicate compileCondition(Object raw) {
+    private static HMaterials.SpaceCondition compileCondition(Object raw) {
         Map<String, Object> m = obj(raw);
-        if (m == null) return s -> true;
+        if (m == null) return (sf, sc) -> true;
         String type = String.valueOf(get(m, "type"));
-        List<java.util.function.IntPredicate> kids = new ArrayList<>();
+        List<HMaterials.SpaceCondition> kids = new ArrayList<>();
         if (get(m, "conditions") instanceof List<?> l) for (Object o : l) kids.add(compileCondition(o));
         if (get(m, "condition") != null) kids.add(compileCondition(get(m, "condition")));
         int value = num(get(m, "value", "threshold"), 0);
@@ -768,5 +772,20 @@ public final class HytaleDialect {
             boolean floor = !String.valueOf(get(j, "layercontext")).toUpperCase(Locale.ROOT).contains("CEILING");
             return HMaterials.spaceAndDepth(floor, get(j, "condition") == null ? null : compileCondition(get(j, "condition")), (List) layers);
         });
+    }
+
+    static void registerPatterns() {
+        var des = new WorldGenV2Registries.PatternDeserializer() {
+            @Override
+            public <T> com.worldgenv2.material.patterns.Pattern<T> deserialize(
+                    Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
+                HPattern<T> hp = compileHPattern(j, ctx, resolver);
+                return (x, y, z, depth, space, slopeAngle, voxelSpace) ->
+                        hp.test(new HPattern.Probe<>(voxelSpace), x, y, z, 0);
+            }
+        };
+        for (String name : List.of("Constant", "Offset", "Floor", "Ceiling", "Wall", "Cuboid", "And", "Or", "Not", "FieldFunction")) {
+            WorldGenV2Registries.PATTERN_TYPE.register(name, des);
+        }
     }
 }

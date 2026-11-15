@@ -35,8 +35,14 @@ public final class GraphMaterialProvider<T> implements MaterialProvider<T> {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
+        return getMaterial(x, y, z, depth, space, -1, 0, slopeAngle, spaceRef);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                         int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef) {
         Vec3d samplePos = new Vec3d(x, y, z);
         List<GraphNode> nearby = graphGenerator.getNodesInRange(seed, samplePos, maxSearchRadius, 0.0);
 
@@ -60,10 +66,12 @@ public final class GraphMaterialProvider<T> implements MaterialProvider<T> {
 
         if (nearestEntry != null) {
             MaterialProvider<T> childProvider = (MaterialProvider<T>) nearestEntry.provider();
-            return childProvider.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+            return childProvider.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                    depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
         }
 
-        return fallback.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+        return fallback.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
     }
 
     public GraphGenerator getGraphGenerator() {

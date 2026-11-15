@@ -67,6 +67,14 @@ public final class Phase23VerificationTest {
         MaterialProvider<String> legacy = p("{\"Type\":\"SpaceAndDepth\",\"layers\":[{\"material\":\"grass\",\"thickness\":1},{\"material\":\"stone\",\"thickness\":99}]}");
         check("grass".equals(at(legacy, 64, 0, 5)) && "stone".equals(at(legacy, 63, 1, 5)), "the older SpaceAndDepth shape still loads");
 
+        MaterialProvider<String> ceiling = p("{\"Type\":\"SpaceAndDepth\",\"LayerContext\":\"DEPTH_INTO_CEILING\",\"MaxExpectedDepth\":8,\"Condition\":{\"Type\":\"GreaterThanCondition\",\"ContextToCheck\":\"SPACE_BELOW_CEILING\",\"Threshold\":2},"
+                + "\"Layers\":[{\"Type\":\"ConstantThickness\",\"Thickness\":1,\"Material\":" + k("dripstone") + "},{\"Type\":\"ConstantThickness\",\"Thickness\":2,\"Material\":" + k("deepslate") + "}]}");
+        check("dripstone".equals(ceiling.getMaterial(0, 40, 0, 10, 0, 0, 5, 0f, SPACE))
+                && "deepslate".equals(ceiling.getMaterial(0, 41, 0, 9, 0, 1, 5, 0f, SPACE))
+                && ceiling.getMaterial(0, 40, 0, 10, 0, 0, 2, 0f, SPACE) == null
+                && ceiling.getMaterial(0, 40, 0, 10, 0, -1, 5, 0f, SPACE) == null,
+                "SpaceAndDepth supports DEPTH_INTO_CEILING and SPACE_BELOW_CEILING");
+
         System.out.println("Phase 23 verification: ALL " + passed + " TESTS PASSED!");
     }
 }

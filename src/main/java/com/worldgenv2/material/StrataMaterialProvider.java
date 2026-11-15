@@ -31,11 +31,19 @@ public final class StrataMaterialProvider<T> implements MaterialProvider<T> {
 
     @Override
     public T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
+        return getMaterial(x, y, z, depth, space, -1, 0, slopeAngle, spaceRef);
+    }
+
+    @Override
+    public T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                         int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef) {
         for (Stratum<T> stratum : strata) {
             if (y >= stratum.minY && y <= stratum.maxY) {
-                return stratum.provider.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+                return stratum.provider.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                        depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
             }
         }
-        return fallback.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+        return fallback.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
     }
 }

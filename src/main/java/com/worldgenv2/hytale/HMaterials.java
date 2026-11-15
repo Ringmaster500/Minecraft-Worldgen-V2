@@ -6,7 +6,6 @@ import com.worldgenv2.material.MaterialProvider;
 
 import java.util.List;
 import java.util.function.DoubleSupplier;
-import java.util.function.IntPredicate;
 
 /**
  * Hytale's Material Providers (docs.hytale.com/hytale-generator/material-provider). A provider answers, for one block, which
@@ -24,6 +23,18 @@ public final class HMaterials {
         return (h >>> 11) * (1.0 / (1L << 53));
     }
 
+    @FunctionalInterface
+    private interface FullProvider<T> extends MaterialProvider<T> {
+        @Override
+        default T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
+            return getMaterial(x, y, z, depth, space, -1, 0, slopeAngle, spaceRef);
+        }
+
+        @Override
+        T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                      int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef);
+    }
+
     /** The lack of any material. */
     public static <T> MaterialProvider<T> transparent() {
         return (x, y, z, depth, space, slope, ref) -> null;
@@ -31,29 +42,30 @@ public final class HMaterials {
 
     /** Solid where the terrain density is above 0 (the engine asks providers for solid blocks), Empty elsewhere. */
     public static <T> MaterialProvider<T> solidity(MaterialProvider<T> solid, MaterialProvider<T> empty) {
-        return (x, y, z, depth, space, slope, ref) -> solid == null ? null : solid.getMaterial(x, y, z, depth, space, slope, ref);
+        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) ->
+                solid == null ? null : solid.getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
     }
 
     /** The first provider that provides a block. */
     public static <T> MaterialProvider<T> queue(List<MaterialProvider<T>> queue) {
-        return (x, y, z, depth, space, slope, ref) -> {
-            for (MaterialProvider<T> p : queue) { T m = p.getMaterial(x, y, z, depth, space, slope, ref); if (m != null) return m; }
+        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
+            for (MaterialProvider<T> p : queue) { T m = p.getMaterial(x, y, z, df, sf, dc, sc, slope, ref); if (m != null) return m; }
             return null;
         };
     }
 
     /** Applies the child to Y in [bottomY, topY): bottom inclusive, top exclusive. A base height makes both relative to it. */
     public static <T> MaterialProvider<T> simpleHorizontal(int topY, int bottomY, DoubleSupplier topBase, DoubleSupplier bottomBase, MaterialProvider<T> child) {
-        return (x, y, z, depth, space, slope, ref) -> {
+        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
             double top = topY + (topBase == null ? 0 : topBase.getAsDouble()), bottom = bottomY + (bottomBase == null ? 0 : bottomBase.getAsDouble());
-            return y >= bottom && y < top ? child.getMaterial(x, y, z, depth, space, slope, ref) : null;
+            return y >= bottom && y < top ? child.getMaterial(x, y, z, df, sf, dc, sc, slope, ref) : null;
         };
     }
 
     /** Applies the child inside any stripe; both Y limits are inclusive. */
     public static <T> MaterialProvider<T> striped(List<int[]> stripes, MaterialProvider<T> child) {
-        return (x, y, z, depth, space, slope, ref) -> {
-            for (int[] s : stripes) if (y >= Math.min(s[0], s[1]) && y <= Math.max(s[0], s[1])) return child.getMaterial(x, y, z, depth, space, slope, ref);
+        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
+            for (int[] s : stripes) if (y >= Math.min(s[0], s[1]) && y <= Math.max(s[0], s[1])) return child.getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
             return null;
         };
     }
@@ -63,12 +75,12 @@ public final class HMaterials {
         double total = 0;
         for (double w : weights) total += w;
         final double sum = total;
-        return (x, y, z, depth, space, slope, ref) -> {
+        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
             if (providers.isEmpty() || sum <= 0) return null;
             if (skipChance > 0 && hash01(seed, x, y, z, 1) < skipChance) return null;
             double r = hash01(seed, x, y, z, 2) * sum;
-            for (int i = 0; i < providers.size(); i++) { r -= weights.get(i); if (r < 0) return providers.get(i).getMaterial(x, y, z, depth, space, slope, ref); }
-            return providers.get(providers.size() - 1).getMaterial(x, y, z, depth, space, slope, ref);
+            for (int i = 0; i < providers.size(); i++) { r -= weights.get(i); if (r < 0) return providers.get(i).getMaterial(x, y, z, df, sf, dc, sc, slope, ref); }
+            return providers.get(providers.size() - 1).getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
         };
     }
 
@@ -76,11 +88,11 @@ public final class HMaterials {
     public record Delimiter<T>(double from, double to, MaterialProvider<T> provider) {}
 
     public static <T> MaterialProvider<T> fieldFunction(DensityFunction field, List<Delimiter<T>> delimiters) {
-        return (x, y, z, depth, space, slope, ref) -> {
+        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
             double v = field.compute(x, y, z);
             for (int i = delimiters.size() - 1; i >= 0; i--) {
                 Delimiter<T> d = delimiters.get(i);
-                if (v >= d.from() && v <= d.to()) return d.provider().getMaterial(x, y, z, depth, space, slope, ref);
+                if (v >= d.from() && v <= d.to()) return d.provider().getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
             }
             return null;
         };
@@ -88,17 +100,23 @@ public final class HMaterials {
 
     // ------------------------------------------------------------------ conditions and layers of SpaceAndDepth
 
-    /** A Condition reads the space above the floor (the only context the engine measures while placing blocks). */
-    public static IntPredicate condition(String type, String context, int value, List<IntPredicate> children) {
-        boolean above = !"SPACE_BELOW_CEILING".equalsIgnoreCase(context);
+    /** A Condition predicate testing either {@code SPACE_ABOVE_FLOOR} or {@code SPACE_BELOW_CEILING}. */
+    @FunctionalInterface
+    public interface SpaceCondition {
+        boolean test(int spaceAboveFloor, int spaceBelowCeiling);
+    }
+
+    /** A Condition reads the space above the floor or below the ceiling. */
+    public static SpaceCondition condition(String type, String context, int value, List<SpaceCondition> children) {
+        boolean ceiling = "SPACE_BELOW_CEILING".equalsIgnoreCase(context);
         switch (type.toLowerCase(java.util.Locale.ROOT)) {
-            case "equalscondition": return s -> above && s == value;
-            case "greaterthancondition": return s -> above && s > value;
-            case "smallerthancondition": return s -> above && s < value;
-            case "andcondition": return s -> { for (IntPredicate c : children) if (!c.test(s)) return false; return true; };
-            case "orcondition": return s -> { for (IntPredicate c : children) if (c.test(s)) return true; return false; };
-            case "notcondition": return s -> !children.get(0).test(s);
-            default: return s -> true;
+            case "equalscondition": return (sf, sc) -> (ceiling ? sc : sf) == value;
+            case "greaterthancondition": return (sf, sc) -> (ceiling ? sc : sf) > value;
+            case "smallerthancondition": return (sf, sc) -> (ceiling ? sc : sf) < value;
+            case "andcondition": return (sf, sc) -> { for (SpaceCondition c : children) if (!c.test(sf, sc)) return false; return true; };
+            case "orcondition": return (sf, sc) -> { for (SpaceCondition c : children) if (c.test(sf, sc)) return true; return false; };
+            case "notcondition": return (sf, sc) -> !children.get(0).test(sf, sc);
+            default: return (sf, sc) -> true;
         }
     }
 
@@ -144,17 +162,18 @@ public final class HMaterials {
     }
 
     /**
-     * Piles layers into the floor like a cake: the first layer from the surface down for its thickness, then the next, and so on.
-     * With a Condition that fails (for example not enough open space above) the provider gives no block. Layers can be applied
-     * to a ceiling in Hytale; the engine measures only the floor, so a ceiling context provides nothing.
+     * Piles layers into the floor or ceiling like a cake: the first layer from the exposed surface for its thickness,
+     * then the next, and so on. With a Condition that fails (for example not enough open space above/below) the provider
+     * gives no block.
      */
-    public static <T> MaterialProvider<T> spaceAndDepth(boolean floor, IntPredicate condition, List<Layer<T>> layers) {
-        return (x, y, z, depth, space, slope, ref) -> {
-            if (!floor || (condition != null && !condition.test(space))) return null;
+    public static <T> MaterialProvider<T> spaceAndDepth(boolean floor, SpaceCondition condition, List<Layer<T>> layers) {
+        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
+            int depth = floor ? df : dc;
+            if (depth < 0 || (condition != null && !condition.test(sf, sc))) return null;
             int top = 0;
             for (Layer<T> l : layers) {
                 int bottom = top + Math.max(0, l.thickness(x, z));
-                if (depth < bottom) return l.provider().getMaterial(x, y, z, depth - top, space, slope, ref);
+                if (depth < bottom) return l.provider().getMaterial(x, y, z, depth - top, sf, dc, sc, slope, ref);
                 top = bottom;
             }
             return null;

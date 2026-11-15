@@ -45,11 +45,19 @@ public final class SolidityMaterialProvider<T> implements MaterialProvider<T> {
 
     @Override
     public T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
+        return getMaterial(x, y, z, depth, space, -1, 0, slopeAngle, spaceRef);
+    }
+
+    @Override
+    public T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                         int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef) {
         float d = density.compute(x, y, z);
         if (d >= threshold) {
-            return solidMaterial.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+            return solidMaterial.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                    depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
         } else {
-            return fluidMaterial.getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+            return fluidMaterial.getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                    depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
         }
     }
 }

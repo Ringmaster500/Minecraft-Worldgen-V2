@@ -32,9 +32,11 @@ public final class MixDensity implements DensityFunction {
 
     @Override
     public float compute(float x, float y, float z) {
+        float t = Math.clamp(factor.compute(x, y, z), 0.0f, 1.0f);
+        if (t <= 0.0f) return a.compute(x, y, z);
+        if (t >= 1.0f) return b.compute(x, y, z);
         float va = a.compute(x, y, z);
         float vb = b.compute(x, y, z);
-        float t = factor.compute(x, y, z);
         return va + t * (vb - va);
     }
 
@@ -50,7 +52,7 @@ public final class MixDensity implements DensityFunction {
         factor.computeColumn(x, z, minY, maxY, bufF);
 
         for (int i = 0; i < height; i++) {
-            float t = bufF[i];
+            float t = Math.clamp(bufF[i], 0.0f, 1.0f);
             out[i] = bufA[i] + t * (bufB[i] - bufA[i]);
         }
     }

@@ -59,8 +59,15 @@ public final class WeightedMaterialProvider<T> implements MaterialProvider<T> {
 
     @Override
     public T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
+        return getMaterial(x, y, z, depth, space, -1, 0, slopeAngle, spaceRef);
+    }
+
+    @Override
+    public T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                         int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef) {
         if (entries.size() == 1) {
-            return entries.getFirst().provider().getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+            return entries.getFirst().provider().getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                    depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
         }
         float target = hashToUnitFloat(x, y, z, seed) * totalWeight;
         float cumulative = 0.0f;
@@ -68,10 +75,12 @@ public final class WeightedMaterialProvider<T> implements MaterialProvider<T> {
             Entry<T> entry = entries.get(i);
             cumulative += entry.weight();
             if (target <= cumulative) {
-                return entry.provider().getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+                return entry.provider().getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                        depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
             }
         }
-        return entries.getLast().provider().getMaterial(x, y, z, depth, space, slopeAngle, spaceRef);
+        return entries.getLast().provider().getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor,
+                depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
     }
 
     private static float hashToUnitFloat(int x, int y, int z, long seed) {

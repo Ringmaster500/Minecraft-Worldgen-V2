@@ -4427,11 +4427,11 @@ public final class JsonAstCompiler {
             DensityFunction b = optimizeDensity(mix.b());
             DensityFunction factor = optimizeDensity(mix.factor());
             if (factor instanceof ConstantDensity fc) {
-                if (Math.abs(fc.getValue()) < 1e-6f) return a;
-                if (Math.abs(fc.getValue() - 1.0f) < 1e-6f) return b;
+                if (fc.getValue() <= 0.0f) return a;
+                if (fc.getValue() >= 1.0f) return b;
             }
             if (a instanceof ConstantDensity ca && b instanceof ConstantDensity cb && factor instanceof ConstantDensity cf) {
-                float t = cf.getValue();
+                float t = Math.clamp(cf.getValue(), 0.0f, 1.0f);
                 return new ConstantDensity(ca.getValue() + t * (cb.getValue() - ca.getValue()));
             }
             return new MixDensity(a, b, factor);

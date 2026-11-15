@@ -21,7 +21,7 @@ public final class AndDensity implements DensityFunction {
 
     @Override
     public float compute(float x, float y, float z) {
-        if (inputs.isEmpty()) return 1.0f;
+        if (inputs.isEmpty()) return 0.0f;
         for (DensityFunction input : inputs) {
             if (input.compute(x, y, z) == 0.0f) {
                 return 0.0f;

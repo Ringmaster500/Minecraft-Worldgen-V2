@@ -232,6 +232,8 @@ public final class StagedChunkGenerator<T> {
         // =====================================================================
         // Stage 3: TerrainStage (Volumetric Density Sculpting & Material Rules)
         // =====================================================================
+        int[] ceilingDepth = new int[height];
+        int[] ceilingSpace = new int[height];
         for (int lx = 0; lx < CHUNK_SIZE_X; lx++) {
             int worldX = originX + lx;
             int hx = lx + 1;
@@ -248,6 +250,28 @@ public final class StagedChunkGenerator<T> {
                 int xMinusOffset = ((hx - 1) * HALO_SIZE + hz) * height;
                 int zPlusOffset = (hx * HALO_SIZE + (hz + 1)) * height;
                 int zMinusOffset = (hx * HALO_SIZE + (hz - 1)) * height;
+
+                int cDepth = -1;
+                int airBelow = 0;
+                int currentCeilingSpace = 0;
+                for (int yIdx = 0; yIdx < height; yIdx++) {
+                    if (densityVolume[colOffset + yIdx] > 0.0f) {
+                        if (airBelow > 0) {
+                            cDepth = 0;
+                            currentCeilingSpace = airBelow;
+                            airBelow = 0;
+                        } else if (cDepth >= 0) {
+                            cDepth++;
+                        }
+                        ceilingDepth[yIdx] = cDepth;
+                        ceilingSpace[yIdx] = currentCeilingSpace;
+                    } else {
+                        cDepth = -1;
+                        airBelow++;
+                        ceilingDepth[yIdx] = -1;
+                        ceilingSpace[yIdx] = 0;
+                    }
+                }
 
                 int depth = 0;
                 int airSpaceAbove = INITIAL_SKY_CLEARANCE;
@@ -288,7 +312,8 @@ public final class StagedChunkGenerator<T> {
                         }
                         T material = activeProvider != null
                             ? activeProvider.getMaterial(
-                                worldX, worldY, worldZ, materialDepth, currentSurfaceSpace, slopeAngle, voxelSpace
+                                worldX, worldY, worldZ, materialDepth, currentSurfaceSpace,
+                                ceilingDepth[yIdx], ceilingSpace[yIdx], slopeAngle, voxelSpace
                             )
                             : baseSolidBlock;
                         if (worldStructure.getSplineRoadEngine() != null && (roadDeckBlock != null || roadShoulderBlock != null)) {
