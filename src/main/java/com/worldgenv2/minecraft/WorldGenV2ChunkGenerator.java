@@ -142,6 +142,8 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
         if (blockId == null || blockId.isBlank()) {
             return fallback;
         }
+        String mapped = com.worldgenv2.hytale.HytaleBlocks.toMinecraft(blockId);   // Hytale's own block names
+        if (mapped != null) blockId = mapped;
         try {
             int br = blockId.indexOf('[');
             String base = br < 0 ? blockId : blockId.substring(0, br);

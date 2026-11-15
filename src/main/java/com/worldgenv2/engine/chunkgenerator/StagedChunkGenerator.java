@@ -335,7 +335,8 @@ public final class StagedChunkGenerator<T> {
                         depth++;
                         airSpaceAbove = 0;
                     } else {
-                        voxelSpace.setBlock(worldX, worldY, worldZ, airBlock);
+                        T filler = materialProvider != null && materialProvider.providesEmpty() ? materialProvider.getEmptyMaterial(worldX, worldY, worldZ, voxelSpace) : null;
+                        voxelSpace.setBlock(worldX, worldY, worldZ, filler != null ? filler : airBlock);   // Solidity's Empty side: fluids
                         if (depth >= UNDERGROUND_MIN_MASS) {
                             underground = true;
                         }

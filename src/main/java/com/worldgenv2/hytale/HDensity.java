@@ -10,12 +10,51 @@ import java.util.function.DoubleSupplier;
 public final class HDensity {
     private HDensity() {}
 
+    // ------------------------------------------------------------------ column-aware building blocks
+    // A terrain column is evaluated 300 to 500 voxels at a time. These helpers hand whole columns to the children (which cache the
+    // parts that do not depend on Y) instead of asking for one voxel at a time.
+
+    public interface FloatOp1 { float apply(float a); }
+    public interface FloatOp2 { float apply(float a, float b); }
+
+    /** A pointwise function of one input. */
+    public static DensityFunction pointwise(DensityFunction in, FloatOp1 op) {
+        return new DensityFunction() {
+            @Override public float compute(float x, float y, float z) { return op.apply(in.compute(x, y, z)); }
+            @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                in.computeColumn(x, z, minY, maxY, out);
+                for (int i = 0, n = maxY - minY; i < n; i++) out[i] = op.apply(out[i]);
+            }
+        };
+    }
+
+    /** A pointwise function of two inputs. */
+    public static DensityFunction pointwise(DensityFunction a, DensityFunction b, FloatOp2 op) {
+        return new DensityFunction() {
+            @Override public float compute(float x, float y, float z) { return op.apply(a.compute(x, y, z), b.compute(x, y, z)); }
+            @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                int n = maxY - minY;
+                float[] tmp = new float[n];
+                a.computeColumn(x, z, minY, maxY, out);
+                b.computeColumn(x, z, minY, maxY, tmp);
+                for (int i = 0; i < n; i++) out[i] = op.apply(out[i], tmp[i]);
+            }
+        };
+    }
     /** The product of all inputs; stops evaluating as soon as one is 0, so put the cheapest mask first. */
     public static DensityFunction multiplier(List<DensityFunction> in) {
-        return (x, y, z) -> {
-            float r = 1f;
-            for (DensityFunction d : in) { float v = d.compute(x, y, z); if (v == 0f) return 0f; r *= v; }
-            return r;
+        return new DensityFunction() {
+            @Override public float compute(float x, float y, float z) {
+                float r = 1f;
+                for (DensityFunction d : in) { float v = d.compute(x, y, z); if (v == 0f) return 0f; r *= v; }
+                return r;
+            }
+            @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                int n = maxY - minY;
+                java.util.Arrays.fill(out, 0, n, 1f);
+                float[] tmp = new float[n];
+                for (DensityFunction d : in) { d.computeColumn(x, z, minY, maxY, tmp); for (int i = 0; i < n; i++) out[i] *= tmp[i]; }
+            }
         };
     }
 
@@ -31,17 +70,17 @@ public final class HDensity {
         return Math.min(a, b) - h * h * k * 0.25f;
     }
 
-    public static DensityFunction smoothMax(DensityFunction a, DensityFunction b, float range) { return (x, y, z) -> smoothMax(a.compute(x, y, z), b.compute(x, y, z), range); }
+    public static DensityFunction smoothMax(DensityFunction a, DensityFunction b, float range) { return pointwise(a, b, (p, q) -> smoothMax(p, q, range)); }
 
-    public static DensityFunction smoothMin(DensityFunction a, DensityFunction b, float range) { return (x, y, z) -> smoothMin(a.compute(x, y, z), b.compute(x, y, z), range); }
+    public static DensityFunction smoothMin(DensityFunction a, DensityFunction b, float range) { return pointwise(a, b, (p, q) -> smoothMin(p, q, range)); }
 
     /** Like Clamp, but the limits are approached smoothly over {@code range}. */
     public static DensityFunction smoothClamp(DensityFunction in, float wallA, float wallB, float range) {
         float lo = Math.min(wallA, wallB), hi = Math.max(wallA, wallB);
-        return (x, y, z) -> smoothMin(smoothMax(in.compute(x, y, z), lo, range), hi, range);
+        return pointwise(in, v -> smoothMin(smoothMax(v, lo, range), hi, range));
     }
 
-    public static DensityFunction inverter(DensityFunction in) { return (x, y, z) -> -in.compute(x, y, z); }
+    public static DensityFunction inverter(DensityFunction in) { return pointwise(in, v -> -v); }
 
     /** Stretches (above 1), contracts (below 1) or flips (below 0) the input field per axis. */
     public static DensityFunction scale(DensityFunction in, float sx, float sy, float sz) {
@@ -52,7 +91,7 @@ public final class HDensity {
     /** Linearly remaps the input range [fromMin, fromMax] to [toMin, toMax]. */
     public static DensityFunction normalizer(DensityFunction in, float fromMin, float fromMax, float toMin, float toMax) {
         float span = fromMax - fromMin;
-        return (x, y, z) -> span == 0f ? toMin : toMin + (in.compute(x, y, z) - fromMin) * (toMax - toMin) / span;
+        return pointwise(in, v -> span == 0f ? toMin : toMin + (v - fromMin) * (toMax - toMin) / span);
     }
 
     /** Slides the input field along a vector. */
@@ -67,7 +106,13 @@ public final class HDensity {
 
     /** A named decimal constant from the World Structure: its Y (Distance off) or the signed distance to it (Distance on). */
     public static DensityFunction baseHeight(DoubleSupplier height, boolean distance) {
-        return (x, y, z) -> distance ? (float) (y - height.getAsDouble()) : (float) height.getAsDouble();
+        return new DensityFunction() {
+            @Override public float compute(float x, float y, float z) { return distance ? (float) (y - height.getAsDouble()) : (float) height.getAsDouble(); }
+            @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                float h = (float) height.getAsDouble();
+                for (int i = 0, n = maxY - minY; i < n; i++) out[i] = distance ? minY + i - h : h;
+            }
+        };
     }
 
     /** The curve of the distance from the field's origin. */
@@ -301,6 +346,73 @@ public final class HDensity {
             DensityFunction d = cases.get(SWITCH_STATE.get());
             if (d == null) d = cases.get("Default");
             return d == null ? 0f : d.compute(x, y, z);
+        };
+    }
+
+    // ------------------------------------------------------------------ Y-independent caching
+
+    private static final class Memo {
+        final float[] xs = new float[8], zs = new float[8], vs = new float[8];
+        int next;
+        Memo() { java.util.Arrays.fill(xs, Float.NaN); }
+    }
+
+    /**
+     * The input seen at a fixed height ({@code YOverride}, {@code Cache2D}): the value depends only on x and z, so a column of voxels
+     * costs one evaluation. The last few columns are remembered per thread, which is what makes Hytale's deliberately placed
+     * caches pay off.
+     */
+    public static DensityFunction atFixedY(DensityFunction in, float fixedY) {
+        ThreadLocal<Memo> memo = ThreadLocal.withInitial(Memo::new);
+        return new DensityFunction() {
+            @Override public float compute(float x, float y, float z) {
+                Memo m = memo.get();
+                for (int i = 0; i < 8; i++) if (m.xs[i] == x && m.zs[i] == z) return m.vs[i];
+                float v = in.compute(x, fixedY, z);
+                int k = m.next++ & 7;
+                m.xs[k] = x; m.zs[k] = z; m.vs[k] = v;
+                return v;
+            }
+            @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                float v = compute(x, 0f, z);
+                java.util.Arrays.fill(out, 0, maxY - minY, v);
+            }
+        };
+    }
+
+    /** The input with one coordinate replaced by a constant (XOverride, ZOverride; Y goes through {@link #atFixedY}). */
+    public static DensityFunction overrideX(DensityFunction in, float value) { return (x, y, z) -> in.compute(value, y, z); }
+
+    public static DensityFunction overrideZ(DensityFunction in, float value) { return (x, y, z) -> in.compute(x, y, value); }
+
+    /**
+     * Hytale's YSampled: the input is evaluated only every {@code distance} blocks along Y (at heights on a world-fixed grid,
+     * shifted by {@code offset}) and the blocks between are interpolated, which cuts the cost of a 3D field by that factor.
+     */
+    public static DensityFunction ySampled(DensityFunction in, double distance, double offset, boolean interpolate) {
+        double d = Math.max(1.0, distance);
+        return new DensityFunction() {
+            @Override public float compute(float x, float y, float z) {
+                double g = (y - offset) / d;
+                int j = (int) Math.floor(g);
+                float a = in.compute(x, (float) (j * d + offset), z);
+                if (!interpolate) return a;
+                float t = (float) (g - j);
+                if (t == 0f) return a;
+                return a + (in.compute(x, (float) ((j + 1) * d + offset), z) - a) * t;
+            }
+            @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                int n = maxY - minY;
+                int j0 = (int) Math.floor((minY - offset) / d), j1 = (int) Math.floor((maxY - 1 - offset) / d) + 1;
+                float[] s = new float[j1 - j0 + 1];
+                for (int j = j0; j <= j1; j++) s[j - j0] = in.compute(x, (float) (j * d + offset), z);
+                for (int i = 0; i < n; i++) {
+                    double g = (minY + i - offset) / d;
+                    int j = (int) Math.floor(g);
+                    float a = s[j - j0];
+                    out[i] = interpolate && g != j ? a + (s[j + 1 - j0] - a) * (float) (g - j) : a;
+                }
+            }
         };
     }
 }

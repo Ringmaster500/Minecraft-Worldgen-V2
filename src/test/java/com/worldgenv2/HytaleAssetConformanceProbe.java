@@ -2,6 +2,7 @@ package com.worldgenv2;
 
 import com.worldgenv2.assignments.Assignments;
 import com.worldgenv2.biome.HytaleDialect;
+import com.worldgenv2.biome.HytaleImport;
 import com.worldgenv2.biome.JsonAstCompiler;
 import com.worldgenv2.biome.WorldGenV2Registries;
 
@@ -38,6 +39,21 @@ public final class HytaleAssetConformanceProbe {
             for (Object x : l) walk(x, file, counts, keys, where);
         }
     }
+    static void collectUnread(Object o, String parentKey, String file, Map<String, int[]> out, Map<String, String> where) {
+        if (o instanceof JsonAstCompiler.CaseInsensitiveMap m) {
+            Object type = m.get("Type");
+            String label = type instanceof String s ? s : "(" + parentKey + ")";
+            for (String k : m.unreadKeys()) {
+                if (k.equalsIgnoreCase("Type") || k.equalsIgnoreCase("Skip") || k.equalsIgnoreCase("ExportAs") || k.equalsIgnoreCase("SingleInstance")) continue;
+                String key = label + "." + k;
+                out.computeIfAbsent(key, x -> new int[1])[0]++;
+                where.putIfAbsent(key, file);
+            }
+            for (var e : m.entrySet()) collectUnread(e.getValue(), e.getKey(), file, out, where);
+        } else if (o instanceof List<?> l) {
+            for (Object x : l) collectUnread(x, parentKey, file, out, where);
+        }
+    }
     @SuppressWarnings("unchecked")
     public static void main(String[] args) throws Exception {
         JsonAstCompiler.registerBuiltInTypes();
@@ -49,6 +65,7 @@ public final class HytaleAssetConformanceProbe {
                 catch (Throwable t) { System.out.println("CONF PARSE-FAIL " + p + " " + t); }
             }
         }
+        JsonAstCompiler.CaseInsensitiveMap.trackReads = true;
         JsonAstCompiler.CompileContext ctx = new JsonAstCompiler.CompileContext(1L);
         for (var e : files.entrySet()) JsonAstCompiler.collectExports(e.getValue(), ctx);
         System.out.println("CONF files " + files.size() + " exports " + ctx.exports().size());
@@ -78,6 +95,7 @@ public final class HytaleAssetConformanceProbe {
                     case "Positions" -> JsonAstCompiler.compilePositionsProvider(v, ctx);
                     case "Props" -> JsonAstCompiler.compileProp((Map<String, Object>) v, ctx, id -> id);
                     case "PropDistributions" -> HytaleDialect.compileDistribution(v, ctx, id -> id);
+                    case "Biomes" -> { var form = HytaleImport.biomeToEngineForm((Map<String, Object>) v); if (form.containsKey("terrain") || form.containsKey("props")) JsonAstCompiler.compileBiome(2, form, ctx, new HashMap<>(), id -> id); else { total--; continue; } }
                     case "BlockMasks" -> JsonAstCompiler.compileBlockMask(v, ctx, id -> id);
                     default -> { total--; continue; }
                 }
@@ -90,6 +108,35 @@ public final class HytaleAssetConformanceProbe {
                 failures.computeIfAbsent(t.getClass().getSimpleName() + ": " + msg.substring(0, Math.min(150, msg.length())), k -> new ArrayList<>()).add(path);
             }
         }
+        // ---- macro check: does every real biome's terrain density make a surface? (Base/Water/Bedrock as in the Zone world structures)
+        ctx.decimalConstants().put("Base", 110.0);
+        ctx.decimalConstants().put("Water", 100.0);
+        ctx.decimalConstants().put("Bedrock", 0.0);
+        for (var e : files.entrySet()) {
+            if (!e.getKey().startsWith("Biomes/")) continue;
+            Object v = e.getValue();
+            var form = HytaleImport.biomeToEngineForm((Map<String, Object>) v);
+            if (!form.containsKey("terrain")) continue;
+            try {
+                var cb = JsonAstCompiler.<String>compileBiome(2, form, ctx, new HashMap<>(), id -> id);
+                var d = cb.tileBiome().terrainDensity();
+                StringBuilder sb = new StringBuilder();
+                for (int[] pt : new int[][]{{0, 0}, {500, 300}, {-900, 1200}}) {
+                    int top = -1, flips = 0; boolean prev = false, nan = false;
+                    for (int y = 0; y < 320; y++) { float dv = d.compute(pt[0], y, pt[1]); if (Float.isNaN(dv)) nan = true; boolean solid = dv > 0; if (y > 0 && solid != prev) flips++; if (solid) top = y; prev = solid; }
+                    sb.append(" (" + pt[0] + "," + pt[1] + ") top=" + top + " flips=" + flips + (nan ? " NaN!" : ""));
+                }
+                System.out.println("CONF SURFACE " + e.getKey().replace("Biomes/", "") + sb);
+            } catch (Throwable t) { System.out.println("CONF SURFACE-FAIL " + e.getKey() + " " + t); }
+        }        // keys that real assets carry and no compiler ever asked for: the likeliest shape mismatches
+        Map<String, int[]> unread = new TreeMap<>();
+        Map<String, String> unreadWhere = new TreeMap<>();
+        for (var e : files.entrySet()) {
+            String d0 = e.getKey().contains("/") ? e.getKey().substring(0, e.getKey().indexOf('/')) : "";
+            if (d0.equals("Graphs") || d0.equals("Settings")) continue;
+            collectUnread(e.getValue(), "", e.getKey(), unread, unreadWhere);
+        }
+        for (var u : unread.entrySet()) if (u.getValue()[0] > 0) System.out.println("CONF UNREAD " + u.getKey() + " x" + u.getValue()[0] + " e.g. " + unreadWhere.get(u.getKey()));
         System.out.println("CONF compiled " + ok + " of " + total);
         for (var f : failures.entrySet()) System.out.println("CONF FAIL x" + f.getValue().size() + " " + f.getKey() + "  e.g. " + f.getValue().get(0));
     }

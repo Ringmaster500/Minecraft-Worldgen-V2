@@ -208,3 +208,12 @@ A node name that exists in Hytale must mean exactly what it means there: same pa
 | Normalizer | DIFFERS | doc params not found: Vector,Magnitude |
 | Exported | DIFFERS | doc params not found: SingleInstance,VectorProvider |
 | Imported | DIFFERS | doc params not found: Name |
+
+## Phase 33: Hytale's own assets (release schema)
+
+- The released V2 schema differs from the pre-release docs: the real `Assets.zip` (Server/HytaleGenerator, Server/Prefabs) is the ground truth. Curve points are `{ In, Out }`, ranges can be `MinInclusive`/`MaxExclusive`, and there is no Graph Generator in the release.
+- A world setup can point at the user's own Hytale install (`hytale` block in the dimension JSON: `assets`, `worldStructure`). Assets are read in place and never copied into this repository.
+- Added release nodes: Column, Cluster, Box, directional Prefab, ColumnLinear/ColumnRandom/Area scanners, Mesh2D/3D, Amplitude, Offset, Gradient, Pipeline, Cache2D, YSampled, YOverride/XOverride/ZOverride, Solidity with an Empty side, Imported lookups by family.
+- Hytale block names map to Minecraft blocks through `hytale_blocks.json` (exact name, then longest prefix).
+- Tested by `verifyPhase33`; `probeHytaleAssets` compiles 201 of 202 real asset files.
+- Known gaps: generation speed on full real assets, prefab block rotations, Angle IsAxis, biome transitions.

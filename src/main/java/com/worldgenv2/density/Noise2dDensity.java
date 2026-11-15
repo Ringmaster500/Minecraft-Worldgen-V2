@@ -30,9 +30,16 @@ public final class Noise2dDensity implements DensityFunction {
         this.amplitude = amplitude;
     }
 
+    /** The last column evaluated on this thread: a column of voxels asks for the same (x, z) hundreds of times, the value never changes. */
+    private static final class ColumnMemo { float x = Float.NaN, z = Float.NaN, v; }
+    private final ThreadLocal<ColumnMemo> memo = ThreadLocal.withInitial(ColumnMemo::new);
     @Override
     public float compute(float x, float y, float z) {
-        return noise.getNoise(x, z) * amplitude;
+        ColumnMemo m = memo.get();
+        if (m.x == x && m.z == z) return m.v;
+        float v = noise.getNoise(x, z) * amplitude;
+        m.x = x; m.z = z; m.v = v;
+        return v;
     }
 
     @Override

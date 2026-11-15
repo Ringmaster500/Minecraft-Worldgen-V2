@@ -57,6 +57,23 @@ public final class JsonAstCompiler {
         private final Map<String, Object> assetCache = new java.util.concurrent.ConcurrentHashMap<>();
         private final AtomicInteger saltCounter = new AtomicInteger(100);
         private final Map<String, Object> exports = new java.util.concurrent.ConcurrentHashMap<>();
+        private final Map<String, List<Object>> allExports = new java.util.concurrent.ConcurrentHashMap<>();
+
+        /** Every export under a name (different families may reuse one name). */
+        public void addExport(String name, Object node) {
+            exports.putIfAbsent(name, node);
+            allExports.computeIfAbsent(name, k -> new java.util.concurrent.CopyOnWriteArrayList<>()).add(node);
+        }
+
+        /** The export under this name that fits {@code family} (density, pattern, assignments, ...); the first one when none is recognised. */
+        public Object resolveAsset(String assetPath, String family) {
+            List<Object> all = assetPath == null ? null : allExports.get(assetPath);
+            if (all != null && all.size() > 1) {
+                for (Object o : all) if (o instanceof Map<?, ?> m && family.equals(familyGuess(m))) return o;
+                for (Object o : all) if (o instanceof Map<?, ?> m && familyGuess(m) == null) return o;
+            }
+            return resolveAsset(assetPath);
+        }
 
         /** Named exports (ExportAs) seen so far; Imported nodes read them before looking for an asset file. */
         public Map<String, Object> exports() { return exports; }
@@ -837,7 +854,7 @@ public final class JsonAstCompiler {
 
         WorldGenV2Registries.DENSITY_NODE_TYPE.register("Imported", (json, ctx) -> {
             String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-            Object loaded = ctx.resolveAsset(asset);
+            Object loaded = ctx.resolveAsset(asset, "density");
             if (loaded instanceof Map<?, ?> map) {
                 return compileDensity((Map<String, Object>) map, ctx);
             }
@@ -869,8 +886,9 @@ public final class JsonAstCompiler {
                     } else if (item instanceof Map<?, ?> m) {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> map = (Map<String, Object>) m;
-                        double px = getDouble(map, "x", getDouble(map, "X", 0.0));
-                        double py = getDouble(map, "y", getDouble(map, "Y", 0.0));
+                        // Hytale's own files write a point as { In, Out }; the older docs write { X, Y }
+                        double px = map.containsKey("in") ? getDouble(map, "in", 0.0) : getDouble(map, "x", getDouble(map, "X", 0.0));
+                        double py = map.containsKey("out") ? getDouble(map, "out", 0.0) : getDouble(map, "y", getDouble(map, "Y", 0.0));
                         pts.add(new ManualCurve.Point(px, py));
                     }
                 }
@@ -1090,7 +1108,7 @@ public final class JsonAstCompiler {
         );
         WorldGenV2Registries.CURVE_TYPE.register("Imported", (json, ctx) -> {
             String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-            Object loaded = ctx.resolveAsset(asset);
+            Object loaded = ctx.resolveAsset(asset, "curve");
             if (loaded != null) {
                 return compileCurve(loaded, ctx);
             }
@@ -1396,7 +1414,7 @@ public final class JsonAstCompiler {
         });
         WorldGenV2Registries.VECTOR_PROVIDER_TYPE.register("Imported", (json, ctx) -> {
             String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-            Object loaded = ctx.resolveAsset(asset);
+            Object loaded = ctx.resolveAsset(asset, "vector");
             if (loaded != null) {
                 return compileVectorProvider(loaded, ctx);
             }
@@ -1630,7 +1648,7 @@ public final class JsonAstCompiler {
             @SuppressWarnings("unchecked")
             public <T> MaterialProvider<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
                 String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-                Object loaded = context.resolveAsset(asset);
+                Object loaded = context.resolveAsset(asset, "material");
                 if (loaded instanceof Map<?, ?> map) {
                     return compileMaterialProvider((Map<String, Object>) map, context, blockResolver);
                 }
@@ -1811,7 +1829,7 @@ public final class JsonAstCompiler {
             @SuppressWarnings("unchecked")
             public <T> Pattern<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
                 String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-                Object loaded = context.resolveAsset(asset);
+                Object loaded = context.resolveAsset(asset, "pattern");
                 if (loaded instanceof Map<?, ?> map) {
                     return compilePattern((Map<String, Object>) map, context, blockResolver);
                 }
@@ -2337,7 +2355,7 @@ public final class JsonAstCompiler {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
                 String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-                Object loaded = context.resolveAsset(asset);
+                Object loaded = context.resolveAsset(asset, "prop");
                 if (loaded instanceof Map<?, ?> map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> m = (Map<String, Object>) map;
@@ -2601,7 +2619,7 @@ public final class JsonAstCompiler {
 
         WorldGenV2Registries.POSITIONS_PROVIDER_TYPE.register("Imported", (json, ctx) -> {
             String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-            Object loaded = ctx.resolveAsset(asset);
+            Object loaded = ctx.resolveAsset(asset, "positions");
             if (loaded != null) {
                 return compilePositionsProvider(loaded, ctx);
             }
@@ -2673,7 +2691,7 @@ public final class JsonAstCompiler {
         );
         WorldGenV2Registries.SCANNER_TYPE.register("Imported", (json, ctx) -> {
             String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-            Object loaded = ctx.resolveAsset(asset);
+            Object loaded = ctx.resolveAsset(asset, "scanner");
             if (loaded != null) {
                 return compileScanner(loaded, ctx);
             }
@@ -2787,7 +2805,7 @@ public final class JsonAstCompiler {
             @Override
             public <T> Assignments<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
                 String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-                Object loaded = context.resolveAsset(asset);
+                Object loaded = context.resolveAsset(asset, "assignments");
                 if (loaded != null) {
                     return compileAssignments(loaded, context, blockResolver);
                 }
@@ -2921,7 +2939,7 @@ public final class JsonAstCompiler {
             @Override
             public <T> BlockMask<T> deserialize(Map<String, Object> json, CompileContext context, Function<String, T> blockResolver) {
                 String asset = getString(json, "name", getString(json, "asset", getString(json, "path", getString(json, "id", ""))));
-                Object loaded = context.resolveAsset(asset);
+                Object loaded = context.resolveAsset(asset, "blockmask");
                 if (loaded instanceof Map<?, ?> map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> m = (Map<String, Object>) map;
@@ -3330,6 +3348,56 @@ public final class JsonAstCompiler {
         }
         return max;
     }
+    // ---------------------------------------------------------------- exports shared across families
+
+    /**
+     * Hytale lets a density, a pattern and an assignments asset share one export name, because each family has its own namespace.
+     * The node that asks says which family it wants; of the exports with that name this picks the one that fits.
+     */
+    static String familyGuess(Map<?, ?> m) {
+        String type = null;
+        java.util.Set<String> k = new java.util.HashSet<>();
+        for (Map.Entry<?, ?> e : m.entrySet()) {
+            String key = String.valueOf(e.getKey()).toLowerCase(Locale.ROOT);
+            k.add(key);
+            if (key.equals("type")) type = String.valueOf(e.getValue());
+        }
+        if (type == null) return null;
+        switch (type) {
+            case "Constant":
+                if (k.contains("prop") && k.contains("positions")) return "propdistribution";
+                if (k.contains("prop")) return "assignments";
+                if (k.contains("material")) return "material";
+                if (k.contains("value")) return "density";
+                return null;
+            case "Weighted":
+                if (k.contains("weightedassignments")) return "assignments";
+                if (k.contains("weightedprops")) return "prop";
+                if (k.contains("weightedmaterials")) return "material";
+                return null;
+            case "FieldFunction": {
+                if (m.get("Delimiters") instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> d) {
+                    for (Object dk : d.keySet()) {
+                        String s = String.valueOf(dk).toLowerCase(Locale.ROOT);
+                        if (s.equals("assignments")) return "assignments";
+                        if (s.equals("material")) return "material";
+                    }
+                }
+                return k.contains("positions") ? "positions" : "pattern";
+            }
+            case "Floor": case "Ceiling": case "Wall": case "Surface": case "BlockSet": case "BlockType": return "pattern";
+            case "ColumnLinear": case "ColumnRandom": case "Area": case "Direct": case "Origin": case "Radial": return "scanner";
+            case "Column": case "Cluster": case "Box": case "Locator": case "Orienter": case "Prefab": case "StaticRotator": case "RandomRotator": return "prop";
+            case "Mesh2D": case "Mesh3D": case "Scaler": case "Jitter2d": case "Jitter3d": case "List": case "SquareGrid2d": case "SquareGrid3d": case "TriangularGrid2d": return "positions";
+            default: break;
+        }
+        if (k.contains("curves")) return "curve";
+        if (k.contains("vectors")) return "vector";
+        if (k.contains("props")) return "prop";
+        if (k.contains("patterns")) return "pattern";
+        if (k.contains("inputs")) return "density";
+        return null;
+    }
     /** The sum of every cap (Range, Magnitude, MaxDistance, MaxOffsetExclusive, MaxProxyDistance, ClusterBounds) in a graph: how far a pass can reach. */
     static double contextMarginOf(Object raw) {
         double sum = 0.0;
@@ -3367,7 +3435,7 @@ public final class JsonAstCompiler {
             for (Map.Entry<?, ?> e : m.entrySet()) {
                 String k = String.valueOf(e.getKey());
                 if ((k.equalsIgnoreCase("exportas") || k.equalsIgnoreCase("exportname")) && e.getValue() instanceof String s && !s.isEmpty()) {
-                    context.exports().putIfAbsent(s, raw);
+                    context.addExport(s, raw);
                 }
                 collectExports(e.getValue(), context);
             }
@@ -3965,7 +4033,19 @@ public final class JsonAstCompiler {
         if (!(parsed instanceof Map<?, ?> rootMap)) {
             throw new IllegalArgumentException("Expected JSON object at root of biome asset");
         }
-        Map<String, Object> root = (Map<String, Object>) rootMap;
+        return compileBiome(numericId, (Map<String, Object>) rootMap, context, biomeNameToId, blockResolver);
+    }
+
+    /** Compiles a biome that is already parsed (for example one read from Hytale's own files). */
+    @SuppressWarnings("unchecked")
+    public static <T> CompiledBiome<T> compileBiome(
+        int numericId,
+        Map<String, Object> root,
+        CompileContext context,
+        Map<String, Integer> biomeNameToId,
+        Function<String, T> blockResolver
+    ) {
+        if (HytaleImport.isHytaleBiome(root)) root = HytaleImport.biomeToEngineForm(root);
 
         String name = getString(root, "name", "worldgenv2:unnamed_biome");
         String category = getString(root, "category", getString(root, "zone", "default"));
@@ -4845,6 +4925,22 @@ public final class JsonAstCompiler {
      */
     public static final class CaseInsensitiveMap extends LinkedHashMap<String, Object> {
         private final Map<String, String> actual = new java.util.HashMap<>();
+        /** Dev aid: when on, every key a compiler asks for is remembered, so keys nobody reads can be reported. */
+        public static volatile boolean trackReads = false;
+        private java.util.Set<String> read;
+
+        private void note(Object key) {
+            if (!trackReads) return;
+            if (read == null) read = new java.util.HashSet<>();
+            read.add(lc(key));
+        }
+
+        /** The keys of this object that were never asked for since tracking began (dev aid). */
+        public java.util.List<String> unreadKeys() {
+            java.util.List<String> out = new java.util.ArrayList<>();
+            for (String k : keySet()) if (read == null || !read.contains(lc(k))) out.add(k);
+            return out;
+        }
 
         private static String lc(Object k) { return k == null ? "" : k.toString().toLowerCase(java.util.Locale.ROOT); }
 
@@ -4857,13 +4953,14 @@ public final class JsonAstCompiler {
         }
 
         @Override public Object get(Object key) {
+            note(key);
             Object v = super.get(key);
             if (v != null || super.containsKey(key)) return v;
             String a = actual.get(lc(key));
             return a == null ? null : super.get(a);
         }
 
-        @Override public boolean containsKey(Object key) { return super.containsKey(key) || actual.containsKey(lc(key)); }
+        @Override public boolean containsKey(Object key) { note(key); return super.containsKey(key) || actual.containsKey(lc(key)); }
 
         @Override public Object getOrDefault(Object key, Object def) { return containsKey(key) ? get(key) : def; }
     }

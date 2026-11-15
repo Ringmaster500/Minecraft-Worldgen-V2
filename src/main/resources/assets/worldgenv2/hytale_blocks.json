@@ -1,0 +1,39 @@
+{
+  "_note": "Hytale block name -> Minecraft block. Exact names first, then the longest matching prefix. Properties after | in a Hytale name are ignored.",
+  "exact": {
+    "Empty": "minecraft:air", "": "minecraft:air", "Editor_Anchor": "minecraft:air",
+    "Water_Source": "minecraft:water", "Fluid_Water": "minecraft:water", "Lava_Source": "minecraft:lava",
+    "Rock_Stone": "minecraft:stone", "Rock_Bedrock": "minecraft:bedrock", "Rock_Stone_Cobble": "minecraft:cobblestone",
+    "Soil_Dirt": "minecraft:dirt", "Soil_Grass": "minecraft:grass_block", "Soil_Sand": "minecraft:sand", "Soil_Snow": "minecraft:snow_block",
+    "Soil_Mud": "minecraft:mud", "Soil_Clay": "minecraft:clay", "Soil_Pathway": "minecraft:dirt_path", "Soil_Grass_Pathway": "minecraft:dirt_path",
+    "Deco_fire": "minecraft:fire", "Wood_Sticks": "minecraft:dead_bush"
+  },
+  "prefix": [
+    ["Rock_Marble_Stalactite", "minecraft:pointed_dripstone"], ["Rock_Stone_Stalactite", "minecraft:pointed_dripstone"], ["Rock_Quartzite_Stalactite", "minecraft:pointed_dripstone"],
+    ["Rock_Crystal", "minecraft:amethyst_block"], ["Rock_Marble", "minecraft:calcite"], ["Rock_Quartzite", "minecraft:diorite"], ["Rock_Chalk", "minecraft:calcite"],
+    ["Rock_Sandstone_Red", "minecraft:red_sandstone"], ["Rock_Sandstone_Cobble", "minecraft:sandstone_slab"], ["Rock_Sandstone", "minecraft:sandstone"],
+    ["Rock_Slate", "minecraft:deepslate"], ["Rock_Shale", "minecraft:tuff"], ["Rock_Volcanic", "minecraft:basalt"], ["Rock_Magma", "minecraft:magma_block"],
+    ["Rock_Ice_Permafrost", "minecraft:packed_ice"], ["Rock_Ice", "minecraft:ice"], ["Rock_Stone", "minecraft:stone"], ["Rock_", "minecraft:stone"],
+    ["Rubble_Ice", "minecraft:packed_ice"], ["Rubble_Sandstone", "minecraft:sandstone"], ["Rubble_Volcanic", "minecraft:basalt"], ["Rubble_", "minecraft:andesite"],
+    ["Soil_Dirt_Burnt", "minecraft:coarse_dirt"], ["Soil_Dirt_Poisoned", "minecraft:coarse_dirt"], ["Soil_Dirt", "minecraft:dirt"],
+    ["Soil_Grass", "minecraft:grass_block"], ["Soil_Mud", "minecraft:mud"], ["Soil_Gravel", "minecraft:gravel"], ["Soil_Pebbles", "minecraft:gravel"],
+    ["Soil_Sand", "minecraft:sand"], ["Soil_Clay", "minecraft:clay"], ["Soil_Snow", "minecraft:snow_block"], ["Soil_Leaves", "minecraft:podzol"],
+    ["Soil_Needles", "minecraft:podzol"], ["Soil_Ash", "minecraft:coarse_dirt"], ["Soil_", "minecraft:dirt"],
+    ["Wood_Petrified_Trunk", "minecraft:stripped_acacia_log"], ["Wood_Fir_Trunk", "minecraft:spruce_log"], ["Wood_Redwood_Trunk", "minecraft:spruce_log"], ["Wood_Cedar_Trunk", "minecraft:spruce_log"],
+    ["Wood_Jungle_Trunk", "minecraft:jungle_log"], ["Wood_Gumboab_Trunk", "minecraft:acacia_log"], ["Wood_Maple_Trunk", "minecraft:birch_log"], ["Wood_Ash_Trunk", "minecraft:birch_log"],
+    ["Wood_Drywood", "minecraft:acacia_planks"], ["Wood_Fir_Branch", "minecraft:spruce_log"], ["Wood_Gumboab_Branch", "minecraft:acacia_log"], ["Wood_Fir", "minecraft:spruce_planks"],
+    ["Wood_Redwood_Root", "minecraft:mangrove_roots"], ["Wood_Fir_Root", "minecraft:mangrove_roots"], ["Wood_Cedar_Root", "minecraft:mangrove_roots"], ["Wood_Ash_Root", "minecraft:mangrove_roots"], ["Wood_Gumboab_Root", "minecraft:mangrove_roots"],
+    ["Wood_", "minecraft:oak_log"],
+    ["Plant_Leaves_Autumn", "minecraft:moss_carpet"], ["Plant_Leaves_Fir", "minecraft:spruce_leaves"], ["Plant_Leaves_Jungle", "minecraft:jungle_leaves"], ["Plant_Leaves", "minecraft:oak_leaves"],
+    ["Plant_Moss_Block", "minecraft:moss_block"], ["Plant_Moss_Rug", "minecraft:moss_carpet"], ["Plant_Moss", "minecraft:moss_carpet"],
+    ["Plant_Grass_Sharp_Tall", "minecraft:tall_grass"], ["Plant_Grass_Arid_Tall", "minecraft:tall_grass"], ["Plant_Grass_Dry_Tall", "minecraft:tall_grass"], ["Plant_Grass_Winter_Tall", "minecraft:tall_grass"], ["Plant_Grass_Wet_Tall", "minecraft:tall_grass"],
+    ["Plant_Grass", "minecraft:short_grass"], ["Plant_Fern", "minecraft:fern"], ["Plant_Bramble", "minecraft:dead_bush"], ["Plant_Bush_Dead", "minecraft:dead_bush"],
+    ["Plant_Bush_Winter", "minecraft:spruce_leaves"], ["Plant_Bush", "minecraft:azalea_leaves"], ["Plant_Reeds", "minecraft:sugar_cane"],
+    ["Plant_Flower_Common_Red", "minecraft:poppy"], ["Plant_Flower_Common_Yellow", "minecraft:dandelion"], ["Plant_Flower_Common_Blue", "minecraft:cornflower"], ["Plant_Flower_Common_Cyan", "minecraft:blue_orchid"],
+    ["Plant_Flower_Common_White", "minecraft:oxeye_daisy"], ["Plant_Flower_Common_Violet", "minecraft:allium"], ["Plant_Flower_Orchid", "minecraft:blue_orchid"], ["Plant_Flower_Tall", "minecraft:peony"], ["Plant_Flower", "minecraft:azure_bluet"],
+    ["Plant_Vine_Wall", "minecraft:vine"], ["Plant_Vine", "minecraft:vine"], ["Plant_Roots_Cave", "minecraft:hanging_roots"], ["Plant_Seaweed", "minecraft:seagrass"],
+    ["Plant_Crop_Mushroom_Glowing", "minecraft:shroomlight"], ["Plant_Crop_Mushroom", "minecraft:red_mushroom"], ["Plant_Crop", "minecraft:wheat"], ["Plant_Barnacles", "minecraft:tube_coral_block"], ["Plant_", "minecraft:short_grass"],
+    ["Ore_Iron", "minecraft:iron_ore"], ["Ore_Copper", "minecraft:copper_ore"], ["Ore_Gold", "minecraft:gold_ore"], ["Ore_Thorium", "minecraft:emerald_ore"], ["Ore_Cobalt", "minecraft:lapis_ore"], ["Ore_Mithril", "minecraft:diamond_ore"], ["Ore_", "minecraft:coal_ore"],
+    ["Deco_Coral", "minecraft:brain_coral_block"], ["Deco_", "minecraft:air"]
+  ]
+}

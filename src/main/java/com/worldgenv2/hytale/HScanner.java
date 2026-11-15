@@ -14,6 +14,9 @@ public interface HScanner {
     /** Positions {x, y, z} in scan order. {@code seed} orders the Random scanner. */
     List<int[]> scan(int ax, int ay, int az, long seed);
 
+    /** How many validated positions a prop may be placed at (Hytale's ResultCap, release schema); 0 when the scanner does not say. */
+    default int resultCap() { return 0; }
+
     /** How far horizontally from the anchor this scanner reaches. */
     default int reach() { return 0; }
 

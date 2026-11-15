@@ -9,6 +9,8 @@ import com.worldgenv2.hytale.HMaterials;
 import com.worldgenv2.hytale.HMoreProps;
 import com.worldgenv2.hytale.HPondFiller;
 import com.worldgenv2.hytale.HPositions;
+import com.worldgenv2.hytale.HRelease;
+import java.util.function.DoubleSupplier;
 import com.worldgenv2.material.ConstantMaterialProvider;
 import com.worldgenv2.material.MaterialProvider;
 import com.worldgenv2.props.WeightedProp;
@@ -140,7 +142,7 @@ public final class HytaleDialect {
 
     private static List<String> strings(Object o) {
         List<String> out = new ArrayList<>();
-        if (o instanceof List<?> l) for (Object x : l) out.add(String.valueOf(x));
+        if (o instanceof List<?> l) for (Object x : l) out.add(x instanceof Map<?, ?> mm ? materialId(mm) : String.valueOf(x));
         else if (o instanceof String s) for (String p : s.split(",")) if (!p.isBlank()) out.add(p.trim());
         return out;
     }
@@ -157,6 +159,11 @@ public final class HytaleDialect {
         if (j == null) return HPattern.constant(true);
         String type = String.valueOf(get(j, "type")).toLowerCase(Locale.ROOT);
         switch (type) {
+            case "imported": {
+                Object loaded = ctx.resolveAsset(String.valueOf(get(j, "name")), "pattern");
+                if (loaded == null) throw new IllegalArgumentException("Imported Pattern '" + get(j, "name") + "' was not found");
+                return compileHPattern(loaded, ctx, resolver);
+            }
             case "constant": return HPattern.constant(flag(get(j, "value"), true));
             case "blocktype": {
                 Object mat = get(j, "material");
@@ -170,7 +177,9 @@ public final class HytaleDialect {
                 Set<T> set = new HashSet<>();
                 boolean air = false;
                 for (String id : strings(bs)) { if (isAirId(id)) air = true; else { T b = resolver.apply(id); if (b != null) set.add(b); } }
-                return HPattern.blockSet(set, air);
+                HPattern<T> in = HPattern.blockSet(set, air);
+                Map<String, Object> bsm = obj(get(j, "blockset", "blocks", "materials"));
+                return bsm != null && bsm.containsKey("inclusive") && !flag(get(bsm, "inclusive"), true) ? HPattern.not(in) : in;   // Inclusive false: everything except the listed materials
             }
             case "offset": { int[] v = vec(get(j, "offset")); return HPattern.offset(compileHPattern(get(j, "pattern"), ctx, resolver), v[0], v[1], v[2]); }
             case "rotator": return HPattern.rotator(compileHPattern(get(j, "pattern"), ctx, resolver), turns(get(j, "rotation")));
@@ -219,7 +228,9 @@ public final class HytaleDialect {
             case "origin": return HScanner.ORIGIN;
             case "linear": case "random": {
                 Map<String, Object> range = obj(get(j, "range"));
-                int min = range == null ? num(get(j, "min"), -16) : num(get(range, "min"), -16), max = range == null ? num(get(j, "max"), 16) : num(get(range, "max"), 16);
+                int min, max;
+                if (range != null && range.containsKey("mininclusive")) { min = num(get(range, "mininclusive"), 0); max = num(get(range, "maxexclusive"), 1) - 1; }   // Hytale's files: [MinInclusive, MaxExclusive)
+                else { min = range == null ? num(get(j, "min"), -16) : num(get(range, "min"), -16); max = range == null ? num(get(j, "max"), 16) : num(get(range, "max"), 16); }
                 String axisName = String.valueOf(get(j, "axis")).toUpperCase(Locale.ROOT);
                 int axis = axisName.startsWith("X") ? 0 : axisName.startsWith("Z") ? 2 : 1;
                 if (type.equals("linear")) return HScanner.linear(axis, min, max, child);
@@ -228,8 +239,23 @@ public final class HytaleDialect {
             case "radial": {
                 Map<String, Object> b = obj(get(j, "bounds"));
                 if (b == null) { int r = num(get(j, "radius", "range"), 4); return HScanner.radial(-r, -r, -r, r, r, r, child); }
-                int[] lo = vec(get(b, "min")), hi = vec(get(b, "max"));
+                double[][] bb = boundsD(b, 4.0);
+                int[] lo = {(int) bb[0][0], (int) bb[0][1], (int) bb[0][2]}, hi = {(int) bb[1][0], (int) bb[1][1], (int) bb[1][2]};
                 return HScanner.radial(Math.min(lo[0], hi[0]), Math.min(lo[1], hi[1]), Math.min(lo[2], hi[2]), Math.max(lo[0], hi[0]), Math.max(lo[1], hi[1]), Math.max(lo[2], hi[2]), child);
+            }
+            case "direct": return HScanner.ORIGIN;
+            case "columnlinear": case "columnrandom": {
+                String base = get(j, "baseheightname") == null ? "" : String.valueOf(get(j, "baseheightname"));
+                DoubleSupplier b = base.isBlank() ? null : () -> ctx.decimalConstants().getOrDefault(base, 0.0);
+                boolean rel = flag(get(j, "relativetoposition"), false);
+                if (type.equals("columnlinear")) return HRelease.columnLinear(num(get(j, "miny"), 0), num(get(j, "maxy"), 0), num(get(j, "resultcap"), 1), flag(get(j, "topdownorder"), false), rel, b);
+                return HRelease.columnRandom(num(get(j, "miny"), 0), num(get(j, "maxy"), 0), num(get(j, "resultcap"), 1), String.valueOf(get(j, "seed")).hashCode(), rel, b);
+            }
+            case "area": return HRelease.area(!"SQUARE".equalsIgnoreCase(String.valueOf(get(j, "scanshape"))), num(get(j, "scanrange"), 4), num(get(j, "resultcap"), 1), child);
+            case "imported": {
+                Object loaded = ctx.resolveAsset(String.valueOf(get(j, "name")), "scanner");
+                if (loaded == null) throw new IllegalArgumentException("Imported Scanner '" + get(j, "name") + "' was not found");
+                return compileHScanner(loaded, ctx);
             }
             case "queue": {
                 List<HScanner> list = new ArrayList<>();
@@ -247,6 +273,7 @@ public final class HytaleDialect {
         registerDensity();
         registerMaterials();
         registerPatterns();
+        registerRelease();
         WorldGenV2Registries.PROP_TYPE.register("Locator", new WorldGenV2Registries.PropDeserializer() {
             @Override
             public <T> Prop<T> deserialize(Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function<String, T> resolver) {
@@ -323,7 +350,7 @@ public final class HytaleDialect {
             case "graph":
                 return HDistributions.graph(JsonAstCompiler.compileGraphGenerator(get(j, "graphgenerator"), ctx, resolver), String.valueOf(get(j, "contentlayer") == null ? "" : get(j, "contentlayer")), ctx.worldSeed());
             case "imported": {
-                Object loaded = ctx.resolveAsset(String.valueOf(get(j, "name")));
+                Object loaded = ctx.resolveAsset(String.valueOf(get(j, "name")), "propdistribution");
                 if (loaded == null) throw new IllegalArgumentException("Imported PropDistribution '" + get(j, "name") + "' was not found");
                 return compileDistribution(loaded, ctx, resolver);
             }
@@ -349,6 +376,10 @@ public final class HytaleDialect {
     static double[][] boundsD(Object o, double def) {
         Map<String, Object> m = obj(o);
         if (m == null) return new double[][]{{-def, -def, -def}, {def, def, def}};
+        if (m.containsKey("pointa") || m.containsKey("pointb")) {   // Hytale's files: two opposite corners, in either order
+            double[] a = vecD(get(m, "pointa"), -def), b = vecD(get(m, "pointb"), def);
+            return new double[][]{{Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.min(a[2], b[2])}, {Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.max(a[2], b[2])}};
+        }
         return new double[][]{vecD(get(m, "min"), -def), vecD(get(m, "max"), def)};
     }
 
@@ -394,7 +425,7 @@ public final class HytaleDialect {
             return HPositions.fieldFunction(child(j, ctx), d, ds.toArray(new double[0][]));
         });
         R.register("Occurrence", (j, ctx) -> HPositions.occurrence(child(j, ctx), JsonAstCompiler.compileDensity(obj(get(j, "fieldfunction", "density")), ctx), seedOf(get(j, "seed"), ctx)));
-        R.register("Offset", (j, ctx) -> { double[] o = vecD(get(j, "offset"), 0.0); return HPositions.offset(child(j, ctx), o[0], o[1], o[2]); });
+        R.register("Offset", (j, ctx) -> { double[] o = vecD(get(j, "offset"), 0.0); return HPositions.offset(child(j, ctx), o[0] + dnum(get(j, "offsetx"), 0), o[1] + dnum(get(j, "offsety"), 0), o[2] + dnum(get(j, "offsetz"), 0)); });
         R.register("VectorOffset", (j, ctx) -> {
             double[][] b = boundsD(get(j, "movementbounds"), 1e9);
             return HPositions.vectorOffset(child(j, ctx), JsonAstCompiler.compileVectorProvider(get(j, "vectorprovider"), ctx), b[0], b[1]);
@@ -545,7 +576,25 @@ public final class HytaleDialect {
                 var pf = ctx.resolvePrefab(path);
                 if (pf != null) entries.add(new WeightedProp.Entry(new PrefabProp(pf, r, false, true, List.of(), 0, null), weight));
             }
-            return entries.isEmpty() ? (c -> false) : new WeightedProp(entries);
+            Prop base = entries.isEmpty() ? (c -> false) : new WeightedProp(entries);
+            if (!j.containsKey("directionality") && !j.containsKey("scanner")) return base;
+            HScanner sc = compileHScanner(get(j, "scanner"), ctx);
+            int cap = sc.resultCap() > 0 ? sc.resultCap() : 1;
+            Map<String, Object> dir = obj(get(j, "directionality"));
+            String dt = dir == null ? "" : String.valueOf(get(dir, "type")).toLowerCase(Locale.ROOT);
+            if (dt.equals("pattern")) {
+                HPattern[] ps = new HPattern[4];
+                String[] names = {"northpattern", "eastpattern", "southpattern", "westpattern"};
+                for (int d = 0; d < 4; d++) if (get(dir, names[d]) != null) ps[d] = compileHPattern(get(dir, names[d]), ctx, r);
+                int init = Math.max(0, "NESW".indexOf(String.valueOf(get(dir, "initialdirection")).trim().toUpperCase(Locale.ROOT).charAt(0)));
+                return new HRelease.DirectionalPrefab(base, sc, ps, init, String.valueOf(get(dir, "seed")).hashCode(), cap);
+            }
+            HPattern pat = dir == null ? HPattern.constant(true) : compileHPattern(get(dir, "pattern"), ctx, r);
+            List<Integer> rots = new ArrayList<>();
+            HProps.Selection sel = HProps.Selection.FIRST_VALID;
+            if (dt.equals("random")) { rots.addAll(List.of(0, 1, 2, 3)); sel = HProps.Selection.RANDOM_VALID; }
+            else rots.add(dir == null ? 0 : turns(get(dir, "rotation")));
+            return new HProps.Orienter(base, rots, pat, sc, sel, dir == null ? 0L : String.valueOf(get(dir, "seed")).hashCode());
         });
 
         // Hytale's Constant MaterialProvider provides one Material
@@ -620,7 +669,12 @@ public final class HytaleDialect {
             double[] s = vecD(get(j, "scale"), 1.0), y = vecD(get(j, "newyaxis"), 0.0);
             return HDensity.cuboid(JsonAstCompiler.compileCurve(get(j, "curve"), ctx), s[0], s[1], s[2], HDensity.Frame.of(y[0], y[1] == 0 && y[0] == 0 && y[2] == 0 ? 1 : y[1], y[2], dnum(get(j, "spin"), 0)));
         });
-        overD(R, "Cube", j -> j.containsKey("curve") && !j.containsKey("size") && !j.containsKey("halfx"), (j, ctx) ->
+        overD(R, "Pow", j -> j.containsKey("inputs"), (j, ctx) -> {
+            DensityFunction in = input(j, 0, ctx);
+            float e = (float) dnum(get(j, "exponent"), 2.0);
+            return HDensity.pointwise(in, v -> (float) (Math.signum(v) * Math.pow(Math.abs(v), e)));
+        });
+        overD(R, "Cube", j ->j.containsKey("curve") && !j.containsKey("size") && !j.containsKey("halfx"), (j, ctx) ->
                 HDensity.cuboid(JsonAstCompiler.compileCurve(get(j, "curve"), ctx), 1, 1, 1, HDensity.Frame.of(0, 1, 0, 0)));
         overD(R, "Cylinder", j -> j.containsKey("axialcurve") || j.containsKey("radialcurve"), (j, ctx) -> {
             double[] y = vecD(get(j, "newyaxis"), 0.0);
@@ -793,5 +847,128 @@ public final class HytaleDialect {
         for (String name : List.of("Constant", "Offset", "Floor", "Ceiling", "Wall", "Cuboid", "And", "Or", "Not", "FieldFunction")) {
             WorldGenV2Registries.PATTERN_TYPE.register(name, des);
         }
+    }
+
+    // ================================================================== release-schema nodes (Hytale's own asset files)
+
+    /** A curve of the Y coordinate written {@code { "Points": [ { "Y": 100, "Out": 1 }, ... ] }} (or In/Out); constant beyond its ends. */
+    private static java.util.function.DoubleUnaryOperator yFunction(Object raw) {
+        Map<String, Object> m = obj(raw);
+        List<double[]> pts = new ArrayList<>();
+        if (m != null && get(m, "points") instanceof List<?> l) for (Object o : l) {
+            Map<String, Object> pm = obj(o);
+            if (pm != null) pts.add(new double[]{dnum(get(pm, "y", "in", "x"), 0), dnum(get(pm, "out"), 0)});
+        }
+        pts.sort((a, b) -> Double.compare(a[0], b[0]));
+        return y -> {
+            if (pts.isEmpty()) return 0;
+            if (y <= pts.get(0)[0]) return pts.get(0)[1];
+            for (int i = 1; i < pts.size(); i++) {
+                double[] a = pts.get(i - 1), b = pts.get(i);
+                if (y <= b[0]) return b[0] == a[0] ? b[1] : a[1] + (b[1] - a[1]) * (y - a[0]) / (b[0] - a[0]);
+            }
+            return pts.get(pts.size() - 1)[1];
+        };
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static HMoreProps.Mask maskOf(Prop child, Object rawMask, JsonAstCompiler.CompileContext ctx, Function r) {
+        Map<String, Object> m = obj(rawMask);
+        if (m != null && get(m, "import") != null) m = obj(ctx.resolveAsset(String.valueOf(get(m, "import"))));
+        if (m == null) return null;
+        List<HMoreProps.MaskRule> adv = new ArrayList<>();
+        if (get(m, "advanced") instanceof List<?> l) for (Object o : l) { Map<String, Object> rm = obj(o); if (rm != null) adv.add(new HMoreProps.MaskRule(blockSet(get(rm, "source"), r), blockSet(get(rm, "canreplace"), r))); }
+        return new HMoreProps.Mask(child, blockSet(get(m, "dontplace"), r), blockSet(get(m, "dontreplace"), r), adv);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Prop locate(Prop child, Map<String, Object> j, JsonAstCompiler.CompileContext ctx, Function r, Object patternRaw) {
+        HScanner sc = compileHScanner(get(j, "scanner"), ctx);
+        int cap = sc.resultCap() > 0 ? sc.resultCap() : 1;
+        return new HProps.Locator(child, compileHPattern(patternRaw, ctx, r), sc, cap);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static void registerRelease() {
+        var R = WorldGenV2Registries.DENSITY_NODE_TYPE;
+        overD(R, "YOverride", j -> j.containsKey("value") || !j.containsKey("override"), (j, ctx) -> HDensity.atFixedY(input(j, 0, ctx), (float) dnum(get(j, "value"), 0)));
+        overD(R, "XOverride", j -> j.containsKey("value") || !j.containsKey("override"), (j, ctx) -> HDensity.overrideX(input(j, 0, ctx), (float) dnum(get(j, "value"), 0)));
+        overD(R, "ZOverride", j -> j.containsKey("value") || !j.containsKey("override"), (j, ctx) -> HDensity.overrideZ(input(j, 0, ctx), (float) dnum(get(j, "value"), 0)));
+        overD(R, "YSampled", j -> j.containsKey("sampledistance"), (j, ctx) -> HDensity.ySampled(input(j, 0, ctx), dnum(get(j, "sampledistance"), 4), dnum(get(j, "sampleoffset"), 0), flag(get(j, "interpolate"), true)));
+        R.register("OffsetConstant", (j, ctx) -> { float v = (float) dnum(get(j, "value"), 0); return HDensity.pointwise(input(j, 0, ctx), a -> a + v); });
+        R.register("AmplitudeConstant", (j, ctx) -> { float v = (float) dnum(get(j, "value"), 1); return HDensity.pointwise(input(j, 0, ctx), a -> a * v); });
+        R.register("Amplitude", (j, ctx) -> { DensityFunction in = input(j, 0, ctx); var f = yFunction(get(j, "functionfory")); return (x, y, z) -> in.compute(x, y, z) * (float) f.applyAsDouble(y); });
+        R.register("Offset", (j, ctx) -> { DensityFunction in = input(j, 0, ctx); var f = yFunction(get(j, "functionfory")); return (x, y, z) -> in.compute(x, y, z) + (float) f.applyAsDouble(y); });
+        R.register("Cache2D", (j, ctx) -> HDensity.atFixedY(input(j, 0, ctx), (float) dnum(get(j, "y"), 0)));
+        R.register("Gradient", (j, ctx) -> {
+            DensityFunction in = input(j, 0, ctx);
+            double[] a = vecD(get(j, "axis"), 0.0);
+            double len = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
+            float ax = len == 0 ? 0 : (float) (a[0] / len), ay = len == 0 ? 1 : (float) (a[1] / len), az = len == 0 ? 0 : (float) (a[2] / len);
+            float h = (float) Math.max(1e-3, dnum(get(j, "samplerange"), 1.0));
+            return (x, y, z) -> (in.compute(x + ax * h, y + ay * h, z + az * h) - in.compute(x - ax * h, y - ay * h, z - az * h)) / (2 * h);
+        });
+        R.register("Pipeline", (j, ctx) -> {
+            Object node = get(j, "inputs") instanceof List<?> l && !l.isEmpty() ? l.get(0) : null;
+            if (get(j, "pipeline") instanceof List<?> stages) for (Object s : stages) {
+                Map<String, Object> sm = obj(s);
+                if (sm == null) continue;
+                JsonAstCompiler.CaseInsensitiveMap step = new JsonAstCompiler.CaseInsensitiveMap();
+                for (var en : sm.entrySet()) step.put(en.getKey(), en.getValue());
+                step.put("Inputs", node == null ? new ArrayList<>() : new ArrayList<>(List.of(node)));
+                node = step;
+            }
+            return JsonAstCompiler.compileDensity(obj(node), ctx);
+        });
+        R.register("Positions3D", (j, ctx) -> {
+            double max = dnum(get(j, "maxdistance"), 50.0);
+            return HDensity.positionsCellNoise(JsonAstCompiler.compilePositionsProvider(get(j, "positions"), ctx), HDensity.curveReturn(JsonAstCompiler.compileCurve(get(j, "distancecurve"), ctx)), false, max);
+        });
+
+        var P = WorldGenV2Registries.POSITIONS_PROVIDER_TYPE;
+        P.register("Mesh2D", (j, ctx) -> {
+            Map<String, Object> g = obj(get(j, "pointgenerator"));
+            double jit = g == null ? 0 : dnum(get(g, "jitter"), 0);
+            PositionsProvider grid = HPositions.jitter(HPositions.squareGrid2d(), jit, g == null ? 0L : seedOf(get(g, "seed"), ctx), false);
+            return HPositions.offset(HPositions.scaler(grid, g == null ? 1 : dnum(get(g, "scalex"), 1), 1, g == null ? 1 : dnum(get(g, "scalez"), 1)), 0, dnum(get(j, "pointsy"), 0), 0);
+        });
+        P.register("Mesh3D", (j, ctx) -> {
+            Map<String, Object> g = obj(get(j, "pointgenerator"));
+            double jit = g == null ? 0 : dnum(get(g, "jitter"), 0);
+            PositionsProvider grid = HPositions.jitter(HPositions.squareGrid3d(), jit, g == null ? 0L : seedOf(get(g, "seed"), ctx), true);
+            return HPositions.scaler(grid, g == null ? 1 : dnum(get(g, "scalex"), 1), g == null ? 1 : dnum(get(g, "scaley"), 1), g == null ? 1 : dnum(get(g, "scalez"), 1));
+        });
+
+        over("Column", j -> true, (j, ctx, r) -> {
+            List<HMoreProps.Placed> blocks = new ArrayList<>();
+            if (get(j, "columnblocks") instanceof List<?> l) for (Object o : l) {
+                Map<String, Object> m = obj(o);
+                if (m == null) continue;
+                Object b = r.apply(materialId(get(m, "material")));
+                if (b != null) blocks.add(new HMoreProps.Placed(0, num(get(m, "y"), 0), 0, b));
+            }
+            Prop body = new HMoreProps.Manual(blocks);
+            HMoreProps.Mask masked = maskOf(body, get(j, "blockmask"), ctx, r);
+            Map<String, Object> dir = obj(get(j, "directionality"));
+            return locate(masked != null ? masked : body, j, ctx, r, dir == null ? null : get(dir, "pattern", "northpattern"));
+        });
+        over("Box", j -> true, (j, ctx, r) -> {
+            double[] range = vecD(get(j, "range"), 1.0);
+            Object block = r.apply(materialId(get(j, "material")));
+            Prop body = new HMoreProps.Cuboid(new int[]{(int) -range[0], 0, (int) -range[2]}, new int[]{(int) range[0], (int) range[1], (int) range[2]}, new ConstantMaterialProvider<>(block));
+            return locate(body, j, ctx, r, get(j, "pattern"));
+        });
+        over("Cluster", j -> true, (j, ctx, r) -> {
+            List<WeightedProp.Entry> entries = new ArrayList<>();
+            if (get(j, "weightedprops") instanceof List<?> l) for (Object o : l) {
+                Map<String, Object> m = obj(o);
+                if (m == null) continue;
+                Map<String, Object> pm = obj(get(m, "columnprop", "prop", "propasset"));
+                if (pm == null) for (Object v : m.values()) if (obj(v) != null && obj(v).containsKey("type")) { pm = obj(v); break; }
+                if (pm != null) entries.add(new WeightedProp.Entry(JsonAstCompiler.compileProp(pm, ctx, r), (float) dnum(get(m, "weight"), 1.0)));
+            }
+            Prop body = new HRelease.Cluster(num(get(j, "range"), 4), JsonAstCompiler.compileCurve(get(j, "distancecurve"), ctx), String.valueOf(get(j, "seed")).hashCode(), entries);
+            return locate(body, j, ctx, r, get(j, "pattern"));
+        });
     }
 }

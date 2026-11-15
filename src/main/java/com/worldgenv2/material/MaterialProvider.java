@@ -34,4 +34,17 @@ public interface MaterialProvider<T> {
                           float slopeAngle, VoxelSpace<T> spaceRef) {
         return getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor, slopeAngle, spaceRef);
     }
+
+    /**
+     * Hytale's Solidity splits a provider in two: one for solid blocks, one for empty ones (where fluids come from). A provider that
+     * has an empty side says so here, and the terrain stage asks it about every empty block.
+     */
+    default boolean providesEmpty() {
+        return false;
+    }
+
+    /** The material for an empty (air) position, or null to leave it as it is. Only asked when {@link #providesEmpty()}. */
+    default T getEmptyMaterial(int x, int y, int z, VoxelSpace<T> spaceRef) {
+        return null;
+    }
 }

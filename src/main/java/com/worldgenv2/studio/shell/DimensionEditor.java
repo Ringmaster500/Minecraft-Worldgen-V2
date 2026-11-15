@@ -478,7 +478,7 @@ final class DimensionEditor extends Editor {
 
     private final class PoolTable extends Widget {
         private static final int ROW = 18;
-        private String signature = "";
+        private String signature = null;   // not built yet: the first render must build the rows and the add picker, even for an empty list
         private long syncedRev = -1;
         private final List<Widget> rowWidgets = new ArrayList<>();
         private final List<TextField[]> fields = new ArrayList<>();
@@ -641,7 +641,7 @@ final class DimensionEditor extends Editor {
 
         @Override
         protected void render(Gfx g, int mx, int my) {
-            if (!signature.equals(sig())) { rebuildRows(); layout(); }
+            if (signature == null || !signature.equals(sig())) { rebuildRows(); layout(); }
             if (syncedRev != project().revision) { syncValues(); refreshAddOptions(); }
             g.box(x, y, w, 18, Ui.BG_RAISED, Ui.LINE);
             g.textMid("Biome", nameX, y, 18, Ui.TEXT_FAINT);

@@ -123,13 +123,72 @@ public final class ProjectCompiler {
                 nextId++;
             }
         }
+        // ---- the player's own Hytale assets, when the setup points at them (nothing is copied; they are read here)
+        JsonObject hy = J.obj(d, "hytale") != null ? J.obj(d, "hytale") : J.obj(w, "hytale");
+        final com.worldgenv2.hytale.HytaleAssets[] packBox = new com.worldgenv2.hytale.HytaleAssets[1];
+        if (hy != null && !J.str(hy, "assets", "").isBlank()) {
+            try {
+                packBox[0] = com.worldgenv2.hytale.HytaleAssets.open(J.str(hy, "assets", ""));
+                if (!packBox[0].hasGeneratorAssets()) { r.warnings.add("The Hytale assets at '" + J.str(hy, "assets", "") + "' have no Server/HytaleGenerator folder."); packBox[0] = null; }
+            } catch (Exception ex) {
+                r.warnings.add("Could not open the Hytale assets: " + ex.getMessage());
+            }
+        }
+        final com.worldgenv2.hytale.HytaleAssets pack = packBox[0];
         final Map<String, com.worldgenv2.prefab.Prefab> ctxPrefabs = new HashMap<>();
         JsonAstCompiler.CompileContext ctx = new JsonAstCompiler.CompileContext(r.seed, null,
-                id -> projectPrefab(project, id, ctxPrefabs, r),
+                id -> {
+                    com.worldgenv2.prefab.Prefab own = projectPrefab(project, id, ctxPrefabs, r);
+                    return own != null || pack == null ? own : pack.prefab(id);
+                },
                 name -> projectAssetJson(project, name));
-        ctx.setPrefabFolders(path -> projectPrefabFolder(project, path));
+        ctx.setPrefabFolders(path -> {
+            List<String> own = projectPrefabFolder(project, path);
+            return !own.isEmpty() || pack == null ? own : pack.prefabFolder(path);
+        });
         JsonObject wsJson = ci(d, "worldStructure");
+        if (pack != null) {
+            pack.registerExports(ctx);
+            String wsName = J.str(hy, "worldStructure", "");
+            String wsPath = wsName.isBlank() ? null : pack.worldStructurePath(wsName);
+            if (wsPath != null) {
+                try { wsJson = com.google.gson.JsonParser.parseString(pack.generatorText(wsPath)).getAsJsonObject(); }
+                catch (Exception ex) { r.warnings.add("Could not read the Hytale world structure '" + wsName + "': " + ex.getMessage()); }
+            } else if (!wsName.isBlank()) {
+                r.warnings.add("The Hytale assets have no world structure named '" + wsName + "'.");
+            }
+        }
         if (wsJson != null) applyFramework(wsJson, ctx, r);
+        if (pack != null && wsJson != null) {
+            // the biomes the world structure names, read from the Hytale files
+            List<String> names = new ArrayList<>();
+            var biomes = ciGet(wsJson, "biomes");
+            if (biomes != null && biomes.isJsonArray()) for (JsonElement be : biomes.getAsJsonArray()) if (be.isJsonObject()) names.add(ciStr(be.getAsJsonObject(), "biome", ""));
+            names.add(ciStr(wsJson, "defaultBiome", ""));
+            for (String bn : names) {
+                if (bn.isBlank()) continue;
+                boolean have = false;
+                for (Object[] po : pending) if (bn.equalsIgnoreCase(String.valueOf(po[1]))) have = true;
+                if (have) continue;
+                String bp = pack.biomePath(bn);
+                if (bp == null) { r.warnings.add("The Hytale assets have no biome '" + bn + "'."); continue; }
+                try {
+                    JsonObject bj = com.google.gson.JsonParser.parseString(pack.generatorText(bp)).getAsJsonObject();
+                    String lower = bn.toLowerCase(Locale.ROOT);
+                    bj.addProperty("minecraftBiome", lower.contains("river") ? "minecraft:river" : lower.contains("ocean") ? "minecraft:ocean" : lower.contains("shore") ? "minecraft:beach"
+                            : lower.contains("desert") ? "minecraft:desert" : lower.contains("taiga") || lower.contains("boreal") ? "minecraft:taiga" : lower.contains("mountain") ? "minecraft:stony_peaks"
+                            : lower.contains("volcanic") ? "minecraft:badlands" : "minecraft:plains");
+                    Asset ba = new Asset("biomes/" + bn + ".json", AssetType.BIOME, bj);
+                    nameToId.put("worldgenv2:" + bn, nextId);
+                    pending.add(new Object[]{nextId, bn, ba, new JsonObject()});
+                    nextId++;
+                } catch (Exception ex) {
+                    r.warnings.add("Could not read the Hytale biome '" + bn + "': " + ex.getMessage());
+                }
+            }
+            Double water = ctx.decimalConstants().get("Water");
+            if (water != null) r.seaLevel = (int) Math.round(water);
+        }
         for (Object[] p : pending) {
             int id = (Integer) p[0];
             String assetId = (String) p[1];
