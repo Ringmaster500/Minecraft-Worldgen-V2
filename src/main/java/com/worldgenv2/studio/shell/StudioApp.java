@@ -220,7 +220,7 @@ public final class StudioApp {
 
     public void applyToWorld() { LiveWorld.apply(this); }
 
-    public void regenAroundPlayer() { LiveWorld.regenAround(this, 5); }
+    public void regenAroundPlayer() { LiveWorld.regenWorld(this); }
 
     // ---- live preview: rebuild a chosen square of chunks after each edit ----
     public boolean live;

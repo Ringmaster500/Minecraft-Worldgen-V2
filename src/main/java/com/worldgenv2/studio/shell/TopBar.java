@@ -18,7 +18,7 @@ final class TopBar extends Widget {
         apply = add(new Button("Apply", app::applyToWorld));
         apply.tooltip = "Save, make this the active project and re-compile it into the open world  (Ctrl+Enter)";
         regen = add(new Button("Regen", app::regenAroundPlayer));
-        regen.tooltip = "Rebuild the chunks around you with the current project";
+        regen.tooltip = "Rebuild the whole world generated so far (saved chunks and everything around you) with the current setup. Player builds in those chunks are replaced.";
         liveBtn = add(new Button("Live", () -> app.setLive(!app.live)));
         liveBtn.tooltip = "Live preview: after each edit, rebuild only a square of chunks around you so you see the change in the world";
         pinBtn = add(new Button("Pin", app::repinLive));
