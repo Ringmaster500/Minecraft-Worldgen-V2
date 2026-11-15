@@ -55,7 +55,16 @@ final class DimensionEditor extends Editor {
                 "Per-world: each new world rolls its own layout (the seed above is only the preview). Fixed: every world is identical, e.g. a story map.");
         field("Cell size", num("cellSize", 192, 16, 4096, 16, true, "Cell size"), "Average Voronoi cell width in blocks.");
 
-        section("Biome pool", "which biomes this dimension may generate");
+        String zone = getStr("hytale.worldStructure", "");
+        section("Biome map", "who decides where each biome goes");
+        field("Biomes come from", choice("hytale.worldStructure", "", hytaleZoneOptions(), s -> s.isEmpty() ? "Your biome pool (random regions)" : "Hytale zone: " + s, "Biome map"),
+                "Your biome pool: the biomes in the pool below are scattered in random regions. A Hytale zone: Hytale's own map places Hytale's biomes, and the pool below is not used.");
+        if (!zone.isEmpty()) {
+            note("This setup uses the Hytale zone '" + zone + "', so its map decides the biomes. Biomes you add to the pool are ignored. "
+                    + "Switch the box above to 'Your biome pool' to use them.", Ui.YELLOW);
+        }
+
+        section("Biome pool", "which biomes this dimension may generate" + (zone.isEmpty() ? "" : " (not used while a Hytale zone is selected)"));
         block(new PoolTable());
 
         // ---- zones: Hytale-style macro regions, each with its own biome set ----
@@ -299,6 +308,22 @@ final class DimensionEditor extends Editor {
         for (Asset a : project().assetsOf(AssetType.PREFAB)) sb.append('p').append(a.id());
         for (Asset a : project().assetsOf(AssetType.BIOME)) sb.append('b').append(a.id());
         return sb.toString();
+    }
+
+    /** "" (use the biome pool) plus every world structure ("zone") in the player's Hytale assets, and the one already chosen. */
+    private List<String> hytaleZoneOptions() {
+        List<String> out = new ArrayList<>();
+        out.add("");
+        String path = getStr("hytale.assets", "");
+        if (path.isBlank()) path = com.worldgenv2.hytale.HytaleAssets.defaultAssetsPath();
+        if (path != null) {
+            try (var pack = com.worldgenv2.hytale.HytaleAssets.open(path)) {
+                for (String z : pack.worldStructures()) if (!out.contains(z)) out.add(z);
+            } catch (Exception ignored) { }
+        }
+        String cur = getStr("hytale.worldStructure", "");
+        if (!cur.isEmpty() && !out.contains(cur)) out.add(cur);
+        return out;
     }
 
     private List<String> prefabOptions() {
