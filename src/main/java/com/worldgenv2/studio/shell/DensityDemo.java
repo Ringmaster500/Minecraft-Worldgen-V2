@@ -37,8 +37,10 @@ final class DensityDemo extends Widget {
         this.type = type;
         this.json = NodeSchemas.newNode(type);
         fillInputs();
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         for (NodeSchemas.Param p : type.params()) {
             if (controls.size() >= 7) break;
+            if (!seenKeys.add(p.key().toLowerCase(java.util.Locale.ROOT))) continue;
             addControl(p);
         }
         viewSize = add(new Slider(32, 1024, 16, 256, true, v -> dirty = true));
