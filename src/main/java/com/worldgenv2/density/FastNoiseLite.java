@@ -56,6 +56,17 @@ public final class FastNoiseLite {
     private CellularReturnType cellularReturnType = CellularReturnType.Distance;
     private float cellularJitterModifier = 1.0f;
 
+    /** Everything that decides this noise's values: two noises with equal signatures give the same number everywhere. */
+    public record Signature(int seed, float frequency, NoiseType noiseType, FractalType fractalType, int octaves, float lacunarity,
+                            float gain, float weightedStrength, float pingPongStrength, float fractalBounding,
+                            CellularDistanceFunction cellularDistanceFunction, CellularReturnType cellularReturnType,
+                            float cellularJitterModifier) {}
+
+    public Signature signature() {
+        return new Signature(seed, frequency, noiseType, fractalType, octaves, lacunarity, gain, weightedStrength, pingPongStrength,
+            fractalBounding, cellularDistanceFunction, cellularReturnType, cellularJitterModifier);
+    }
+
     public FastNoiseLite() {
         updateFractalBounding();
     }

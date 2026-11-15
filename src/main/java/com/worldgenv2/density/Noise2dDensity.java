@@ -30,32 +30,28 @@ public final class Noise2dDensity implements DensityFunction {
         this.amplitude = amplitude;
     }
 
-    /**
-     * Recent columns evaluated on this thread: a column of voxels asks for the same (x, z) hundreds of times, and gradient sampling
-     * keeps coming back to the same few neighbours. The value never changes, so a small direct-mapped cache is enough.
-     */
-    private static final class ColumnMemo {
-        final float[] xs = new float[16], zs = new float[16], vs = new float[16];
-        ColumnMemo() { java.util.Arrays.fill(xs, Float.NaN); }
+    /** Which exact noise this is (settings and amplitude), for the shared per-thread memo; worked out on first use. */
+    private volatile int memoId;
+
+    private int memoId() {
+        int id = memoId;
+        if (id == 0) memoId = id = NoiseMemo.idFor(java.util.List.of("2d", noise.signature(), amplitude));
+        return id;
     }
-    private final ThreadLocal<ColumnMemo> memo = ThreadLocal.withInitial(ColumnMemo::new);
+
+    private float sample(float x, float z) { return noise.getNoise(x, z) * amplitude; }
+
     @Override
     public float compute(float x, float y, float z) {
-        ColumnMemo m = memo.get();
-        int slot = (Float.floatToRawIntBits(x) * 31 + Float.floatToRawIntBits(z)) * 0x9E3779B1 >>> 28;
-        if (m.xs[slot] == x && m.zs[slot] == z) return m.vs[slot];
-        float v = noise.getNoise(x, z) * amplitude;
-        m.xs[slot] = x; m.zs[slot] = z; m.vs[slot] = v;
-        return v;
+        return NoiseMemo.get(memoId(), x, z, this::sample);
     }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         int height = maxY - minY;
         if (height <= 0) return;
-        float val = noise.getNoise(x, z) * amplitude;
-        Arrays.fill(out, 0, height, val);
+        java.util.Arrays.fill(out, 0, height, NoiseMemo.get(memoId(), x, z, this::sample));
     }
-
     public FastNoiseLite getNoise() {
         return noise;
     }

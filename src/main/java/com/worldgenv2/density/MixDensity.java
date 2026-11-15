@@ -100,14 +100,24 @@ public final class MixDensity implements DensityFunction {
             return;
         }
         // The blend first: each input is then evaluated only over the heights where it has any weight (a where t < 1, b where t > 0).
-        float[] bufF = ColumnPool.take(height);
-        factor.computeColumn(x, z, minY, maxY, bufF);
-        int aLo = height, aHi = -1, bLo = height, bHi = -1;
-        for (int i = 0; i < height; i++) {
-            float t = Math.clamp(bufF[i], 0.0f, 1.0f);
-            bufF[i] = t;
-            if (t < 1.0f) { if (i < aLo) aLo = i; aHi = i; }
-            if (t > 0.0f) { if (i < bLo) bLo = i; bHi = i; }
+        // When the blend depends on Y only, those weights and ranges are the same for every column and are worked out once.
+        float[] tArr;
+        int aLo, aHi, bLo, bHi;
+        float[] bufF = null;
+        if (factor.xzIndependent()) {
+            Plan p = planFor(minY, maxY);
+            tArr = p.t; aLo = p.aLo; aHi = p.aHi; bLo = p.bLo; bHi = p.bHi;
+        } else {
+            bufF = ColumnPool.take(height);
+            factor.computeColumn(x, z, minY, maxY, bufF);
+            aLo = height; aHi = -1; bLo = height; bHi = -1;
+            for (int i = 0; i < height; i++) {
+                float t = Math.clamp(bufF[i], 0.0f, 1.0f);
+                bufF[i] = t;
+                if (t < 1.0f) { if (i < aLo) aLo = i; aHi = i; }
+                if (t > 0.0f) { if (i < bLo) bLo = i; bHi = i; }
+            }
+            tArr = bufF;
         }
         float[] bufB = null;
         if (aHi >= 0) {
@@ -122,14 +132,38 @@ public final class MixDensity implements DensityFunction {
         if (bHi >= 0) {
             bufB = ColumnPool.take(height);
             b.computeColumn(x, z, minY + bLo, minY + bHi + 1, bufB);
+            for (int i = bLo; i <= bHi; i++) {                          // outside [bLo, bHi] t is 0 and out already holds a
+                float t = tArr[i];
+                if (t <= 0.0f) continue;
+                float vb = bufB[i - bLo];
+                out[i] = t >= 1.0f ? vb : out[i] + t * (vb - out[i]);
+            }
+            ColumnPool.give(bufB);
         }
+        if (bufF != null) ColumnPool.give(bufF);
+    }
+
+    /** The clamped blend for a range of heights, and where each input has weight: the same for every column when it depends on Y only. */
+    private record Plan(int minY, int maxY, float[] t, int aLo, int aHi, int bLo, int bHi) {}
+
+    private final Plan[] plans = new Plan[4];
+    private int nextPlan;
+
+    private Plan planFor(int minY, int maxY) {
+        Plan[] ps = plans;
+        for (Plan p : ps) if (p != null && p.minY == minY && p.maxY == maxY) return p;
+        int height = maxY - minY;
+        float[] t = new float[height];
+        factor.computeColumn(0f, 0f, minY, maxY, t);
+        int aLo = height, aHi = -1, bLo = height, bHi = -1;
         for (int i = 0; i < height; i++) {
-            float t = bufF[i];
-            if (t <= 0.0f) continue;                                    // out[i] already holds a
-            float vb = bufB[i - bLo];
-            out[i] = t >= 1.0f ? vb : out[i] + t * (vb - out[i]);
+            float v = Math.clamp(t[i], 0.0f, 1.0f);
+            t[i] = v;
+            if (v < 1.0f) { if (i < aLo) aLo = i; aHi = i; }
+            if (v > 0.0f) { if (i < bLo) bLo = i; bHi = i; }
         }
-        if (bufB != null) ColumnPool.give(bufB);
-        ColumnPool.give(bufF);
+        Plan p = new Plan(minY, maxY, t, aLo, aHi, bLo, bHi);
+        synchronized (ps) { ps[nextPlan++ & 3] = p; }
+        return p;
     }
 }

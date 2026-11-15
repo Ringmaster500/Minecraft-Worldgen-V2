@@ -240,3 +240,15 @@ What changed:
 - The prop pass only considers distributions whose biome is near the chunk and sizes its context from them, reads the terrain tiles lazily, drops writes nobody reads, and skips positions whose prop cannot reach what will be read.
 
 Still costly: Hytale's per-block position grids for small props (each chunk evaluates a ring of positions around itself so props that overlap a border come out identical from both sides), 3D-noise biomes, and the Angle gradient used by surface materials.
+
+### Generation speed, round three (output unchanged)
+
+Every change in this round keeps the generated blocks byte-identical. `tools\samecheck.ps1` hashes every block of 75 chunks in three areas (the `/hash` dev route), and `tools\samecheck_reference.txt` holds the reference those must reproduce. `WG2_COUNTERS=1` makes the game write per-chunk timings to `%TEMP%\wg2_counts.txt`, and `tools\benchgen.ps1` reads them.
+
+- Work per chunk went from about 87 ms to about 57 ms. The biggest single win was removing waiting: chunks blocked on striped locks while another thread computed a neighbour tile. Now each tile is a future; a thread computes every tile it can first, and waits only at the end (36 ms of waiting per chunk became about 4 ms).
+- A distribution's positions are cached per 16 x 16 cell and shared by all chunks, keyed by the distribution itself. They are stored pre-sorted and merged in the original order on plain arrays.
+- First-stage prop anchors (they read only terrain) are remembered with the box of blocks they read. A chunk replays one only if that box lies inside its own context, where it would have computed exactly the same.
+- Terrain tiles: Mix evaluates each input only where it is weighted; gradient windows are cached; material lookup returns the material and its run length in one pass; the slope halo is skipped when no material reads slopes; 2D noises with identical settings share one per-thread memo.
+- Fixed: the Positions Cache node keyed sections with a hash that could collide, so a query could get another section's positions (and the result depended on which was cached first).
+- Tried, exact, but off by default (they did not pay on Hytale's assets): interval bounds that skip parts of columns whose sign is proven (`WG2_PRUNE=1`), and sharing columns between copies of an exported density (`WG2_SHARE=1`).
+- Known: `SimplexNoise2D/3D` without a Seed, and `FastGradientWarp`, draw their seed from a compile-order counter, so two imports of the same node are not the same noise. Hytale hashes the Seed string.
