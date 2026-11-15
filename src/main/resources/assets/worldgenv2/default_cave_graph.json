@@ -1,0 +1,12 @@
+{
+  "CacheCellSize": {"X": 640, "Y": 256, "Z": 640},
+  "CacheCapacity": 48,
+  "Passes": [
+    {"Type":"Positions","Positions":{"Type":"Bound","Bounds":{"Min":{"X":-1000000,"Y":-58,"Z":-1000000},"Max":{"X":1000000,"Y":50,"Z":1000000}},"Positions":{"Type":"Scaler","Scale":{"X":110,"Y":48,"Z":110},"Positions":{"Type":"SquareGrid3d"}}}},
+    {"Type":"NodeAction","NodeAction":{"Type":"Jitter3d","Magnitude":30,"Seed":"cave-sites"}},
+    {"Type":"NodeAction","NodeAction":{"Type":"ProximityConnector","Range":190,"Cap":3,"Seed":"cave-links","NodeSelector":{"Type":"All"}}},
+    {"Type":"EdgeAction","EdgeAction":{"Type":"Splitter","NodeCount":15,"Content":{"Type":"Constant","Content":{"DensityContent":[{"Range":9,"ContentLayer":"caves","Density":{"Type":"Anchor","Reverse":false,"Inputs":[{"Type":"Ellipsoid","Scale":{"X":6,"Y":4,"Z":6},"NewYAxis":{"X":0,"Y":1,"Z":0},"Spin":0,"Curve":{"Type":"Manual","Points":[{"X":0,"Y":-1,"Z":0},{"X":1,"Y":0,"Z":0},{"X":1.6,"Y":1,"Z":0}]}}]}}]}}}},
+    {"Type":"NodeAction","NodeAction":{"Type":"Selector","NodeSelector":{"Type":"ConnectionCount","Counts":[0,1,2]},"NodeAction":{"Type":"Content","Content":{"Type":"Constant","Content":{"DensityContent":[{"Range":9,"ContentLayer":"caves","Density":{"Type":"Anchor","Reverse":false,"Inputs":[{"Type":"Ellipsoid","Scale":{"X":6,"Y":4,"Z":6},"NewYAxis":{"X":0,"Y":1,"Z":0},"Spin":0,"Curve":{"Type":"Manual","Points":[{"X":0,"Y":-1,"Z":0},{"X":1,"Y":0,"Z":0},{"X":1.6,"Y":1,"Z":0}]}}]}}]}}}}},
+    {"Type":"NodeAction","NodeAction":{"Type":"Selector","NodeSelector":{"Type":"ConnectionCount","Counts":[3,4,5,6,7,8,9,10]},"NodeAction":{"Type":"Content","Content":{"Type":"Constant","Content":{"DensityContent":[{"Range":28,"ContentLayer":"caves","Density":{"Type":"Anchor","Reverse":false,"Inputs":[{"Type":"Ellipsoid","Scale":{"X":18,"Y":10,"Z":18},"NewYAxis":{"X":0,"Y":1,"Z":0},"Spin":0,"Curve":{"Type":"Manual","Points":[{"X":0,"Y":-1,"Z":0},{"X":1,"Y":0,"Z":0},{"X":1.6,"Y":1,"Z":0}]}}]}}]}}}}}
+  ]
+}

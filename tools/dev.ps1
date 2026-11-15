@@ -30,7 +30,7 @@ function Gradle([string[]]$tasks) {
 switch ($Cmd) {
     "start" {
         if (Test-Bridge) { Write-Host "Game already running."; break }
-        Gradle @("createLaunchScripts", "compileJava")
+        Gradle @("createLaunchScripts", "compileJava", "processResources")
         Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$root\build\moddev\runClient.cmd`"" -WorkingDirectory "$root\run"
         Write-Host "Waiting for DevBridge (first launch can take a minute or two)..."
         for ($i = 0; $i -lt 180; $i++) { Start-Sleep 2; if (Test-Bridge) { Write-Host "Ready."; break } }

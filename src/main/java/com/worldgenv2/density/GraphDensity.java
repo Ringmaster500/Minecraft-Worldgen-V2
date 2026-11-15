@@ -50,16 +50,14 @@ public final class GraphDensity implements DensityFunction {
 
     @Override
     public float compute(float x, float y, float z) {
+        return blend(graphGenerator.getNodesInRange(seed, new Vec3d(x, y, z), maxSearchRadius, 0.0), x, y, z);
+    }
+
+    /** The blended value at (x, y, z) from the given nodes' content on this reader's layer; each entry is evaluated with its node as the anchor. */
+    public float blend(List<GraphNode> nearbyNodes, float x, float y, float z) {
+        if (nearbyNodes.isEmpty()) return backgroundValue;
         Vec3d samplePos = new Vec3d(x, y, z);
-        List<GraphNode> nearbyNodes = graphGenerator.getNodesInRange(seed, samplePos, maxSearchRadius, 0.0);
-
-        if (nearbyNodes.isEmpty()) {
-            return backgroundValue;
-        }
-
-        double totalWeight = 0.0;
-        double weightedSum = 0.0;
-
+        double totalWeight = 0.0, weightedSum = 0.0;
         for (GraphNode node : nearbyNodes) {
             Optional<GraphContent.DensityEntry> opt = node.getContent().getFirstDensity(contentLayer);
             if (opt.isPresent()) {
@@ -67,19 +65,18 @@ public final class GraphDensity implements DensityFunction {
                 double dist = node.getPosition().distance(samplePos);
                 if (dist <= entry.range() && entry.range() > 0.0) {
                     double weight = weight(dist, entry.range());
-                    float dVal = entry.density().compute(x, y, z);
+                    Vec3d np = node.getPosition();
+                    float dVal = com.worldgenv2.hytale.HDensity.withAnchor(new double[]{np.x(), np.y(), np.z()}, () -> entry.density().compute(x, y, z));
                     weightedSum += weight * dVal;
                     totalWeight += weight;
                 }
             }
         }
-
         if (totalWeight <= 0.0) return backgroundValue;
         // Where the combined weight is below 1 the background shows through, so the field stays continuous at a Range's edge.
         if (totalWeight >= 1.0) return (float) (weightedSum / totalWeight);
         return (float) (weightedSum + (1.0 - totalWeight) * backgroundValue);
     }
-
     public GraphGenerator getGraphGenerator() {
         return graphGenerator;
     }

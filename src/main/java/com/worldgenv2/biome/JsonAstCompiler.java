@@ -3292,10 +3292,49 @@ public final class JsonAstCompiler {
         return BlockMask.always();
     }
 
+    /** A Manual pass's edges are as long as its nodes are far apart, so a cell must see that far to find both ends. */
+    private static double longestManualEdge(Map<?, ?> pass) {
+        Object nodes = null;
+        for (Map.Entry<?, ?> e : pass.entrySet()) if (String.valueOf(e.getKey()).equalsIgnoreCase("nodes")) nodes = e.getValue();
+        if (!(nodes instanceof List<?> list)) return 0.0;
+        Map<String, double[]> at = new java.util.HashMap<>();
+        for (Object o : list) {
+            if (!(o instanceof Map<?, ?> n)) continue;
+            Object name = null, pos = null;
+            for (Map.Entry<?, ?> e : n.entrySet()) {
+                String k = String.valueOf(e.getKey()).toLowerCase(Locale.ROOT);
+                if (k.equals("name")) name = e.getValue(); else if (k.equals("position")) pos = e.getValue();
+            }
+            if (name != null && pos instanceof Map<?, ?> pm) {
+                double[] v = new double[3];
+                for (Map.Entry<?, ?> e : pm.entrySet()) {
+                    String k = String.valueOf(e.getKey()).toLowerCase(Locale.ROOT);
+                    if (e.getValue() instanceof Number num) { if (k.equals("x")) v[0] = num.doubleValue(); else if (k.equals("y")) v[1] = num.doubleValue(); else if (k.equals("z")) v[2] = num.doubleValue(); }
+                }
+                at.put(String.valueOf(name), v);
+            }
+        }
+        double max = 0.0;
+        for (Object o : list) {
+            if (!(o instanceof Map<?, ?> n)) continue;
+            Object name = null, conns = null;
+            for (Map.Entry<?, ?> e : n.entrySet()) {
+                String k = String.valueOf(e.getKey()).toLowerCase(Locale.ROOT);
+                if (k.equals("name")) name = e.getValue(); else if (k.equals("connections")) conns = e.getValue();
+            }
+            double[] a = name == null ? null : at.get(String.valueOf(name));
+            if (a != null && conns instanceof List<?> cl) for (Object c : cl) {
+                double[] b = at.get(String.valueOf(c));
+                if (b != null) max = Math.max(max, Math.sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2])));
+            }
+        }
+        return max;
+    }
     /** The sum of every cap (Range, Magnitude, MaxDistance, MaxOffsetExclusive, MaxProxyDistance, ClusterBounds) in a graph: how far a pass can reach. */
     static double contextMarginOf(Object raw) {
         double sum = 0.0;
         if (raw instanceof Map<?, ?> m) {
+            sum += longestManualEdge(m);
             for (Map.Entry<?, ?> e : m.entrySet()) {
                 String k = String.valueOf(e.getKey()).toLowerCase(Locale.ROOT);
                 if (e.getValue() instanceof Number n && (k.equals("range") || k.equals("magnitude") || k.equals("maxdistance") || k.equals("maxoffsetexclusive") || k.equals("maxproxydistance"))) {

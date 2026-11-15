@@ -50,6 +50,10 @@ public final class RiverCarver {
     private final int seaLevel;
     private final int bedDepth;
     private com.worldgenv2.graph.ProceduralGraph riverGraph;
+    // Graph mode (Hytale): the river follows the edges of a Graph Generator the creator builds from nodes
+    private com.worldgenv2.graph.GraphGenerator graph;
+    private long graphSeed;
+    private float chHalfBlocks, valHalfBlocks;
     private float graphValleyRadius = 50.0f;
 
     private volatile HeightSampler sampler;
@@ -97,6 +101,28 @@ public final class RiverCarver {
         this.graphValleyRadius = Math.max(1.0f, valleyRadius);
     }
 
+    /**
+     * Makes the river follow the edges of a Graph Generator instead of the noise ridge. The graph decides where rivers run; the
+     * settings still decide how wide, deep and wavy-edged they are.
+     */
+    public RiverCarver useGraph(com.worldgenv2.graph.GraphGenerator generator, long seed, Settings st) {
+        this.graph = generator;
+        this.graphSeed = seed;
+        this.chHalfBlocks = Math.max(1f, st.channelWidth() / 2f);
+        this.valHalfBlocks = Math.max(chHalfBlocks * 1.3f, st.valleyWidth() / 2f);
+        return this;
+    }
+
+    public boolean usesGraph() { return graph != null; }
+
+    private double[] nearestOnGraph(float x, float z) {
+        return graph.nearestEdge(graphSeed, x, 0, z, valHalfBlocks * (1f + widthVar) + 2f, true, 0);
+    }
+
+    private float channelRatio() { return graph != null ? chHalfBlocks / valHalfBlocks : channelHalfWidth / valleyHalfWidth; }
+
+    private float bankRatio() { return graph != null ? (chHalfBlocks + 2.5f) / valHalfBlocks : (channelHalfWidth + 0.030f) / valleyHalfWidth; }
+
     public com.worldgenv2.graph.ProceduralGraph getRiverGraph() {
         return riverGraph;
     }
@@ -113,6 +139,12 @@ public final class RiverCarver {
      * Effective distance metric in normalized river space: 0.0 at the centerline, 1.0 at the outer edge of the banks.
      */
     public float riverDistance(float x, float z) {
+        if (graph != null) {
+            double[] n = nearestOnGraph(x, z);
+            if (n == null) return 1.0f;
+            float wm = 1.0f + widthNoise.getNoise(x, z) * widthVar;
+            return Math.clamp((float) (n[0] / (valHalfBlocks * wm)), 0.0f, 1.0f);
+        }
         float n = Math.abs(signedNoise(x, z));
         float wMod = 1.0f + widthNoise.getNoise(x, z) * widthVar;
         float noiseDist = Math.clamp(n / (valleyHalfWidth * wMod), 0.0f, 1.0f);
@@ -139,15 +171,13 @@ public final class RiverCarver {
 
     /** True when (x, z) lies inside the water-filled river channel proper. */
     public boolean isChannel(float x, float z) {
-        return riverDistance(x, z) <= channelHalfWidth / valleyHalfWidth;
+        return riverDistance(x, z) <= channelRatio();
     }
 
     /** True when (x, z) lies on the immediate riparian shoreline (water's edge and a few blocks back). */
     public boolean isRiparianBank(float x, float z) {
         float dist = riverDistance(x, z);
-        float channelRatio = channelHalfWidth / valleyHalfWidth;
-        float bankRatio = (channelHalfWidth + 0.030f) / valleyHalfWidth;
-        return dist > channelRatio && dist <= bankRatio;
+        return dist > channelRatio() && dist <= bankRatio();
     }
 
     // ------------------------------------------------------------------ water level
@@ -188,6 +218,11 @@ public final class RiverCarver {
      */
     public int levelAt(float x, float z) {
         if (sampler == null) return seaLevel;
+        if (graph != null) {
+            double[] near = nearestOnGraph(x, z);
+            if (near == null) return seaLevel;
+            return Math.max(seaLevel, (int) Math.floor(valleyFloor((float) near[1], (float) near[3])) - 1);
+        }
         float n = signedNoise(x, z);
         float h = 3.0f;
         float gx = (signedNoise(x + h, z) - signedNoise(x - h, z)) / (2 * h);
@@ -236,7 +271,7 @@ public final class RiverCarver {
         float blendRate = Math.min(1.0f, landFade * alpineFade * 1.25f);
         if (blendRate <= 0.001f) return;
 
-        float channelRatio = channelHalfWidth / valleyHalfWidth;
+        float channelRatio = channelRatio();
         float targetY;
         if (dist <= channelRatio) {
             // shallow trough: deepest in the middle, rising to the water level at the water's edge

@@ -104,6 +104,8 @@ public final class Templates {
         o.addProperty("layout", "voronoi_continent");
         o.addProperty("seed", 1337);
         o.addProperty("cellSize", 192);
+        o.addProperty("riverMode", "graph");
+        o.addProperty("caveMode", "graph");
         JsonArray biomes = new JsonArray();
         if (p != null) for (Asset b : p.assetsOf(AssetType.BIOME)) biomes.add(poolEntry(b.id(), b.json));
         o.add("biomes", biomes);

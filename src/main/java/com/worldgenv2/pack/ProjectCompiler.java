@@ -202,6 +202,15 @@ public final class ProjectCompiler {
                     (float) J.num(rs, "valleyWidth", def.valleyWidth()), J.integer(rs, "depth", def.depth()),
                     (float) J.num(rs, "meander", def.meander()), (float) J.num(rs, "widthVariation", def.widthVariation()));
             RiverCarver carver = new RiverCarver(r.seed, r.seaLevel, st);
+            if ("graph".equalsIgnoreCase(J.str(d, "riverMode", "classic"))) {
+                try {
+                    String gj = J.obj(d, "riverGraph") != null ? J.obj(d, "riverGraph").toString() : defaultRiverGraph();
+                    JsonAstCompiler.CompileContext gctx = new JsonAstCompiler.CompileContext(r.seed);
+                    carver.useGraph(JsonAstCompiler.compileGraphGenerator(new JsonAstCompiler.SimpleJsonParser(gj).parseValue(), gctx, id -> id), r.seed, st);
+                } catch (Throwable ex) {
+                    r.warnings.add("The river graph failed to compile, so classic rivers are used: " + ex.getMessage());
+                }
+            }
             final WorldStructure ws = structure;
             final int rMinY = r.minY, rMaxY = r.maxY;
             carver.setHeightSampler((hx, hz) -> ws.sampleNativeSurfaceY(hx, hz, rMinY, rMaxY));
@@ -211,7 +220,7 @@ public final class ProjectCompiler {
         JsonObject ocean = J.obj(d, "ocean");
         if (ocean != null) structure.withOceanDepth((float) J.num(ocean, "depthScale", 1.0), r.seaLevel);
         if (J.bool(d, "caves", true)) {
-            structure.withCaveCarver(new CaveCarver(r.seed))
+            structure.withCaveCarver(buildCaveCarver(d, r))
                     .withUndergroundBiomes(undergrounds.isEmpty() ? DefaultBiomeFactory.createUndergroundBiomes() : undergrounds, r.seed);
         }
         structure.withDimensionLayout(buildLayout(d, r));
@@ -899,4 +908,36 @@ public final class ProjectCompiler {
         String bare = bareAssetId(name, "");
         for (Asset a : project.assets()) if (a.id().equals(bare)) return a.json.toString();
         return null;
+    }
+
+    /** The shipped river graph: a jittered lattice of sites, some removed, each linked to its two nearest, then chopped and made to wander. */
+    public static String defaultRiverGraph() {
+        try (java.io.InputStream in = ProjectCompiler.class.getResourceAsStream("/assets/worldgenv2/default_river_graph.json")) {
+            return in == null ? "{}" : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            return "{}";
+        }
+    }
+
+    /** Caves: Hytale's graph way (a Graph Generator whose nodes carry Density on the "caves" layer) or the classic noise carver. */
+    private static com.worldgenv2.worldstructure.ColumnCarver buildCaveCarver(JsonObject d, Result r) {
+        if ("graph".equalsIgnoreCase(J.str(d, "caveMode", "classic"))) {
+            try {
+                String gj = J.obj(d, "caveGraph") != null ? J.obj(d, "caveGraph").toString() : defaultCaveGraph();
+                JsonAstCompiler.CompileContext gctx = new JsonAstCompiler.CompileContext(r.seed);
+                var gen = JsonAstCompiler.compileGraphGenerator(new JsonAstCompiler.SimpleJsonParser(gj).parseValue(), gctx, id -> id);
+                return new com.worldgenv2.worldstructure.GraphCaveCarver(gen, J.str(d, "caveLayer", "caves"), r.seed, 7);
+            } catch (Throwable ex) {
+                r.warnings.add("The cave graph failed to compile, so classic caves are used: " + ex.getMessage());
+            }
+        }
+        return new CaveCarver(r.seed);
+    }
+
+    public static String defaultCaveGraph() {
+        try (java.io.InputStream in = ProjectCompiler.class.getResourceAsStream("/assets/worldgenv2/default_cave_graph.json")) {
+            return in == null ? "{}" : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            return "{}";
+        }
     }}

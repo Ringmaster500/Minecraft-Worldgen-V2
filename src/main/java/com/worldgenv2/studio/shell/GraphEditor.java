@@ -110,6 +110,8 @@ final class GraphEditor extends Widget {
             r.type = "Dimension";
             r.kind = "dimension";
             addSlot(r, "worldStructure", "World structure", "worldstructure", false);
+            addSlot(r, "riverGraph", "River graph", "graphgenerator", false);
+            addSlot(r, "caveGraph", "Cave graph", "graphgenerator", false);
         } else if (a.type == com.worldgenv2.studio.project.AssetType.RULE) {
             // A placement rule: where to look (finder), what must hold (conditions), what to build (actions).
             r.type = "Rule";

@@ -243,7 +243,7 @@ public final class WorldStructure {
     private volatile ConditionalSpawnProvider conditionalSpawnProvider;
     private volatile MacroFeatureGraph macroFeatureGraph;
     private volatile SplineRoadEngine splineRoadEngine;
-    private volatile CaveCarver caveCarver;
+    private volatile ColumnCarver caveCarver;
     private volatile RiverCarver riverCarver;
     private volatile MaterialProvider<?> riverMaterialProvider;
     private volatile UndergroundBiomeMap undergroundBiomeMap;
@@ -361,7 +361,7 @@ public final class WorldStructure {
         return splineRoadEngine;
     }
 
-    public WorldStructure withCaveCarver(CaveCarver carver) {
+    public WorldStructure withCaveCarver(ColumnCarver carver) {
         this.caveCarver = carver;
         return this;
     }
@@ -390,7 +390,7 @@ public final class WorldStructure {
         return riverCarver;
     }
 
-    public CaveCarver getCaveCarver() {
+    public ColumnCarver getCaveCarver() {
         return caveCarver;
     }
 

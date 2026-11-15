@@ -185,9 +185,37 @@ final class DimensionEditor extends Editor {
         field("Base block", str("defaultBlock", "minecraft:stone", "Base block"), "Solid fill used for terrain.");
         field("Fluid", str("defaultFluid", "minecraft:water", "Fluid"), "Liquid for oceans and rivers. Use minecraft:air for none.");
         field("Caves", toggle("caves", true, "Caves", "Carve caves and underground biomes"), null);
+        field("Cave layout", choice("caveMode", "classic", List.of("graph", "classic"), s -> s.equals("graph") ? "Node graph (Hytale)" : "Classic noise", "Cave layout"),
+                "Node graph: caves are a Graph Generator whose nodes carry density (chambers and tunnels), editable in the Graph view. Classic noise: the older cheese and spaghetti carver.");
+        field("Cave graph", new Button("Customize as nodes", () -> {
+            var a = asset();
+            if (a == null) return;
+            project().edit(a, "Customize cave graph", j -> {
+                try {
+                    var g = com.google.gson.JsonParser.parseString(com.worldgenv2.pack.ProjectCompiler.defaultCaveGraph()).getAsJsonObject();
+                    g.addProperty("type", "GraphGenerator");
+                    j.add("caveGraph", g);
+                    j.addProperty("caveMode", "graph");
+                } catch (RuntimeException ignored) { }
+            });
+        }), "Copies the shipped cave graph into this dimension so its passes and content can be changed in the Graph view.");
 
         section("Rivers", "winding channels with gentle valleys; off removes them completely");
         field("Rivers", toggle("rivers", true, "Rivers", "Carve rivers"), null);
+        field("River layout", choice("riverMode", "classic", List.of("graph", "classic"), s -> s.equals("graph") ? "Node graph (Hytale)" : "Classic noise", "River layout"),
+                "Node graph: rivers follow a Graph Generator you can edit in the Graph view (Hytale's way). Classic noise: the older wandering ridge, tuned by Spacing and Meander.");
+        field("River graph", new Button("Customize as nodes", () -> {
+            var a = asset();
+            if (a == null) return;
+            project().edit(a, "Customize river graph", j -> {
+                try {
+                    var g = com.google.gson.JsonParser.parseString(com.worldgenv2.pack.ProjectCompiler.defaultRiverGraph()).getAsJsonObject();
+                    g.addProperty("type", "GraphGenerator");
+                    j.add("riverGraph", g);
+                    j.addProperty("riverMode", "graph");
+                } catch (RuntimeException ignored) { }
+            });
+        }), "Copies the shipped river graph into this dimension so its passes can be changed in the Graph view.");
         field("Spacing", num("riverSettings.spacing", 1000, 200, 6000, 50, false, "River spacing"), "Roughly how far apart rivers run. Bigger = fewer, longer rivers.");
         field("Water width", num("riverSettings.channelWidth", 30, 4, 200, 2, false, "River width"), "Width of the water surface, in blocks.");
         field("Bank to bank", num("riverSettings.valleyWidth", 60, 8, 400, 4, false, "River bank width"), "Total width including the soft banks on both sides. The ground blends into the water over this distance.");

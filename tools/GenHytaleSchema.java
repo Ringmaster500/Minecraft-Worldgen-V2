@@ -43,7 +43,7 @@ public final class GenHytaleSchema {
         for (String[] f : FILES) {
             List<Node> nodes = parse(Files.readString(Path.of(DOCS + f[0])), f[1]);
             if (f[1].equals("prop")) nodes.add(runtimeNode());
-            if (f[1].equals("density")) extraKinds.put("worldstructure", List.of(worldStructureNode()));
+            if (f[1].equals("density")) { extraKinds.put("worldstructure", List.of(worldStructureNode())); extraKinds.put("graphgenerator", List.of(graphGeneratorNode())); }
             out.append(",\n  \"").append(f[1]).append("\": {");
             boolean first = true;
             for (Node n : nodes) {
@@ -102,6 +102,13 @@ public final class GenHytaleSchema {
                 new Param("Biomes", "json", "Biome delimiters: [{ Biome, Min, Max }] where the Density is within Min and Max.", "[]"),
                 new Param("Framework", "json", "Named DecimalConstants and Positions shared by biomes.", "[]")),
                 List.of(new Slot("Density", "density", false), new Slot("SpawnPositions", "positions", false)));
+    }
+
+    /** The Graph Generator itself (docs/graph-generator): the passes that build the graph, plus its cache settings. */
+    static Node graphGeneratorNode() {
+        return new Node("GraphGenerator", List.of(new Param("CacheCellSize", "json", "Size of one cached cell of the graph, in blocks.", "{\"X\":320,\"Y\":320,\"Z\":320}"),
+                new Param("CacheCapacity", "int", "How many cells stay in memory at once.", "50")),
+                List.of(new Slot("Passes", "graphpass", true)));
     }
 
     static Node runtimeNode() {

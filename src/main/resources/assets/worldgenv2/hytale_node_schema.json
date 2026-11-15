@@ -241,5 +241,8 @@
   },
   "worldstructure": {
     "WorldStructure": {"params":[{"key":"DefaultBiome","t":"string","doc":"Biome used everywhere outside the delimiters (a biome of this dimension)."},{"key":"DefaultTransitionDistance","t":"int","doc":"Blocks it takes one biome to transition into another.","def":32},{"key":"MaxBiomeEdgeDistance","t":"int","doc":"How far from a biome edge distances are tracked; beyond it DistanceFromBiomeEdge reads -1.","def":0},{"key":"Biomes","t":"json","doc":"Biome delimiters: [{ Biome, Min, Max }] where the Density is within Min and Max.","def":[]},{"key":"Framework","t":"json","doc":"Named DecimalConstants and Positions shared by biomes.","def":[]}],"slots":[{"key":"Density","kind":"density","multi":false},{"key":"SpawnPositions","kind":"positions","multi":false}]}
+  },
+  "graphgenerator": {
+    "GraphGenerator": {"params":[{"key":"CacheCellSize","t":"json","doc":"Size of one cached cell of the graph, in blocks.","def":{"X":320,"Y":320,"Z":320}},{"key":"CacheCapacity","t":"int","doc":"How many cells stay in memory at once.","def":50}],"slots":[{"key":"Passes","kind":"graphpass","multi":true}]}
   }
 }

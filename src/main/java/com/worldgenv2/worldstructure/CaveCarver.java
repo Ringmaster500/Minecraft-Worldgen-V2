@@ -18,7 +18,7 @@ import com.worldgenv2.density.FastNoiseLite;
  *       fading out near the bottom to preserve a solid bedrock shell.</li>
  * </ul>
  */
-public final class CaveCarver {
+public final class CaveCarver implements ColumnCarver {
 
     private static final int SAMPLE_STEP = 2; // Tight vertical sampling with cubic Hermite interpolation
     private static final float CHEESE_Y_SQUASH = 1.35f;

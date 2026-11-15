@@ -89,6 +89,13 @@ public final class HDensity {
     private static final ThreadLocal<java.util.ArrayDeque<double[]>> ANCHORS = ThreadLocal.withInitial(java.util.ArrayDeque::new);
     private static final ThreadLocal<double[]> CELL_WALL = ThreadLocal.withInitial(() -> new double[]{Float.MAX_VALUE});
 
+    /** Evaluates the action with {@code anchor} as the contextual anchor (what a Graph node does for the content it carries). */
+    public static <R> R withAnchor(double[] anchor, java.util.function.Supplier<R> action) {
+        java.util.ArrayDeque<double[]> stack = ANCHORS.get();
+        stack.push(anchor);
+        try { return action.get(); } finally { stack.pop(); }
+    }
+
     /** Puts the child's origin at the contextual anchor (the core of the cell a PositionsCellNoise is evaluating); Reverse moves it back. */
     public static DensityFunction anchor(DensityFunction in, boolean reverse) {
         return (x, y, z) -> {

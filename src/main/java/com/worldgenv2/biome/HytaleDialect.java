@@ -672,7 +672,13 @@ public final class HytaleDialect {
             Map<String, Object> df = obj(get(j, "distancefunction"));
             boolean manhattan = df != null && "Manhattan".equalsIgnoreCase(String.valueOf(get(df, "type")));
             return HDensity.positionsCellNoise(JsonAstCompiler.compilePositionsProvider(get(j, "positions"), ctx), ret, manhattan, dnum(get(j, "maxdistance"), 50.0));
-        });        R.register("BaseHeight", (j, ctx) -> {
+        });        R.register("DistanceToGraphEdge", (j, ctx) -> {
+            var gen = JsonAstCompiler.compileGraphGenerator(get(j, "graphgenerator"), ctx, id -> id);
+            double max = dnum(get(j, "maxdistance"), 256.0);
+            long seed = ctx.worldSeed();
+            return (x, y, z) -> { double[] n = gen.nearestEdge(seed, x, y, z, max, false, 0); return n == null ? (float) max : (float) Math.min(max, n[0]); };
+        });
+        R.register("BaseHeight", (j, ctx) -> {
             String name = String.valueOf(get(j, "baseheightname"));
             return HDensity.baseHeight(() -> ctx.decimalConstants().getOrDefault(name, 0.0), flag(get(j, "distance"), false));
         });

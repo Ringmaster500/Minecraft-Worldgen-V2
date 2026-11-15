@@ -170,4 +170,11 @@ public final class ProceduralGraph {
         edges.clear();
         nextNodeId = 0;
     }
+
+    private java.util.List<double[]> segments = java.util.List.of();
+
+    /** Every edge that touches this graph's cell as {ax, ay, az, bx, by, bz}, including edges whose other end is in a neighbouring cell. */
+    public java.util.List<double[]> getSegments() { return segments; }
+
+    public void setSegments(java.util.List<double[]> segments) { this.segments = segments; }
 }
