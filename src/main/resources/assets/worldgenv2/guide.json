@@ -78,5 +78,102 @@
     "The plus next to Biomes offers every Hytale biome. Importing copies it into your setup so you can edit it.",
     "# Blocks",
     "Hytale block names are mapped to the nearest Minecraft block. Stairs, halves, logs, vines and dripstone keep their orientation."
+  ]},
+  {"id": "kinds", "section": "How it fits together", "title": "The kinds of node", "body": [
+    "# Why there are kinds",
+    "Every node has a kind, shown by its colour, and a socket only accepts nodes of the right kind. This is what stops you plugging a block into a noise.",
+    "# The kinds",
+    "- Density (green): a number for every point in space. Terrain is a density. Above zero is solid, below is air.",
+    "- Curve (blue): a function of one number, drawn as a line. Used to reshape values, for example to make hills steeper near the top.",
+    "- Vector (orange): a direction or position in space, used to warp or push a density around.",
+    "- Material (purple): decides which block goes at a spot of solid ground.",
+    "- Pattern (pink): a yes or no question about the blocks around a spot, such as 'is this the surface' or 'is the ground flat enough'.",
+    "- Positions (teal): a set of points, such as one per tree or one per boulder.",
+    "- Scanner (light blue): a way of searching around a point for a good spot to build.",
+    "- Assignments (yellow): says which prop goes at which position, often with weights.",
+    "- Prop (gold): something to build: a block, a box of blocks, a prefab, a whole tree.",
+    "- Mask: blocks a prop may not be placed over or may not replace.",
+    "# Reading a socket",
+    "A node's inputs are listed on the left of the node, and its output is the dot on the right. Drag from an output to an input of the same colour to connect them."
+  ]},
+  {"id": "glossary", "section": "How it fits together", "title": "Words used in the Studio", "body": [
+    "# Glossary",
+    "- World setup: a folder of files that describes how to generate a world. Each world remembers the one it was made from.",
+    "- Dimension: one world such as the overworld. It lists which biomes it uses and what else to generate.",
+    "- Biome: terrain, materials and props for one kind of place.",
+    "- Zone: a large region of the world that uses its own set of biomes.",
+    "- Prefab: a saved structure of blocks that can be placed in the world.",
+    "- Prop: anything placed on the ground by a biome.",
+    "- Density: a number at every point in space. Above zero is solid, below zero is air.",
+    "- Octave: one layer of a noise. More octaves add finer detail.",
+    "- Frequency and scale: frequency is how many times a noise repeats per block. Scale is the opposite, the width in blocks of one repeat.",
+    "- Seed: a number that picks one particular random pattern. The same seed always gives the same world.",
+    "- Apply: save the setup and recompile it into the world you are in.",
+    "- Regen: rebuild chunks that already exist so they use the current setup."
+  ]},
+  {"id": "map", "section": "Editors", "title": "The map and live preview", "body": [
+    "# The map",
+    "In the dimension editor the Map shows the biome layout the real engine would give. Zones tints the regions, Slice shows a vertical cut, Spawn and Fit recentre. Hover a spot to see its coordinates and biome.",
+    "# Seeing a change in the world",
+    "Edit, press Apply, then Regen to rebuild what is already generated. Faster: turn Live on. The chunks around you rebuild a moment after each edit, so you see the change as you make it. Pin moves the live square to where you stand and the r button changes how big it is.",
+    "# Tip",
+    "Fly up and look straight down while Live is on. Changing a noise setting reshapes the ground in front of you."
+  ]},
+  {"id": "features", "section": "Editors", "title": "Spawn, landmarks, rivers, caves and ores", "body": [
+    "# Spawn structure",
+    "A prefab placed where players start. You choose the prefab, where it goes, its rotation, how deep it is buried, and an optional crater around it.",
+    "# Connected structures and points of interest",
+    "Landmarks are placed relative to each other (a village, with a ruin to the north). A road can join a landmark to its parent. Points of interest scatter a fixed number of structures between two distances.",
+    "# Placement rules",
+    "A rule looks for a place (a finder), checks conditions (the biome, the slope, water nearby) and builds something (an action). They are built as nodes. The fallen tree across a river is one.",
+    "# Rivers and caves",
+    "Each can be classic, with simple settings such as width and depth, or a node graph in Hytale's way. Rivers follow the land, so the water sits level with it.",
+    "# Ores",
+    "Each ore rule says which block, how big a vein, how many veins, and between which heights. Nothing from vanilla generates, so all ore comes from these."
+  ]},
+  {"id": "heights", "section": "Editors", "title": "World height and sea level", "body": [
+    "# Where it is set",
+    "World Settings has Min Y, World depth and Sea level. Ceiling is Min Y plus depth.",
+    "# Presets",
+    "Standard is Y -64 to 320. There are Hytale presets (0 to 320, 0 to 512, -64 to 512) and a very tall one. Choose Custom to set your own. Use multiples of 16.",
+    "# When it applies",
+    "A world gets the height its setup asks for when it is created. Save the setup, then create the world. A height you have not used before is ready the next time the Create World screen opens. Vanilla shows a one-time experimental warning for such worlds."
+  ]},
+  {"id": "troubleshoot", "section": "Troubleshooting", "title": "My biomes do not show up", "body": [
+    "# Check the biome map",
+    "In the dimension editor, look at Biomes come from. If a Hytale zone is chosen, Hytale's own map decides the biomes and your pool is ignored. Switch it to Your biome pool.",
+    "# Check the pool",
+    "A biome must be in the pool and enabled (the tick on its row). Weight 0 means never.",
+    "# Rebuild what exists",
+    "Chunks already generated keep their old biome. Press Apply and then Regen, or use Live."
+  ]},
+  {"id": "troubleshoot2", "section": "Troubleshooting", "title": "The ground is flat, empty or all stone", "body": [
+    "# Flat ground",
+    "A terrain with only a vertical gradient is a flat sheet. Add a noise and add it to the gradient (a SumDensity) to get hills.",
+    "# Nothing generates",
+    "The terrain must be positive (solid) somewhere and negative (air) somewhere. A density that is always positive fills the whole world, one that is always negative is empty. Try the demo on the node's page to see what it does alone.",
+    "# All stone",
+    "The materials decide the blocks. A Queue tries its rules in order and falls back to its fallback, which is stone by default. Check that your surface rule's pattern really matches (surface, flat enough, enough air above).",
+    "# Weird sheer walls",
+    "Large noise amplitude against a small gradient scale makes cliffs. Lower the amplitude or raise the scale."
+  ]},
+  {"id": "troubleshoot3", "section": "Troubleshooting", "title": "Changes do not appear in the world", "body": [
+    "# Apply, then Regen",
+    "Edits happen in the Studio. Apply recompiles them into the world, and new chunks use them. Existing chunks need Regen.",
+    "# Which setup is the world using?",
+    "The top bar says whether you are editing this world's setup. If it says the world uses another one, Apply will switch the world to the one you have open.",
+    "# Saving",
+    "Apply saves first. Closing the Studio without saving keeps your edits in memory only until you close the game."
+  ]},
+  {"id": "shortcuts", "section": "Troubleshooting", "title": "Keyboard shortcuts", "body": [
+    "# Everywhere",
+    "- G or /studio: open or close the Studio.",
+    "- Ctrl+S: save. Ctrl+Z and Ctrl+Y: undo and redo.",
+    "- Ctrl+Enter: Apply. Ctrl+J: show or hide the problems list.",
+    "# In the graph",
+    "- Double-click or right-click: add a node.",
+    "- Delete or Backspace: remove the selected node and what is under it.",
+    "- F: fit everything on screen.",
+    "- Scroll: zoom. Drag empty space: pan."
   ]}
 ]

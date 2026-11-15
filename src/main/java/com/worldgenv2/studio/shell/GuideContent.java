@@ -87,8 +87,9 @@ final class GuideContent {
         List<String> l = new ArrayList<>();
         JsonObject w = wikiFor(t.name());
         l.add("# What it does");
-        l.add(w != null && w.has("doc") ? w.get("doc").getAsString() : "A " + t.kind() + " node.");
-        if (w != null && w.has("formula") && !w.get("formula").getAsString().isBlank()) l.add("`" + w.get("formula").getAsString());
+        String mainDoc = w != null && w.has("doc") ? w.get("doc").getAsString() : "";
+        l.add(mainDoc.length() >= 15 ? mainDoc : "A " + t.kind() + " node. " + kindWord(t.kind()));
+        if (w != null && w.has("formula") && w.get("formula").getAsString().trim().length() >= 6) l.add("`" + w.get("formula").getAsString());
         if (!t.params().isEmpty()) {
             l.add("# Settings");
             java.util.Set<String> seen = new java.util.HashSet<>();
@@ -113,6 +114,22 @@ final class GuideContent {
             l.add(String.join(", ", tg));
         }
         return l;
+    }
+
+    private static String kindWord(String kind) {
+        return switch (kind) {
+            case "density" -> "It makes or changes a number for every point in space (above zero is solid, below is air).";
+            case "curve" -> "It turns one number into another, drawn as a line.";
+            case "vector" -> "It produces a direction or position in space.";
+            case "material" -> "It decides which block goes at a spot of solid ground.";
+            case "pattern" -> "It answers a yes or no question about the blocks around a spot.";
+            case "positions" -> "It makes a set of points, for example one per tree.";
+            case "scanner" -> "It searches around a point for a good spot.";
+            case "assignments" -> "It says which prop goes at which position.";
+            case "prop" -> "It builds something in the world.";
+            case "mask" -> "It stops a prop from being placed over or replacing certain blocks.";
+            default -> "";
+        };
     }
 
     private static String typeWord(String t) {

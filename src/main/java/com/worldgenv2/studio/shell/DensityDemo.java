@@ -44,23 +44,40 @@ final class DensityDemo extends Widget {
             addControl(p);
         }
         this.curve = type.kind().equals("curve");
-        viewSize = add(curve ? new Slider(0.5, 20, 0.5, 2, false, v -> dirty = true) : new Slider(32, 1024, 16, 256, true, v -> dirty = true));
-        sliceY = add(new Slider(-64, 320, 4, 90, true, v -> dirty = true));
-        sliceY.visible = !curve;
+        this.material = type.kind().equals("material");
+        this.positions = type.kind().equals("positions");
+        viewSize = add(curve ? new Slider(0.5, 20, 0.5, 2, false, v -> dirty = true)
+                : material ? new Slider(0, 12, 1, 5, true, v -> dirty = true)
+                : new Slider(32, 1024, 16, positions ? 192 : 256, true, v -> dirty = true));
+        sliceY = add(material ? new Slider(0, 90, 5, 0, true, v -> dirty = true) : new Slider(-64, 320, 4, 90, true, v -> dirty = true));
+        sliceY.visible = !curve && !positions;
         this.h = 214;
     }
 
-    private final boolean curve;
+    private final boolean curve, material, positions;
+    private com.worldgenv2.material.MaterialProvider<String> matFn;
+    private com.worldgenv2.positions.PositionsProvider posFn;
+    private final String[] column = new String[26];
+    private List<com.worldgenv2.vector.Vec3d> points = new ArrayList<>();
+    private static final com.worldgenv2.api.VoxelSpace<String> SPACE = new com.worldgenv2.api.VoxelSpace<>() {
+        public String getBlock(int x, int y, int z) { return "minecraft:stone"; }
+        public void setBlock(int x, int y, int z, String b) {}
+        public boolean isAir(int x, int y, int z) { return false; }
+        public int getMinY() { return -64; }
+        public int getMaxY() { return 320; }
+    };
     private com.worldgenv2.curve.Curve curveFn;
     private final float[] plot = new float[160];
 
     /** A demo for this node, or null when it is not a density or curve node the engine can build on its own. */
     static DensityDemo forNode(NodeSchemas.NodeType t) {
-        if (!t.kind().equals("density") && !t.kind().equals("curve")) return null;
+        if (!(t.kind().equals("density") || t.kind().equals("curve") || t.kind().equals("material") || t.kind().equals("positions"))) return null;
         DensityDemo d = new DensityDemo(t);
         d.rebuild();
         return d.error == null ? d : null;
     }
+
+    private int materialStandIns;
 
     private void fillInputs() {
         int n = 0;
@@ -74,6 +91,34 @@ final class DensityDemo extends Widget {
                 c.add("points", pts);
                 if (s.multi()) { JsonArray arr = new JsonArray(); arr.add(c); arr.add(c.deepCopy()); json.add(s.key(), arr); } else json.add(s.key(), c);
                 standIns.add(s.key() + " = a straight line from -1 to 1");
+                continue;
+            }
+            if (type.kind().equals("material") && s.kind().equals("material")) {
+                String[] blocks = {"minecraft:grass_block", "minecraft:dirt", "minecraft:sandstone", "minecraft:stone"};
+                java.util.function.IntFunction<JsonObject> mk = i -> {
+                    if (i == 0 && s.multi()) {      // the first child only applies to the top few blocks, so the later ones show through below it
+                        JsonObject band = new JsonObject();
+                        band.addProperty("type", "SimpleHorizontal");
+                        band.addProperty("topY", 65);
+                        band.addProperty("bottomY", 62);
+                        JsonObject inner = new JsonObject();
+                        inner.addProperty("type", "Constant");
+                        inner.addProperty("material", blocks[0]);
+                        band.add("material", inner);
+                        return band;
+                    }
+                    JsonObject c = new JsonObject(); c.addProperty("type", "Constant"); c.addProperty("material", blocks[i % blocks.length]); return c; };
+                int base = materialStandIns;
+                if (s.multi()) { JsonArray arr = new JsonArray(); for (int i = 0; i < 3; i++) arr.add(mk.apply(materialStandIns++)); json.add(s.key(), arr); }
+                else json.add(s.key(), mk.apply(materialStandIns++));
+                standIns.add(s.key() + " = " + (s.multi() ? "grass for the top 3 blocks, then dirt, then sandstone" : blocks[base % blocks.length]));
+                continue;
+            }
+            if (type.kind().equals("positions") && s.kind().equals("positions")) {
+                JsonObject g = new JsonObject();
+                g.addProperty("type", "TriangularGrid2d");
+                if (s.multi()) { JsonArray arr = new JsonArray(); arr.add(g); json.add(s.key(), arr); } else json.add(s.key(), g);
+                standIns.add(s.key() + " = a regular triangular grid, one point per block");
                 continue;
             }
             if (!(s.kind().equals("density") || s.kind().equals("any"))) continue;
@@ -141,7 +186,15 @@ final class DensityDemo extends Widget {
             JsonAstCompiler.registerBuiltInTypes();
             Map<String, Object> map = (Map<String, Object>) new JsonAstCompiler.SimpleJsonParser(json.toString()).parseValue();
             JsonAstCompiler.CompileContext ctx = new JsonAstCompiler.CompileContext(1234L);
-            if (curve) {
+            if (material) {
+                matFn = JsonAstCompiler.compileMaterialProvider(map, ctx, id -> id);
+                matFn.getMaterial(0, 64, 0, 0, 5, 0f, SPACE);
+                error = null;
+            } else if (positions) {
+                posFn = JsonAstCompiler.compilePositionsProvider(map, ctx);
+                posFn.getPositions(0, 0, 0, 16, 16, 16);
+                error = null;
+            } else if (curve) {
                 curveFn = JsonAstCompiler.compileCurve(map, ctx);
                 double probe = curveFn.evaluate(0.25);
                 error = curveFn == null ? "no curve" : null;
@@ -158,6 +211,21 @@ final class DensityDemo extends Widget {
     }
 
     private void evaluate() {
+        if (material) {
+            if (matFn == null) return;
+            try {
+                for (int d = 0; d < column.length; d++) column[d] = String.valueOf(matFn.getMaterial(0, 64 - d, 0, d, (int) viewSize.value, (float) sliceY.value, SPACE));
+            } catch (Throwable t) { error = String.valueOf(t.getMessage()); }
+            return;
+        }
+        if (positions) {
+            if (posFn == null) return;
+            try {
+                double half = viewSize.value / 2;
+                points = posFn.getPositions(-half, -64, -half, half, 320, half);
+            } catch (Throwable t) { error = String.valueOf(t.getMessage()); }
+            return;
+        }
         if (curve) {
             if (curveFn == null) return;
             double r = viewSize.value;
@@ -215,6 +283,52 @@ final class DensityDemo extends Widget {
         g.textMid("output against input (the line you set; the grey cross is zero)", px, py + ph + 1, 12, Ui.TEXT_FAINT);
     }
 
+    private static int blockColor(String id) {
+        int h = id.hashCode();
+        int r = 70 + ((h >> 16) & 0x7F), gg = 70 + ((h >> 8) & 0x7F), b = 70 + (h & 0x7F);
+        if (id.contains("grass")) return 0xFF5FA843;
+        if (id.contains("dirt")) return 0xFF8A5A33;
+        if (id.contains("sand")) return 0xFFE0CF8E;
+        if (id.contains("snow")) return 0xFFF2F6FA;
+        if (id.contains("stone") || id.contains("andesite")) return 0xFF8A8A8A;
+        if (id.contains("water")) return 0xFF3A6FD0;
+        if (id.contains("air")) return 0xFF0D0F14;
+        return 0xFF000000 | (r << 16) | (gg << 8) | b;
+    }
+
+    /** A column of blocks going down from the surface: what this provider puts at each depth. */
+    private void drawColumn(Gfx g, int px, int py) {
+        int cw = 40, rh = 12;
+        g.textMid("depth", px, py - 12, 12, Ui.TEXT_FAINT);
+        for (int d = 0; d < column.length; d++) {
+            int cy = py + d * rh;
+            if (cy + rh > y + h - 4) break;
+            g.fill(px + 24, cy, cw, rh - 1, blockColor(column[d]));
+            g.textMid(String.valueOf(d), px, cy, rh, Ui.TEXT_FAINT);
+            boolean change = d == 0 || !column[d].equals(column[d - 1]);
+            if (change) {
+                BlockCatalog.Entry e = BlockCatalog.of(column[d]);
+                g.textMid(e != null ? e.name() : column[d], px + 24 + cw + 8, cy, rh, Ui.TEXT);
+            }
+        }
+        g.textMid("blocks under a surface at Y 64, top to bottom", px + 24 + cw + 170, py, 12, Ui.TEXT_FAINT);
+    }
+
+    /** The points the node generates, seen from above. */
+    private void drawPoints(Gfx g, int px, int py) {
+        int size = GRID * CELL + 40;
+        g.box(px, py, size, size, Ui.BG_INPUT, Ui.LINE_STRONG);
+        double half = viewSize.value / 2;
+        int shown = 0;
+        for (com.worldgenv2.vector.Vec3d p : points) {
+            int dx = (int) ((p.x() + half) / (2 * half) * (size - 2)), dz = (int) ((p.z() + half) / (2 * half) * (size - 2));
+            if (dx < 0 || dz < 0 || dx >= size - 1 || dz >= size - 1) continue;
+            g.fill(px + 1 + dx, py + 1 + dz, 2, 2, Ui.ACCENT);
+            if (++shown > 6000) break;
+        }
+        g.textMid(points.size() + " points in " + (int) viewSize.value + " x " + (int) viewSize.value + " blocks, seen from above", px, py + size + 1, 12, Ui.TEXT_FAINT);
+    }
+
     private static int shade(float v) {
         if (Float.isNaN(v)) return 0xFFFF00FF;
         float t = Math.max(-1f, Math.min(1f, v));
@@ -230,8 +344,9 @@ final class DensityDemo extends Widget {
         g.box(x, y, w, h, Ui.BG_RAISED, Ui.LINE);
         g.textMid("TRY IT  (the real node, run live)", x + 6, y + 2, 16, Ui.ACCENT);
         for (int i = 0; i < controls.size(); i++) g.textMid(g.fit(labels.get(i), 70), x + 6, controls.get(i).y, 16, Ui.TEXT_DIM);
-        g.textMid(curve ? "input range +-" : "view (blocks)", x + 6, viewSize.y, 16, Ui.TEXT_DIM);
-        if (!curve) g.textMid("slice at Y", x + 6, sliceY.y, 16, Ui.TEXT_DIM);
+        g.textMid(curve ? "input range +-" : material ? "air above" : "view (blocks)", x + 6, viewSize.y, 16, Ui.TEXT_DIM);
+        if (material) g.textMid("slope (deg)", x + 6, sliceY.y, 16, Ui.TEXT_DIM);
+        else if (!curve && !positions) g.textMid("slice at Y", x + 6, sliceY.y, 16, Ui.TEXT_DIM);
 
         if (error != null) {
             g.textFit("Cannot run this node here: " + error, x + 214, y + 24, 14, w - 220, Ui.RED);
@@ -239,6 +354,8 @@ final class DensityDemo extends Widget {
         }
         int px = x + 214, py = y + 22;
         if (curve) { drawCurve(g, px, py); return; }
+        if (material) { drawColumn(g, px, py); return; }
+        if (positions) { drawPoints(g, px, py); return; }
         for (int j = 0; j < GRID; j++) for (int i = 0; i < GRID; i++) g.fill(px + i * CELL, py + j * CELL, CELL, CELL, shade(slice[j * GRID + i]));
         g.border(px - 1, py - 1, GRID * CELL + 2, GRID * CELL + 2, Ui.LINE_STRONG);
         g.textMid("top-down slice", px, py + GRID * CELL + 1, 12, Ui.TEXT_FAINT);

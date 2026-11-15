@@ -29,6 +29,10 @@ public final class GuideVerificationTest {
         boolean enough = demos * 2 >= densityNodes;
         System.out.println((enough ? "[PASS] " : "[FAIL] ") + demos + " of " + densityNodes + " density nodes have a working live demo");
         if (enough) pass++; else fail++;
+        int[] kinds = new int[4], kdemos = new int[4];
+        String[] kn = {"material", "positions"};
+        for (int k = 0; k < 2; k++) for (var p : pages) if (p.node() != null && p.node().kind().equals(kn[k])) { kinds[k]++; try { if (DensityDemo.forNode(p.node()) != null) kdemos[k]++; } catch (Throwable t) { } }
+        for (int k = 0; k < 2; k++) { boolean okk = kinds[k] > 0 && kdemos[k] * 2 >= kinds[k]; System.out.println((okk ? "[PASS] " : "[FAIL] ") + kdemos[k] + " of " + kinds[k] + " " + kn[k] + " nodes have a working live demo"); if (okk) pass++; else fail++; }
         int curveNodes = 0, curveDemos = 0;
         for (var p : pages) if (p.node() != null && p.node().kind().equals("curve")) { curveNodes++; try { if (DensityDemo.forNode(p.node()) != null) curveDemos++; } catch (Throwable t) { } }
         boolean cok = curveNodes > 0 && curveDemos * 2 >= curveNodes;
