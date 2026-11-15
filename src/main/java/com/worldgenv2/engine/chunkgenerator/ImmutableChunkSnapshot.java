@@ -62,6 +62,16 @@ public final class ImmutableChunkSnapshot<T> implements VoxelSpace<T> {
         return new ImmutableChunkSnapshot<>(chunkX, chunkZ, minY, maxY, blocks, ends, airBlock);
     }
 
+    /** Number of runs in column (lx, lz); runs go bottom to top. */
+    public int runCount(int lx, int lz) { return runEnds[(lx << 4) | lz].length; }
+
+    /** Exclusive top of run i of column (lx, lz), relative to minY (the run starts where the previous one ends, or at 0). */
+    public int runEnd(int lx, int lz, int i) { return runEnds[(lx << 4) | lz][i]; }
+
+    /** The block of run i of column (lx, lz); null means nothing was stored there (air). */
+    @SuppressWarnings("unchecked")
+    public T runBlock(int lx, int lz, int i) { Object b = runBlocks[(lx << 4) | lz][i]; return b == null ? airBlock : (T) b; }
+
     /** A rough size in bytes, for the cache budget. */
     public int approxBytes() {
         int n = 64;

@@ -39,12 +39,23 @@ neoForge {
 
 repositories {
     mavenCentral()
+    // Distant Horizons (optional integration): its API to compile against; the mod itself only for dev runs with -PwithDH
+    maven {
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
 }
 
 dependencies {
     // fastnoiselite or companion math libs can be bundled or embedded
     // tests that touch JSON-facing engine code (placement rules) need the same libraries the mod compiles against
     testCompileOnly files({ sourceSets.main.compileClasspath })
+
+    // Optional: Distant Horizons LODs straight from this generator (only active when DH is installed)
+    compileOnly 'maven.modrinth:distanthorizonsapi:7.2.0'
+    if (project.hasProperty('withDH')) {
+        runtimeOnly 'maven.modrinth:distanthorizons:3.3.3-26.1.2'
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {

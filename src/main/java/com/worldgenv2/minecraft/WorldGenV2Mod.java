@@ -59,6 +59,15 @@ public final class WorldGenV2Mod {
             com.worldgenv2.studio.WorldGenStudioClient.init(modEventBus);
         }
 
+        // Distant Horizons: far terrain straight from this generator (the class is only touched when DH is installed)
+        if (net.neoforged.fml.ModList.get().isLoaded("distanthorizons")) {
+            try {
+                com.worldgenv2.minecraft.compat.DistantHorizonsCompat.init();
+            } catch (Throwable t) {
+                LOGGER.warn("Could not hook into Distant Horizons; it will generate far terrain the slow way: {}", t.toString());
+            }
+        }
+
         LOGGER.info("Initialized Minecraft Worldgen V2 for Minecraft 26.1 (NeoForge)");
     }
 

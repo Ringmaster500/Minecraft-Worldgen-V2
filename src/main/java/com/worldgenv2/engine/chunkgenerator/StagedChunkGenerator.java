@@ -716,6 +716,18 @@ public final class StagedChunkGenerator<T> {
         return snap;
     }
 
+    /**
+     * The blocks of one chunk for a level-of-detail renderer (Distant Horizons), without going through Minecraft's chunk pipeline.
+     * Terrain only comes straight from the shared terrain tile (the same one real chunks copy); with props, the chunk is generated
+     * into a scratch column space exactly as a real chunk is.
+     */
+    public ImmutableChunkSnapshot<T> lodSnapshot(int chunkX, int chunkZ, int minY, int maxY, boolean withProps) {
+        if (!withProps) return getTerrainTile(chunkX, chunkZ, minY, maxY);
+        TerrainTileSpace<T> space = new TerrainTileSpace<>(chunkX, chunkZ, minY, maxY, airBlock);
+        generateChunk(chunkX, chunkZ, space, null);
+        return space.toSnapshot(chunkX, chunkZ);
+    }
+
     /** For the prop pass: a tile, or the future of a tile someone else is computing. */
     Object terrainTileOrPending(int cx, int cz, int minY, int maxY) { return tileOrPending(cx, cz, minY, maxY); }
 

@@ -22,7 +22,8 @@ function Gradle([string[]]$tasks) {
     Push-Location $root
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"   # gradle prints warnings on stderr; judge by exit code only
-    try { & .\gradlew.bat @tasks --console=plain -q; $code = $LASTEXITCODE }
+    $extra = @(); if ($env:WG2_WITH_DH) { $extra += "-PwithDH" }   # also run Distant Horizons in the dev game
+    try { & .\gradlew.bat @tasks @extra --console=plain -q; $code = $LASTEXITCODE }
     finally { $ErrorActionPreference = $prev; Pop-Location }
     if ($code -ne 0) { throw "gradle $tasks failed (exit $code)" }
 }

@@ -300,6 +300,11 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
         return resolveWorldStructure();
     }
 
+    /** The engine behind this generator (for level-of-detail renderers that build far terrain without Minecraft's chunk pipeline). */
+    public StagedChunkGenerator<BlockState> getStagedGenerator() {
+        return this.stagedGenerator;
+    }
+
     /**
      * Live-regenerates a loaded chunk in-place on the server thread and broadcasts the updated
      * chunk sections and heightmaps to all players in the level so Studio parameter edits appear immediately.
