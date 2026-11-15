@@ -65,6 +65,10 @@ public final class NodeSchemas {
         try (InputStream in = NodeSchemas.class.getClassLoader().getResourceAsStream("assets/worldgenv2/hytale_node_schema.json")) {
             if (in != null) mergeSchema(JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject());
         } catch (Exception ignored) { }
+        // Hand-written shapes for nodes the extractors could not see into (the placement masks).
+        try (InputStream in = NodeSchemas.class.getClassLoader().getResourceAsStream("assets/worldgenv2/node_schema_extra.json")) {
+            if (in != null) mergeSchema(JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject());
+        } catch (Exception ignored) { }
         // Placement pieces come from the live registry, so addon-registered finders/conditions/actions appear automatically.
         try { mergeSchema(com.worldgenv2.placement.Placement.schemaJson()); } catch (Exception ignored) { }
         // Addons ship worldgenv2_node_schemas.json (same format) to add their own node types to the palette.
@@ -120,7 +124,7 @@ public final class NodeSchemas {
             Map<String, NodeType> types = kindEntry.getValue();
             for (String name : new ArrayList<>(types.keySet())) {
                 NodeType t = types.get(name);
-                for (String suffix : new String[]{"Density", "Curve", "Provider", "Prop", "Pattern", "Scanner"}) {
+                for (String suffix : new String[]{"Density", "Curve", "Provider", "MaterialProvider", "Prop", "Pattern", "Scanner"}) {
                     NodeType twin = types.get(name + suffix);
                     if (twin == null) continue;
                     if (t.params().isEmpty() && t.slots().isEmpty() && !(twin.params().isEmpty() && twin.slots().isEmpty())) {

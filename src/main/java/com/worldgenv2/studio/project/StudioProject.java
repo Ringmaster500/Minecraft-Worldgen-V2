@@ -345,6 +345,28 @@ public final class StudioProject {
         return a;
     }
 
+    /** Adds a biome made elsewhere (a preset, the Hytale files) under a free name; the content is copied. */
+    public Asset addBiome(String rawName, JsonObject content) {
+        String base = sanitize(rawName);
+        String id = base;
+        for (int i = 2; assets.containsKey(AssetType.BIOME.folder + "/" + id + ".json"); i++) id = base + "_" + i;
+        JsonObject json = new JsonObject();
+        // Hytale writes top-level keys capitalised (Name, Terrain, MaterialProvider, Props); the Studio's forms read them lower-camel
+        for (var e : content.deepCopy().entrySet()) {
+            String k = e.getKey();
+            json.add(k.isEmpty() || k.startsWith("$") ? k : Character.toLowerCase(k.charAt(0)) + k.substring(1), e.getValue());
+        }
+        json.addProperty("name", "worldgenv2:" + id);
+        Asset a = new Asset(AssetType.BIOME.folder + "/" + id + ".json", AssetType.BIOME, json);
+        a.dirty = true;
+        assets.put(a.path, a);
+        Validator.validate(this, a);
+        revision++;
+        save(a);
+        fire();
+        return a;
+    }
+
     public Asset duplicate(Asset src, String rawName) {
         String id = sanitize(rawName);
         Asset a = new Asset(src.type.folder + "/" + id + ".json", src.type, src.json.deepCopy());

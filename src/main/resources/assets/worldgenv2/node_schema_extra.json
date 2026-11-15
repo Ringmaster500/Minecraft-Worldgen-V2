@@ -1,0 +1,11 @@
+{
+  "mask": {
+    "DontPlaceMask": {"params":[{"key":"materials","t":"strings","doc":"Blocks this prop must never be placed over."}],"slots":[]},
+    "DontPlace": {"params":[{"key":"materials","t":"strings","doc":"Blocks this prop must never be placed over."}],"slots":[]},
+    "DontReplaceMask": {"params":[{"key":"materials","t":"strings","doc":"Blocks this prop must never replace."}],"slots":[]},
+    "DontReplace": {"params":[{"key":"materials","t":"strings","doc":"Blocks this prop must never replace."}],"slots":[]},
+    "AdvancedBlockMask": {"params":[{"key":"dontPlace","t":"strings","doc":"Blocks this prop must never be placed over."},{"key":"dontReplace","t":"strings","doc":"Blocks this prop must never replace."},{"key":"advanced","t":"json","doc":"Rules as [{ source: [blocks], canReplace: [blocks] }]: blocks in source may only replace the blocks in canReplace."}],"slots":[]},
+    "BlockMask": {"params":[{"key":"dontPlace","t":"strings","doc":"Blocks this prop must never be placed over."},{"key":"dontReplace","t":"strings","doc":"Blocks this prop must never replace."},{"key":"advanced","t":"json","doc":"Rules as [{ source: [blocks], canReplace: [blocks] }]: blocks in source may only replace the blocks in canReplace."}],"slots":[]},
+    "Advanced": {"params":[{"key":"dontPlace","t":"strings","doc":"Blocks this prop must never be placed over."},{"key":"dontReplace","t":"strings","doc":"Blocks this prop must never replace."},{"key":"advanced","t":"json","doc":"Rules as [{ source: [blocks], canReplace: [blocks] }]: blocks in source may only replace the blocks in canReplace."}],"slots":[]}
+  }
+}

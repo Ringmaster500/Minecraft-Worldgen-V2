@@ -178,6 +178,14 @@ public final class StudioApp {
         say(l == null ? "Nothing to redo." : "Redid: " + l);
     }
 
+    /** Adds a ready-made biome (from a preset or the Hytale files) to the open setup and opens it. */
+    public Asset importBiome(String name, com.google.gson.JsonObject content) {
+        Asset a = project.addBiome(name, content);
+        openDoc(a.path);
+        say("Added biome '" + a.id() + "'. Save to keep it.", Ui.GREEN);
+        return a;
+    }
+
     public Asset createAsset(AssetType t, String name) {
         Asset a = project.create(t, name);
         openDoc(a.path);
@@ -214,11 +222,57 @@ public final class StudioApp {
 
     public void regenAroundPlayer() { LiveWorld.regenAround(this, 5); }
 
+    // ---- live preview: rebuild a chosen square of chunks after each edit ----
+    public boolean live;
+    public int liveRadius = 3;
+    public int liveCx, liveCz;
+    private long liveSeenRev = -1, liveChangedAt;
+    private boolean liveBusy;
+
+    public void setLive(boolean on) {
+        live = on;
+        if (on) {
+            int[] c = LiveWorld.playerChunk();
+            if (c == null) { live = false; say("Open a world first: Live preview rebuilds chunks of the world you are in.", Ui.YELLOW); return; }
+            liveCx = c[0]; liveCz = c[1];
+            liveSeenRev = project == null ? -1 : project.revision;
+            say("Live preview on: the " + (2 * liveRadius + 1) + "x" + (2 * liveRadius + 1) + " chunks around you rebuild after each edit.", Ui.GREEN);
+        } else say("Live preview off.");
+    }
+
+    /** Move the live region to where the player is now. */
+    public void repinLive() {
+        int[] c = LiveWorld.playerChunk();
+        if (c == null) return;
+        liveCx = c[0]; liveCz = c[1];
+        liveSeenRev = -1;      // rebuild straight away
+    }
+
+    public void cycleLiveRadius() { liveRadius = liveRadius >= 6 ? 1 : liveRadius + 1; liveSeenRev = -1; }
+
+    /** Called every frame: a short pause after the last edit, then the region rebuilds. */
+    public void tickLive() {
+        if (!live || project == null || liveBusy || !LiveWorld.inWorld()) return;
+        long rev = project.revision;
+        long now = System.currentTimeMillis();
+        if (rev != liveSeenRev) {
+            if (liveChangedAt == 0 || rev != liveSeenRevPending) { liveSeenRevPending = rev; liveChangedAt = now; return; }
+            if (now - liveChangedAt < 600) return;      // still typing / dragging
+            liveBusy = true;
+            liveSeenRev = rev;
+            liveChangedAt = 0;
+            LiveWorld.liveRefresh(this, liveCx, liveCz, liveRadius, () -> liveBusy = false);
+        }
+    }
+    private long liveSeenRevPending = -2;
+
     public void teleportPlayer(int x, int z) { LiveWorld.teleport(this, x, z); }
 
     public void teleportPlayer(int x, int z, int up) { LiveWorld.teleport(this, x, z, up); }
 
     public String probeWorld(int x, int z, int radius) { return LiveWorld.probe(x, z, radius); }
+
+    public String heightsLine(int x, int z, int dx, int dz, int n) { return LiveWorld.heights(x, z, dx, dz, n); }
 
     public String censusWorld(int x, int z) { return LiveWorld.census(x, z); }
     public String hashArea(int x, int z, int r) { return LiveWorld.hashArea(x, z, r); }

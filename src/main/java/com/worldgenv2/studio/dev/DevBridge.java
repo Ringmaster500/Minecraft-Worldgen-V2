@@ -159,7 +159,7 @@ public final class DevBridge {
                 int b = (int) d(q, "button", 0);
                 var ev = new MouseButtonEvent(x, y, new MouseButtonInfo(b, 0));
                 scr.mouseMoved(x, y);
-                scr.mouseClicked(ev, false);
+                scr.mouseClicked(ev, d(q, "dbl", 0) != 0);
                 scr.mouseReleased(ev);
                 return ok();
             });
@@ -271,6 +271,10 @@ public final class DevBridge {
             case "/spans" -> {
                 String res = com.worldgenv2.studio.shell.StudioApp.get().spansNear((int) d(q, "x"), (int) d(q, "z"), q.containsKey("r") ? (int) d(q, "r") : 400);
                 yield "{\"spans\":\"" + esc(res) + "\"}";
+            }
+            case "/heights" -> {
+                String res = com.worldgenv2.studio.shell.StudioApp.get().heightsLine((int) d(q, "x"), (int) d(q, "z"), (int) d(q, "dx", 1), (int) d(q, "dz", 0), (int) d(q, "n", 64));
+                yield "{\"heights\":\"" + esc(res) + "\"}";
             }
             case "/hash" -> {
                 String res = com.worldgenv2.studio.shell.StudioApp.get().hashArea((int) d(q, "x"), (int) d(q, "z"), q.containsKey("r") ? (int) d(q, "r") : 3);

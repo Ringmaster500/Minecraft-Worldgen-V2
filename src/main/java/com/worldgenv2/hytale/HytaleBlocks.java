@@ -57,6 +57,9 @@ public final class HytaleBlocks {
     public static String toMinecraft(String hytaleName) {
         if (!isHytaleName(hytaleName)) return null;
         String base = stripProperties(hytaleName);
+        // Hytale's stalactite blocks hang from the ceiling; Minecraft's pointed dripstone must say which way it points
+        if (base.contains("Stalactite")) return "minecraft:pointed_dripstone[vertical_direction=down,thickness=" + (base.endsWith("_Large") ? "frustum" : "tip") + "]";
+        if (base.contains("Stalagmite")) return "minecraft:pointed_dripstone[vertical_direction=up,thickness=" + (base.endsWith("_Large") ? "frustum" : "tip") + "]";
         String hit = exact.get(base);
         if (hit != null) return hit;
         for (String[] p : prefixes) if (base.startsWith(p[0])) return p[1];

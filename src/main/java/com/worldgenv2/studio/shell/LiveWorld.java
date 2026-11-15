@@ -64,6 +64,47 @@ final class LiveWorld {
         });
     }
 
+    /**
+     * Live preview: saves the setup, reloads the generators and rebuilds just the chosen square of chunks (centre chunk and radius),
+     * so an edit shows up in front of you without touching the rest of the world. {@code done} is told how long it took.
+     */
+    static void liveRefresh(StudioApp app, int cx, int cz, int radius, Runnable done) {
+        if (app.project == null) { done.run(); return; }
+        MinecraftServer server = server();
+        if (server == null) { done.run(); return; }
+        long t0 = System.currentTimeMillis();
+        app.project.saveAll();
+        try { ProjectRuntime.setActiveProject(app.project.name); } catch (IOException e) { app.say("Live: could not write active.json: " + e.getMessage(), Ui.RED); done.run(); return; }
+        server.execute(() -> {
+            int chunks = 0;
+            try {
+                for (ServerLevel level : server.getAllLevels()) {
+                    if (level.getChunkSource().getGenerator() instanceof WorldGenV2ChunkGenerator v2 && level.getChunkSource().getGenerator().getBiomeSource() instanceof WorldGenV2BiomeSource bs
+                            && bs.getLayoutPreset().startsWith(ProjectRuntime.REF_PREFIX)) {
+                        v2.reload();
+                        if (level == server.overworld()) {
+                            for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) { v2.regenerateLiveChunk(level, new ChunkPos(cx + dx, cz + dz)); chunks++; }
+                        }
+                    }
+                }
+            } catch (RuntimeException e) {
+                Minecraft.getInstance().execute(() -> app.say("Live preview failed: " + e.getMessage(), Ui.RED));
+            }
+            final int n = chunks;
+            Minecraft.getInstance().execute(() -> {
+                if (n > 0) app.say("Live: rebuilt " + n + " chunks in " + (System.currentTimeMillis() - t0) + " ms", Ui.GREEN);
+                done.run();
+            });
+        });
+    }
+
+    /** The chunk the player stands in, or null outside a world. */
+    static int[] playerChunk() {
+        var p = Minecraft.getInstance().player;
+        if (p == null) return null;
+        return new int[]{p.blockPosition().getX() >> 4, p.blockPosition().getZ() >> 4};
+    }
+
     /** Regenerates loaded chunks within {@code radius} chunks of the player so edits appear without flying away. */
     static void regenAround(StudioApp app, int radius) {
         MinecraftServer server = server();
@@ -93,6 +134,26 @@ final class LiveWorld {
     }
 
     /** Describes the terrain column at (x, z) and the structure placements near it; used by dev tooling to verify generation. */
+    /** Surface heights along a line of columns (dx,dz per step), for finding terrain steps. */
+    static String heights(int x, int z, int dx, int dz, int n) {
+        MinecraftServer server = server();
+        if (server == null) return "no world";
+        try {
+            return server.submit(() -> {
+                ServerLevel level = server.overworld();
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < n; i++) {
+                    int px = x + dx * i, pz = z + dz * i;
+                    level.getChunk(px >> 4, pz >> 4);
+                    sb.append(level.getHeight(Heightmap.Types.WORLD_SURFACE, px, pz)).append(i + 1 < n ? "," : "");
+                }
+                return sb.toString();
+            }).get(60, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            return "error: " + t;
+        }
+    }
+
     static String probe(int x, int z, int radius) {
         MinecraftServer server = server();
         if (server == null) return "no world";

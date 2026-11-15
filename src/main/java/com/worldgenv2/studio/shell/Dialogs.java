@@ -15,7 +15,88 @@ import java.util.List;
 final class Dialogs {
     private Dialogs() {}
 
+    /**
+     * New biome: start blank, copy one from a preset or addon, or import one of Hytale's own biomes (read from the player's
+     * installed Hytale assets; the copy goes into this world setup only).
+     */
+    static void newBiome(UiRoot ui, StudioApp app) {
+        List<ListPicker.Item> items = new ArrayList<>();
+        items.add(new ListPicker.Item("New", "Blank biome", "start from an empty biome", () -> newAssetPrompt(ui, app, AssetType.BIOME)));
+        for (var p : com.worldgenv2.pack.WorldGenV2Addons.presets()) {
+            try {
+                var assets = com.worldgenv2.studio.project.J.obj(p.bundle().get(), "assets");
+                if (assets == null) continue;
+                for (var e : assets.entrySet()) {
+                    if (!e.getKey().startsWith("biomes/") || !e.getValue().isJsonObject()) continue;
+                    String id = e.getKey().substring(7, e.getKey().length() - 5);
+                    var json = e.getValue().getAsJsonObject();
+                    items.add(new ListPicker.Item("Preset", id, p.name(), () -> app.importBiome(id, json)));
+                }
+            } catch (RuntimeException ignored) { }
+        }
+        String hy = hytaleAssetsPath(app);
+        if (hy != null) {
+            try (var pack = com.worldgenv2.hytale.HytaleAssets.open(hy)) {
+                for (String f : pack.biomeFiles()) {
+                    String id = f.substring(f.lastIndexOf('/') + 1, f.length() - 5);
+                    String folder = f.substring(7, f.lastIndexOf('/') < 7 ? 7 : f.lastIndexOf('/'));
+                    items.add(new ListPicker.Item("Hytale", id, folder.isEmpty() ? "Hytale biome" : "Hytale  " + folder, () -> {
+                        try (var p2 = com.worldgenv2.hytale.HytaleAssets.open(hy)) {
+                            app.importBiome(id, com.google.gson.JsonParser.parseString(p2.generatorText(f)).getAsJsonObject());
+                        } catch (Exception ex) { app.say("Could not read that Hytale biome: " + ex.getMessage(), com.worldgenv2.studio.ui.Ui.RED); }
+                    }));
+                }
+            } catch (Exception ex) {
+                app.say("Could not read the Hytale assets: " + ex.getMessage(), com.worldgenv2.studio.ui.Ui.RED);
+            }
+        }
+        ListPicker.open(ui, "New biome", hy == null ? "no Hytale install found" : "type to search", "Search biomes, presets, Hytale...", items);
+    }
+
+    /** Where this world setup's Hytale assets are: its own setting, else the launcher's install. */
+    private static String hytaleAssetsPath(StudioApp app) {
+        if (app.project != null) {
+            for (Asset a : app.project.assetsOf(AssetType.DIMENSION)) {
+                var hy = com.worldgenv2.studio.project.J.obj(a.json, "hytale");
+                if (hy != null && !com.worldgenv2.studio.project.J.str(hy, "assets", "").isBlank()) return com.worldgenv2.studio.project.J.str(hy, "assets", "");
+            }
+        }
+        return com.worldgenv2.hytale.HytaleAssets.defaultAssetsPath();
+    }
+
+    /** New dimension: any dimension the game knows (vanilla and modded), or a custom id. Vanilla generation stays until switched. */
+    static void newDimension(UiRoot ui, StudioApp app) {
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>(List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"));
+        try {
+            var server = LiveWorld.server();
+            if (server != null) {
+                for (var k : server.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.LEVEL_STEM).keySet()) ids.add(k.toString());
+            }
+        } catch (RuntimeException ignored) { }
+        for (Asset d : app.project.assetsOf(AssetType.DIMENSION)) ids.remove(com.worldgenv2.studio.project.J.str(d.json, "id", ""));
+        List<ListPicker.Item> items = new ArrayList<>();
+        for (String id : ids) {
+            String file = id.substring(id.indexOf(':') + 1);
+            boolean mod = !id.startsWith("minecraft:");
+            items.add(new ListPicker.Item(mod ? "Modded" : "Vanilla", id.substring(id.indexOf(':') + 1).replace('_', ' '), id, () -> {
+                Asset a = app.createAsset(AssetType.DIMENSION, file);
+                app.project.edit(a, "Dimension id", j -> {
+                    j.addProperty("id", id);
+                    j.addProperty("generator", id.equals("minecraft:overworld") ? "worldgenv2" : "vanilla");
+                });
+            }));
+        }
+        items.add(new ListPicker.Item("Custom", "Custom dimension...", "type your own id", () -> newAssetPrompt(ui, app, AssetType.DIMENSION)));
+        ListPicker.open(ui, "New dimension", ids.isEmpty() ? "all present" : "pick one the game already has", "Search dimensions...", items);
+    }
+
     static void newAsset(UiRoot ui, StudioApp app, AssetType t) {
+        if (t == AssetType.BIOME) { newBiome(ui, app); return; }
+        if (t == AssetType.DIMENSION) { newDimension(ui, app); return; }
+        newAssetPrompt(ui, app, t);
+    }
+
+    static void newAssetPrompt(UiRoot ui, StudioApp app, AssetType t) {
         String suggestion = switch (t) {
             case BIOME -> "new_biome";
             case DIMENSION -> "new_dimension";

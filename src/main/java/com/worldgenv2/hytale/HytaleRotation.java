@@ -70,6 +70,9 @@ public final class HytaleRotation {
                 || id.equals("quartz_pillar") || id.equals("purpur_pillar") || id.equals("bamboo_block") || id.equals("stripped_bamboo_block")) {
             if (up[0] != 0) p.put("axis", "x");
             else if (up[2] != 0) p.put("axis", "z");
+        } else if (id.equals("pointed_dripstone")) {
+            // the block hangs at rotation 0; turned upside down it grows up from the floor
+            p.put("vertical_direction", up[1] < 0 ? "up" : "down");
         } else if (id.equals("vine")) {
             int[] attach = image(idx, 0, 0, -1);
             if (attach[1] > 0) p.put("up", "true");

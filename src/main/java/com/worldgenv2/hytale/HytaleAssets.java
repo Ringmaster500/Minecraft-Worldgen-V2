@@ -73,6 +73,21 @@ public final class HytaleAssets implements Closeable {
         return Files.readString(dir.resolve(entry));
     }
 
+    /** Where the Hytale launcher puts Assets.zip on this machine, or null when it is not installed there. */
+    public static String defaultAssetsPath() {
+        String appdata = System.getenv("APPDATA");
+        if (appdata == null) return null;
+        Path p = Path.of(appdata, "Hytale", "install", "release", "package", "game", "latest", "Assets.zip");
+        return Files.isRegularFile(p) ? p.toString() : null;
+    }
+
+    /** The biome files (path under HytaleGenerator, e.g. {@code Biomes/Plains1/Plains1_Oak.json}), skipping examples. */
+    public List<String> biomeFiles() {
+        List<String> out = new ArrayList<>();
+        for (String f : generator.keySet()) if (f.startsWith("Biomes/") && !f.startsWith("Biomes/Examples/")) out.add(f);
+        return out;
+    }
+
     public boolean hasGeneratorAssets() { return !generator.isEmpty(); }
 
     public int prefabCount() { return prefabs.size(); }
@@ -179,7 +194,13 @@ public final class HytaleAssets implements Closeable {
                     : name.endsWith("_Half") ? HytaleRotation.shaped(mc, "_slab") : null;
             if (shaped != null) mc = shaped;
             int rot = b.has("rotation") ? b.get("rotation").getAsInt() : 0;
-            Map<String, String> props = rot == 0 ? Map.of() : HytaleRotation.properties(mc, rot);
+            Map<String, String> props = new java.util.LinkedHashMap<>();
+            int br = mc.indexOf('[');
+            if (br > 0 && mc.endsWith("]")) {      // a mapped name that carries its own state, e.g. pointed_dripstone[vertical_direction=down]
+                for (String kv : mc.substring(br + 1, mc.length() - 1).split(",")) { int eq = kv.indexOf('='); if (eq > 0) props.put(kv.substring(0, eq).trim(), kv.substring(eq + 1).trim()); }
+                mc = mc.substring(0, br);
+            }
+            props.putAll(HytaleRotation.properties(mc, rot));
             String key = props.isEmpty() ? mc : mc + props;
             Integer idx = paletteIds.get(key);
             if (idx == null) { idx = palette.size(); paletteIds.put(key, idx); palette.add(Prefab.PaletteEntry.of(idx, mc, props)); }

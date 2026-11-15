@@ -398,7 +398,13 @@ final class GraphEditor extends Widget {
                     String[] p = n.params.get(i);
                     boolean explicit = p[2].equals("1");
                     g.textMid(p[0], n.x + 6, py + i * PARAM_H, PARAM_H, explicit ? Ui.TEXT_DIM : Ui.TEXT_FAINT);
-                    g.textRight(g.fit(p[1], 70), n.x + n.w - 6, py + i * PARAM_H, PARAM_H, explicit ? 0xFFE8A96B : 0xFF6A5A48);
+                    BlockCatalog.Entry be = BlockCatalog.of(p[1]);
+                    if (be != null) {      // a block: show its icon and name
+                        g.item(be.stack(), n.x + n.w - 14, py + i * PARAM_H, 10);
+                        g.textRight(g.fit(be.name(), 70), n.x + n.w - 17, py + i * PARAM_H, PARAM_H, explicit ? 0xFFE8A96B : 0xFF6A5A48);
+                    } else {
+                        g.textRight(g.fit(p[1], 70), n.x + n.w - 6, py + i * PARAM_H, PARAM_H, explicit ? 0xFFE8A96B : 0xFF6A5A48);
+                    }
                 }
                 if (n.extraParams > 0) g.textMid("+ " + n.extraParams + " more", n.x + 6, py + shown * PARAM_H, PARAM_H, Ui.TEXT_FAINT);
             }
@@ -433,6 +439,8 @@ final class GraphEditor extends Widget {
             double gx = (mx - x - panX) / zoom, gy = (my - y - panY) / zoom;
             GNode n = hitNode(gx, gy);
             if (n == null) {
+                if (button == 1) { quickAdd(selectedNode() != null ? selectedNode() : GraphEditor.this.root, (int) mx, (int) my); return true; }
+                if (button == 0 && dbl) { quickAdd(selectedNode() != null ? selectedNode() : GraphEditor.this.root, (int) mx, (int) my); return true; }
                 if (button == 0 || button == 2) { panning = true; return true; }
                 return false;
             }
@@ -446,6 +454,7 @@ final class GraphEditor extends Widget {
             }
             selected = n.path;
             inspector.invalidate();
+            if (dbl) quickAdd(n, (int) mx, (int) my);
             return true;
         }
 
@@ -528,6 +537,28 @@ final class GraphEditor extends Widget {
             if (target != null) items.add(PopupMenu.Item.of("Paste into '" + target.label + "'", () -> paste(n, target)));
         }
         PopupMenu.open(canvas.uiRoot(), mx, my, 150, items);
+    }
+
+    /** Double-click / right-click on empty canvas: one searchable list of everything that fits any open slot of the node. */
+    private void quickAdd(GNode n, int mx, int my) {
+        if (n == null || canvas.uiRoot() == null) return;
+        List<GSlot> open = new ArrayList<>();
+        for (GSlot s : n.slots) if (s.inline == null && (s.multi || s.children.isEmpty())) open.add(s);
+        if (open.isEmpty()) { app.say("'" + n.type + "' has no free slot. Right-click a node for more options.", Ui.TEXT_DIM); return; }
+        java.util.LinkedHashSet<NodeSchemas.NodeType> cand = new java.util.LinkedHashSet<>();
+        for (GSlot s : open) {
+            if (s.kind.equals("any")) for (String k : NodeSchemas.KINDS) cand.addAll(NodeSchemas.ofKind(k));
+            else cand.addAll(NodeSchemas.ofKind(s.kind));
+        }
+        NodePalette.open(canvas.uiRoot(), mx, my, "Add to '" + n.type + "'  (type to search)", new ArrayList<>(cand), t -> {
+            GSlot target = null;
+            for (GSlot s : open) if (s.kind.equals(t.kind()) || s.kind.equals("any")) { target = s; break; }
+            if (target == null) return;
+            List<Object> parentPath = n.path;
+            String key = target.key;
+            boolean multi = target.multi;
+            edit("Add node", j -> { selected = GraphOps.attach(j, parentPath, key, multi, NodeSchemas.newNode(t)); });
+        });
     }
 
     private GSlot firstFreeSlot(GNode n) {
@@ -753,6 +784,11 @@ final class GraphEditor extends Widget {
                     TextField f = new TextField();
                     f.setText(current);
                     f.onChange = s -> edit("Node " + key, j -> setPrim(j, path, key, s));
+                    String lk = key.toLowerCase();
+                    if (lk.equals("block") || lk.equals("blockid") || lk.equals("material") || lk.equals("solid") || lk.equals("fluid")
+                            || lk.endsWith("block") || BlockCatalog.of(current) != null) {
+                        return new BlockField(f, id -> edit("Node " + key, j -> setPrim(j, path, key, id)));
+                    }
                     return f;
                 }
             }

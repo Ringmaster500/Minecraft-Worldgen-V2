@@ -107,6 +107,12 @@ abstract class Editor extends Form {
         return f;
     }
 
+    /** A block id field with icon and a searchable picker. */
+    protected final Widget blockField(String path, String def, String label) {
+        TextField f = str(path, def, label);
+        return new BlockField(f, id -> edit(label, j -> parent(j, path, true).addProperty(leaf(path), id)));
+    }
+
     protected final TextField num(String path, double def, double min, double max, double step, boolean integer, String label) {
         TextField f = new TextField().filter(integer ? TextField.Filter.INT : TextField.Filter.DECIMAL).range(min, max, step);
         f.onChange = s -> {

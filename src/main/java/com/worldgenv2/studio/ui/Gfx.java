@@ -90,6 +90,18 @@ public final class Gfx {
         g.disableScissor();
     }
 
+    /** A block or item icon, {@code size} virtual pixels square. */
+    public void item(net.minecraft.world.item.ItemStack stack, int x, int y, int size) {
+        if (stack == null || stack.isEmpty()) return;
+        if (size == 16) { g.fakeItem(stack, x, y); return; }
+        float f = size / 16f;
+        g.pose().pushMatrix();
+        g.pose().translate(x, y);
+        g.pose().scale(f, f);
+        g.fakeItem(stack, 0, 0);
+        g.pose().popMatrix();
+    }
+
     public static boolean in(double px, double py, int x, int y, int w, int h) {
         return px >= x && px < x + w && py >= y && py < y + h;
     }

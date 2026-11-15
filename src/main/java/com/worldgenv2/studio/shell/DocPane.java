@@ -85,7 +85,7 @@ final class DocPane extends Widget {
         graphBtn.setBounds(x + w - 136, y + Ui.TAB_H + 4, 42, 16);
         formBtn.setBounds(x + w - 90, y + Ui.TAB_H + 4, 40, 16);
         jsonBtn.setBounds(x + w - 46, y + Ui.TAB_H + 4, 40, 16);
-        mapBtn.setBounds(x + w - 128, y + Ui.TAB_H + 4, 34, 16);
+        mapBtn.setBounds(x + w - 182, y + Ui.TAB_H + 4, 40, 16);
     }
 
     @Override

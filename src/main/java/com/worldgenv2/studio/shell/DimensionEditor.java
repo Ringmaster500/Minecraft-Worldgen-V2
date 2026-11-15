@@ -182,8 +182,8 @@ final class DimensionEditor extends Editor {
                 "Outside bounds"), "What exists past the bounds radius.");
         field("Bounds radius", num("bounds.radius", 0, 0, 100000, 16, false, "Bounds radius"), "0 = infinite.");
         field("Edge blend", num("bounds.falloff", 64, 8, 2000, 8, false, "Bounds falloff"), "Blend distance at the bounds edge.");
-        field("Base block", str("defaultBlock", "minecraft:stone", "Base block"), "Solid fill used for terrain.");
-        field("Fluid", str("defaultFluid", "minecraft:water", "Fluid"), "Liquid for oceans and rivers. Use minecraft:air for none.");
+        field("Base block", blockField("defaultBlock", "minecraft:stone", "Base block"), "Solid fill used for terrain.");
+        field("Fluid", blockField("defaultFluid", "minecraft:water", "Fluid"), "Liquid for oceans and rivers. Use minecraft:air for none.");
         field("Caves", toggle("caves", true, "Caves", "Carve caves and underground biomes"), null);
         field("Cave layout", choice("caveMode", "classic", List.of("graph", "classic"), s -> s.equals("graph") ? "Node graph (Hytale)" : "Classic noise", "Cave layout"),
                 "Node graph: caves are a Graph Generator whose nodes carry density (chambers and tunnels), editable in the Graph view. Classic noise: the older cheese and spaghetti carver.");
@@ -522,7 +522,7 @@ final class DimensionEditor extends Editor {
             addBtn = add(new Button("Add", this::addSelected).style(Button.Style.PRIMARY));
             addAll = add(new Button("Add all missing", this::addAllMissing));
             refreshAddOptions();
-            h = 20 + count * ROW + 30;
+            h = 20 + Math.max(count, 1) * ROW + 30;
             signature = sig();
             syncedRev = -1;
         }
@@ -627,7 +627,7 @@ final class DimensionEditor extends Editor {
                 shares.get(i).setBounds(shareX, ry + 1, shareW, 16);
                 rowWidgets.get(i).setBounds(rm, ry + 1, xw, 16);
             }
-            int ay = y + 20 + count * ROW + 8;
+            int ay = y + 20 + Math.max(count, 1) * ROW + 8;
             if (addPick != null) {
                 addPick.setBounds(x, ay, Math.min(190, w - 220), 16);
                 addBtn.setBounds(addPick.x + addPick.w + 4, ay, 44, 16);
