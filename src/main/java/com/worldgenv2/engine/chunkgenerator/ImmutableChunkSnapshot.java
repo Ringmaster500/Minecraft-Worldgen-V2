@@ -77,12 +77,11 @@ public final class ImmutableChunkSnapshot<T> implements VoxelSpace<T> {
                 int col = (lx << 4) | lz;
                 Object[] rb = runBlocks[col];
                 short[] re = runEnds[col];
-                int from = 0;
-                for (int i = 0; i < re.length; i++) {
-                    int to = re[i];
+                // top run first: the first solid run sets the heightmaps, the ones below it then leave them alone at once
+                for (int i = re.length - 1; i >= 0; i--) {
+                    int to = re[i], from = i == 0 ? 0 : re[i - 1];
                     @SuppressWarnings("unchecked") T b = (T) rb[i];
                     if (b != null && !b.equals(airBlock)) dst.setBlockRun(ox + lx, oz + lz, minY + from, minY + to, b);
-                    from = to;
                 }
             }
         }

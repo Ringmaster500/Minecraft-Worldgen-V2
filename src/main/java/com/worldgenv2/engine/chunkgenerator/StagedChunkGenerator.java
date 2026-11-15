@@ -616,7 +616,8 @@ public final class StagedChunkGenerator<T> {
             try { java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "wg2_counts.txt"), "chunks " + c + " tilesComputed " + TILES_COMPUTED.get() + " tileCacheHits " + TILE_HITS.get()
                 + String.format(" | %.1f ms per chunk (all work), %.1f ms per tile (terrain)", GEN_NANOS.get() / 1e6 / Math.max(1, c - 1), TILE_NANOS.get() / 1e6 / Math.max(1, TILES_COMPUTED.get()))
                 + String.format(" | per chunk: props %.1f ms (of which waiting for tiles %.1f, computing tiles %.1f), copying terrain in %.1f ms", PROPS_NANOS.get() / 1e6 / Math.max(1, c - 1), WAIT_NANOS.get() / 1e6 / Math.max(1, c - 1), TILE_NANOS.get() / 1e6 / Math.max(1, c - 1), COPY_NANOS.get() / 1e6 / Math.max(1, c - 1))
-                + String.format(" | pruned %d blocks, exact %d, exact runs %d", PRUNED.get(), EXACT.get(), BOUND_MISSES.get())); } catch (Exception ignored) { }
+                + String.format(" | pruned %d blocks, exact %d, exact runs %d", PRUNED.get(), EXACT.get(), BOUND_MISSES.get())
+                + " | shared columns hit " + com.worldgenv2.density.SharedColumnDensity.HITS.get() + " missed " + com.worldgenv2.density.SharedColumnDensity.MISSES.get()); } catch (Exception ignored) { }
         }
     }
 

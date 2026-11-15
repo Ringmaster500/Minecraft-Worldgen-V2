@@ -143,67 +143,113 @@ public final class HDistributions {
         public int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
                                     VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid,
                                     com.worldgenv2.props.AnchorMemo<T> memo) {
-            List<Placed<T>> all;
             if (memo == null || NO_CELLS) {
-                all = new ArrayList<>(field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase));
-            } else {
-                // The positions of a 16 x 16 cell are the same whichever chunk asks, so each cell is evaluated once and shared.
-                all = new ArrayList<>();
-                int y0 = space.getMinY(), y1 = space.getMaxY();
-                for (int cx = Math.floorDiv(minX, 16); cx <= Math.floorDiv(maxX - 1, 16); cx++) {
-                    for (int cz = Math.floorDiv(minZ, 16); cz <= Math.floorDiv(maxZ - 1, 16); cz++) {
-                        final int fcx = cx, fcz = cz;
-                        @SuppressWarnings("unchecked")
-                        List<Placed<T>> cell = (List<Placed<T>>) memo.cell(this, seedBase, cx, cz, () -> cellPositions(fcx, fcz, y0, y1, seedBase));
-                        for (Placed<T> p : cell) {
-                            int px = (int) Math.floor(p.position().x()), pz = (int) Math.floor(p.position().z());
-                            if (px >= minX && px < maxX && pz >= minZ && pz < maxZ) all.add(p);
-                        }
-                    }
-                }
-                if (CELL_CHECK) {
-                    List<Placed<T>> r1 = field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase);
-                    List<Placed<T>> r2 = field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase);
-                    if (r1.size() != r2.size()) log("SAME REGION TWICE: " + r1.size() + " then " + r2.size() + " | " + describeField());
-                    else checkCells(all, r1, minX, minZ, maxX, maxZ);
-                }
+                List<Placed<T>> all = new ArrayList<>(field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase));
+                all.sort(ORDER);
+                int placed = 0;
+                for (Placed<T> p : all) placed += anchor(p, minX, minZ, maxX, maxZ, needMinX, needMinZ, needMaxX, needMaxZ, space, seedBase, accept, memo);
+                return placed;
             }
-            all.sort((a, b) -> {
-                int c = Double.compare(a.position().x(), b.position().x());
-                if (c != 0) return c;
-                c = Double.compare(a.position().z(), b.position().z());
-                return c != 0 ? c : Double.compare(a.position().y(), b.position().y());
-            });
+            // The positions of a 16 x 16 cell are the same whichever chunk asks, so each cell is evaluated (and sorted) once and shared.
+            // Cells of one column of x are merged in the global order (x, then z, then y); columns follow each other in x. Positions
+            // outside the region are skipped before merging, which leaves the order of the others as it was.
             int placed = 0;
-            for (Placed<T> p : all) {
-                int px = (int) Math.floor(p.position().x()), py = (int) Math.floor(p.position().y()), pz = (int) Math.floor(p.position().z());
-                if (p.prop() == null || px < minX || px >= maxX || pz < minZ || pz >= maxZ) continue;
-                int reach = p.prop().contentReach();
-                if (px + reach < needMinX || px - reach >= needMaxX || pz + reach < needMinZ || pz - reach >= needMaxZ) continue;   // builds nothing anyone reads
-                if (accept != null && !accept.test(px, pz)) continue;
-                long seed = seedAt(seedBase, p.position());
-                if (memo == null || !memo.remembers()) {
-                    if (p.prop().generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, space, seed))) placed++;
-                    continue;
+            int y0 = space.getMinY(), y1 = space.getMaxY();
+            int cz0 = Math.floorDiv(minZ, 16), cz1 = Math.floorDiv(maxZ - 1, 16), k = cz1 - cz0 + 1;
+            Cell<?>[] cells = new Cell<?>[k];
+            int[] heads = new int[k], ends = new int[k];
+            for (int cx = Math.floorDiv(minX, 16); cx <= Math.floorDiv(maxX - 1, 16); cx++) {
+                for (int i = 0; i < k; i++) {
+                    final int fcx = cx, fcz = cz0 + i;
+                    Cell<?> c = (Cell<?>) memo.cell(this, seedBase, cx, fcz, () -> cellPositions(fcx, fcz, y0, y1, seedBase));
+                    cells[i] = c;
+                    heads[i] = c.firstAtLeast(minX);
+                    ends[i] = c.firstAtLeast(maxX);
                 }
-                if (MEMO_CHECK) { final Placed<T> fp = p; final int fx = px, fy = py, fz = pz; memo.verify(seedBase, px, py, pz, p.prop(), space, s -> fp.prop().generate(new Context<>(fx, fy, fz, 0.0f, 1.0f, 0.0f, s, seed))); }
-                if (memo.replay(seedBase, px, py, pz, p.prop(), space)) { placed++; continue; }
-                com.worldgenv2.props.AnchorMemo.Recorder<T> rec = memo.recorder(space);
-                if (p.prop().generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, rec, seed))) placed++;
-                memo.remember(seedBase, px, py, pz, p.prop(), rec);
+                while (true) {
+                    int best = -1;
+                    double bx = 0, bz = 0, by = 0;
+                    for (int i = 0; i < k; i++) {
+                        Cell<?> c = cells[i];
+                        int h = heads[i];
+                        while (h < ends[i] && (c.z[h] < minZ || c.z[h] >= maxZ)) h++;
+                        heads[i] = h;
+                        if (h >= ends[i]) continue;
+                        double x = c.x[h], z = c.z[h], y = c.y[h];
+                        if (best < 0) { best = i; bx = x; bz = z; by = y; continue; }
+                        // exactly the comparator's order (Double.compare also orders -0.0 before 0.0)
+                        int cmp = Double.compare(x, bx);
+                        if (cmp == 0) cmp = Double.compare(z, bz);
+                        if (cmp == 0) cmp = Double.compare(y, by);
+                        if (cmp < 0) { best = i; bx = x; bz = z; by = y; }
+                    }
+                    if (best < 0) break;
+                    @SuppressWarnings("unchecked") Placed<T> p = (Placed<T>) cells[best].items[heads[best]++];
+                    placed += anchor(p, minX, minZ, maxX, maxZ, needMinX, needMinZ, needMaxX, needMaxZ, space, seedBase, accept, memo);
+                }
             }
             return placed;
         }
 
+        /** A cell's positions in the global order, with their coordinates as plain arrays for a fast merge. */
+        private static final class Cell<T> {
+            final Placed<T>[] items;
+            final double[] x, y, z;
+
+            @SuppressWarnings("unchecked")
+            Cell(List<Placed<T>> sorted) {
+                items = sorted.toArray(new Placed[0]);
+                x = new double[items.length];
+                y = new double[items.length];
+                z = new double[items.length];
+                for (int i = 0; i < items.length; i++) { x[i] = items[i].position().x(); y[i] = items[i].position().y(); z[i] = items[i].position().z(); }
+            }
+
+            /** The first index whose x is at least v (x is sorted). */
+            int firstAtLeast(double v) {
+                int lo = 0, hi = x.length;
+                while (lo < hi) { int mid = (lo + hi) >>> 1; if (x[mid] < v) lo = mid + 1; else hi = mid; }
+                return lo;
+            }
+        }
+        /** The global order of a distribution's positions: x, then z, then y (a stable sort keeps equal positions in field order). */
+        private static final java.util.Comparator<Placed<?>> ORDER = (a, b) -> {
+            int c = Double.compare(a.position().x(), b.position().x());
+            if (c != 0) return c;
+            c = Double.compare(a.position().z(), b.position().z());
+            return c != 0 ? c : Double.compare(a.position().y(), b.position().y());
+        };
+
+        /** One position: builds its prop (or replays it) if it lies in the region, can reach what will be read, and its biome has it. */
+        private int anchor(Placed<T> p, int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
+                           VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, com.worldgenv2.props.AnchorMemo<T> memo) {
+            int px = (int) Math.floor(p.position().x()), py = (int) Math.floor(p.position().y()), pz = (int) Math.floor(p.position().z());
+            if (p.prop() == null || px < minX || px >= maxX || pz < minZ || pz >= maxZ) return 0;
+            int reach = p.prop().contentReach();
+            if (px + reach < needMinX || px - reach >= needMaxX || pz + reach < needMinZ || pz - reach >= needMaxZ) return 0;   // builds nothing anyone reads
+            if (accept != null && !accept.test(px, pz)) return 0;
+            long seed = seedAt(seedBase, p.position());
+            if (memo == null || !memo.remembers()) {
+                return p.prop().generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, space, seed)) ? 1 : 0;
+            }
+            if (MEMO_CHECK) { final int fx = px, fy = py, fz = pz; memo.verify(seedBase, px, py, pz, p.prop(), space, s -> p.prop().generate(new Context<>(fx, fy, fz, 0.0f, 1.0f, 0.0f, s, seed))); }
+            if (memo.replay(seedBase, px, py, pz, p.prop(), space)) return 1;
+            com.worldgenv2.props.AnchorMemo.Recorder<T> rec = memo.recorder(space);
+            boolean ok = p.prop().generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, rec, seed));
+            memo.remember(seedBase, px, py, pz, p.prop(), rec);
+            return ok ? 1 : 0;
+        }
         /** The positions whose block lies in cell (cx, cz), each exactly once (a position on a cell edge belongs to the cell it starts). */
-        private List<Placed<T>> cellPositions(int cx, int cz, int y0, int y1, long seedBase) {
+        private Cell<T> cellPositions(int cx, int cz, int y0, int y1, long seedBase) {
+
             int x0 = cx << 4, z0 = cz << 4;
             List<Placed<T>> out = new ArrayList<>();
             for (Placed<T> p : field.evaluate(x0, y0, z0, x0 + 16, y1, z0 + 16, seedBase)) {
                 int px = (int) Math.floor(p.position().x()), pz = (int) Math.floor(p.position().z());
                 if (px >= x0 && px < x0 + 16 && pz >= z0 && pz < z0 + 16) out.add(p);
             }
-            return out;
+            out.sort(ORDER);
+            return new Cell<>(out);
         }
 
         private static final boolean CELL_CHECK = System.getenv("WG2_CELL_CHECK") != null;

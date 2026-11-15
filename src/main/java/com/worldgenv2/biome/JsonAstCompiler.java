@@ -2,6 +2,7 @@ package com.worldgenv2.biome;
 
 import com.worldgenv2.assignments.*;
 import com.worldgenv2.curve.*;
+import com.worldgenv2.density.SharedColumnDensity;
 import com.worldgenv2.density.*;
 import com.worldgenv2.graph.*;
 import com.worldgenv2.mask.*;
@@ -131,6 +132,9 @@ public final class JsonAstCompiler {
         public long worldSeed() {
             return worldSeed;
         }
+
+        /** How many seeds have been drawn from the compile-order counter (a node that draws one is not the same function twice). */
+        public int saltDraws() { return saltCounter.get(); }
 
         public int nextSeedSalt(int explicitSalt) {
             int base = (int) (worldSeed ^ (worldSeed >>> 32));
@@ -3094,9 +3098,24 @@ public final class JsonAstCompiler {
         HytaleDialect.adaptDensityInputs(type, json);
         WorldGenV2Registries.DensityNodeDeserializer deserializer =
             WorldGenV2Registries.DENSITY_NODE_TYPE.getOrThrow(type);
+        boolean exported = false;
+        for (String k : json.keySet()) if (k.equalsIgnoreCase("exportas") || k.equalsIgnoreCase("exportname")) { exported = true; break; }
+        int drawsBefore = context.saltDraws();
         DensityFunction rawNode = deserializer.deserialize(json, context);
-        return optimizeDensity(rawNode);
+        DensityFunction node = optimizeDensity(rawNode);
+        // Every copy of an exported node (inline, and each Imported) shares recent columns, when the copies are the same function.
+        if (exported && !NO_SHARE && context.saltDraws() == drawsBefore) return new SharedColumnDensity(new SharedKey(context, json), node);
+        return node;
     }
+
+    /** Same compile context (world seed, constants) and equal JSON: the same function. */
+    private record SharedKey(CompileContext context, Object json) {
+        @Override public boolean equals(Object o) { return o instanceof SharedKey k && k.context == context && k.json.equals(json); }
+        @Override public int hashCode() { return System.identityHashCode(context) * 31 + json.hashCode(); }
+    }
+
+    /** Column sharing between copies of an exported density is off unless WG2_SHARE=1: the copies the gradient and the terrain use do not meet yet. */
+    private static final boolean NO_SHARE = System.getenv("WG2_SHARE") == null;
 
     /**
      * Compiles a parsed JSON object map into a {@link MaterialProvider}.
