@@ -12,3 +12,5 @@ run/
 logs/
 
 tools/.reload-hashes
+
+hytale_local/
