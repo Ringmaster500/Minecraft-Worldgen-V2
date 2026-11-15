@@ -23,8 +23,11 @@ public final class SumDensity implements DensityFunction {
         return sum;
     }
 
+    @Override public boolean yIndependent() { return allFlat(inputs); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         int height = maxY - minY;
         if (height <= 0) return;
 
@@ -50,4 +53,5 @@ public final class SumDensity implements DensityFunction {
     public DensityFunction[] getInputs() {
         return inputs;
     }
+    private static boolean allFlat(DensityFunction[] in) { for (DensityFunction f : in) if (!f.yIndependent()) return false; return true; }
 }

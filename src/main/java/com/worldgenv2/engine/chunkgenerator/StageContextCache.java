@@ -12,7 +12,7 @@ public final class StageContextCache<T> {
 
     public static final int DEFAULT_CAPACITY = 256;
 
-    private final int capacity;
+    private volatile int capacity;
     private final Map<Long, ImmutableChunkSnapshot<T>> cache;
 
     public StageContextCache() {
@@ -28,6 +28,9 @@ public final class StageContextCache<T> {
             }
         };
     }
+
+    /** Grows the cache so the working set of every worker thread fits (never shrinks). */
+    public void ensureCapacity(int wanted) { if (wanted > capacity) capacity = wanted; }
 
     public static long key(int chunkX, int chunkZ, int stage) {
         long k = (((long) chunkX & 0xFFFFFFL) << 36) | (((long) chunkZ & 0xFFFFFFL) << 12) | ((long) stage & 0xFFFL);

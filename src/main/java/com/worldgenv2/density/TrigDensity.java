@@ -59,8 +59,11 @@ public final class TrigDensity implements DensityFunction {
         return (float) (amplitude * res);
     }
 
+    @Override public boolean yIndependent() { return input.yIndependent(); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         input.computeColumn(x, z, minY, maxY, out);
         int height = maxY - minY;
         for (int i = 0; i < height; i++) {

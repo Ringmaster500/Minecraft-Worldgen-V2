@@ -23,8 +23,11 @@ public final class CurveMapperDensity implements DensityFunction {
         return (float) curve.evaluate(val);
     }
 
+    @Override public boolean yIndependent() { return source.yIndependent(); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         source.computeColumn(x, z, minY, maxY, out);
         for (int i = 0; i < out.length; i++) {
             out[i] = (float) curve.evaluate(out[i]);

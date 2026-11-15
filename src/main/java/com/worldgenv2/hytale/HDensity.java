@@ -20,8 +20,10 @@ public final class HDensity {
     /** A pointwise function of one input. */
     public static DensityFunction pointwise(DensityFunction in, FloatOp1 op) {
         return new DensityFunction() {
+            @Override public boolean yIndependent() { return in.yIndependent(); }
             @Override public float compute(float x, float y, float z) { return op.apply(in.compute(x, y, z)); }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                if (in.yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, op.apply(in.compute(x, minY, z))); return; }
                 in.computeColumn(x, z, minY, maxY, out);
                 for (int i = 0, n = maxY - minY; i < n; i++) out[i] = op.apply(out[i]);
             }
@@ -31,9 +33,11 @@ public final class HDensity {
     /** A pointwise function of two inputs. */
     public static DensityFunction pointwise(DensityFunction a, DensityFunction b, FloatOp2 op) {
         return new DensityFunction() {
+            @Override public boolean yIndependent() { return a.yIndependent() && b.yIndependent(); }
             @Override public float compute(float x, float y, float z) { return op.apply(a.compute(x, y, z), b.compute(x, y, z)); }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
                 int n = maxY - minY;
+                if (yIndependent()) { java.util.Arrays.fill(out, 0, n, op.apply(a.compute(x, minY, z), b.compute(x, minY, z))); return; }
                 float[] tmp = new float[n];
                 a.computeColumn(x, z, minY, maxY, out);
                 b.computeColumn(x, z, minY, maxY, tmp);
@@ -49,8 +53,10 @@ public final class HDensity {
                 for (DensityFunction d : in) { float v = d.compute(x, y, z); if (v == 0f) return 0f; r *= v; }
                 return r;
             }
+            @Override public boolean yIndependent() { for (DensityFunction d : in) if (!d.yIndependent()) return false; return true; }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
                 int n = maxY - minY;
+                if (yIndependent()) { java.util.Arrays.fill(out, 0, n, compute(x, minY, z)); return; }
                 java.util.Arrays.fill(out, 0, n, 1f);
                 float[] tmp = new float[n];
                 for (DensityFunction d : in) { d.computeColumn(x, z, minY, maxY, tmp); for (int i = 0; i < n; i++) out[i] *= tmp[i]; }
@@ -365,6 +371,7 @@ public final class HDensity {
     public static DensityFunction atFixedY(DensityFunction in, float fixedY) {
         ThreadLocal<Memo> memo = ThreadLocal.withInitial(Memo::new);
         return new DensityFunction() {
+            @Override public boolean yIndependent() { return true; }
             @Override public float compute(float x, float y, float z) {
                 Memo m = memo.get();
                 for (int i = 0; i < 8; i++) if (m.xs[i] == x && m.zs[i] == z) return m.vs[i];

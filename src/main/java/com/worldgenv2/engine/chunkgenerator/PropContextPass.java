@@ -7,7 +7,6 @@ import com.worldgenv2.props.runtime.PropRuntime;
 import com.worldgenv2.worldstructure.WorldStructure;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -43,7 +42,8 @@ final class PropContextPass<T> {
         ImmutableChunkSnapshot<T> tile(int chunkX, int chunkZ);
     }
 
-    private record Item<T>(Prop<T> wrapper, Distribution<T> dist, int stage, long salt) {}
+    /** content: how far its blocks reach from an anchor; extra: how much farther it reads (scans and tests). */
+    private record Item<T>(Prop<T> wrapper, Distribution<T> dist, int stage, long salt, int content, int extra) {}
 
     private static final class Plan<T> {
         final List<Item<T>> items = new ArrayList<>();
@@ -81,11 +81,11 @@ final class PropContextPass<T> {
             for (WorldStructure.BiomeProp<T> bp : ws.<T>allBiomeProps()) {
                 if (!isDistribution(bp.prop()) || np.byProp.containsKey(bp.prop())) continue;
                 Distribution<T> ap = (Distribution<T>) PropRuntime.unwrap(bp.prop());
-                Item<T> it = new Item<>(bp.prop(), ap, PropRuntime.stageOf(bp.prop()), bp.salt());
-                np.items.add(it);
-                np.byProp.put(bp.prop(), it);
                 int total = Math.min(MAX_STAGE_REACH, bp.prop().horizontalReach());
                 int content = Math.min(total, bp.prop().contentReach());
+                Item<T> it = new Item<>(bp.prop(), ap, PropRuntime.stageOf(bp.prop()), bp.salt(), content, Math.max(0, total - content));
+                np.items.add(it);
+                np.byProp.put(bp.prop(), it);
                 int[] r = np.stageReach.computeIfAbsent(it.stage(), k -> new int[2]);
                 r[0] = Math.max(r[0], content);
                 r[1] = Math.max(r[1], Math.max(0, total - content));
@@ -100,47 +100,57 @@ final class PropContextPass<T> {
         }
     }
 
+    /** The most terrain tiles one chunk's props can read (the worst case over every biome; most chunks need far fewer). */
+    int tilesPerChunk() { int side = 2 * ((plan().totalMargin + 15) >> 4) + 1; return side * side; }
+
     void run(int chunkX, int chunkZ, VoxelSpace<T> real, Predicate<T> solid, TileSource<T> tiles) {
         Plan<T> pl = plan();
         if (pl.items.isEmpty()) return;
         int minY = real.getMinY(), maxY = real.getMaxY();
-        int rc = (pl.totalMargin + 15) >> 4;
+        int footMinX = chunkX << 4, footMinZ = chunkZ << 4;
+        Map<Long, List<Prop<T>>> biomeCache = new HashMap<>();
+
+        // Work out, from the last stage backwards, which distributions can touch this chunk at all and how far the context must
+        // reach: a distribution only matters if its biome lies within (later stages' reach + its own build size) of the chunk,
+        // and the context only needs the largest reach of the distributions that do.
+        int ns = pl.stages.length;
+        int[] after = new int[ns];
+        @SuppressWarnings("unchecked") List<Item<T>>[] active = new List[ns];
+        int run = 0;
+        boolean any = false;
+        for (int si = ns - 1; si >= 0; si--) {
+            after[si] = run;
+            int stage = pl.stages[si];
+            int r0 = 0, r1 = 0;
+            List<Item<T>> act = new ArrayList<>();
+            for (Item<T> it : pl.items) {
+                if (it.stage() != stage) continue;
+                int m = after[si] + it.content();
+                if (!biomeInRect(biomeCache, it.wrapper(), footMinX - m, footMinZ - m, footMinX + 16 + m, footMinZ + 16 + m)) continue;
+                act.add(it);
+                r0 = Math.max(r0, it.content());
+                r1 = Math.max(r1, it.extra());
+            }
+            active[si] = act;
+            if (!act.isEmpty()) any = true;
+            run += r0 + r1;
+        }
+        if (!any) return;
+
+        int rc = (run + 15) >> 4;
         int side = 2 * rc + 1;
         ContextSpace<T> ctx = ContextSpace.acquire((chunkX - rc) << 4, (chunkZ - rc) << 4, side * 16, side * 16, minY, maxY, air);
         try {
             for (int cx = chunkX - rc; cx <= chunkX + rc; cx++)
                 for (int cz = chunkZ - rc; cz <= chunkZ + rc; cz++) ctx.loadTile(tiles.tile(cx, cz), cx, cz);
 
-            int[] after = new int[pl.stages.length];            // reach of all stages after index i
-            int run = 0;
-            for (int i = pl.stages.length - 1; i >= 0; i--) {
-                after[i] = run;
-                int[] r = pl.stageReach.get(pl.stages[i]);
-                run += r[0] + r[1];
-            }
-
-            Map<Long, List<Prop<T>>> biomeCache = new HashMap<>();
-            int footMinX = chunkX << 4, footMinZ = chunkZ << 4;
-            for (int si = 0; si < pl.stages.length; si++) {
+            for (int si = 0; si < ns; si++) {
                 int stage = pl.stages[si];
-                int w = pl.stageReach.get(stage)[0];
-                int anchorM = after[si] + w;
-                int minX = footMinX - anchorM, maxX = footMinX + 16 + anchorM;
-                int minZ = footMinZ - anchorM, maxZ = footMinZ + 16 + anchorM;
-
-                // which of this stage's props have any column of their biome inside the anchor region
-                IdentityHashMap<Prop<T>, Boolean> present = new IdentityHashMap<>();
-                for (int x = minX; x < maxX; x += 4) {
-                    for (int z = minZ; z < maxZ; z += 4) {
-                        for (Prop<T> p : biomeProps(biomeCache, x, z)) {
-                            Item<T> it = pl.byProp.get(p);
-                            if (it != null && it.stage() == stage) present.put(p, Boolean.TRUE);
-                        }
-                    }
-                }
                 ContextSpace<T>.View view = ctx.view();
-                for (Item<T> it : pl.items) {
-                    if (it.stage() != stage || !present.containsKey(it.wrapper())) continue;
+                for (Item<T> it : active[si]) {
+                    int m = after[si] + it.content();
+                    int minX = footMinX - m, maxX = footMinX + 16 + m;
+                    int minZ = footMinZ - m, maxZ = footMinZ + 16 + m;
                     long seedBase = ws.seed() * 0x9E3779B97F4A7C15L ^ it.salt() * 0xC2B2AE3D27D4EB4FL ^ stage;
                     it.dist().generateInRegion(minX, minZ, maxX, maxZ, view, seedBase,
                         (x, z) -> contains(biomeProps(biomeCache, x, z), it.wrapper()), solid);
@@ -153,11 +163,18 @@ final class PropContextPass<T> {
         }
     }
 
+    /** True when some column of the rectangle (sampled every 4 blocks on a fixed grid) belongs to a biome that has this prop. */
+    private boolean biomeInRect(Map<Long, List<Prop<T>>> cache, Prop<T> wrapper, int minX, int minZ, int maxX, int maxZ) {
+        for (int x = Math.floorDiv(minX, 4) * 4; x < maxX; x += 4)
+            for (int z = Math.floorDiv(minZ, 4) * 4; z < maxZ; z += 4)
+                if (contains(biomeProps(cache, x, z), wrapper)) return true;
+        return false;
+    }
     private List<Prop<T>> biomeProps(Map<Long, List<Prop<T>>> cache, int x, int z) {
         long k = ((long) x << 32) ^ (z & 0xFFFFFFFFL);
         List<Prop<T>> l = cache.get(k);
         if (l == null) {
-            l = ws.queryBiome(x, z).resolveProps(fallbackProps);
+            l = ws.propsAt(x, z, fallbackProps);
             cache.put(k, l);
         }
         return l;
@@ -175,13 +192,16 @@ final class PropContextPass<T> {
      * stage and records its writes, which {@link #commitStage()} then applies.
      */
     static final class ContextSpace<T> {
-        private static final ThreadLocal<Object[]> POOL_CUR = new ThreadLocal<>();
-        private static final ThreadLocal<Object[]> POOL_PEND = new ThreadLocal<>();
-
         private final int x0, z0, w, d, minY, maxY, h;
         private final Object air;
-        private Object[] cur, pend;
-        private final BitSet written = new BitSet();
+        private final int cx0, cz0, side;
+        private final ImmutableChunkSnapshot<?>[] tileGrid;
+        /** Per column (x, z) of the region: the blocks after the committed stages, or null while the column is still plain terrain. */
+        private final Object[][] cur;
+        /** Per column: what the running stage wrote. */
+        private final Object[][] pend;
+        /** Per column: which heights any stage has written. */
+        private final long[][] written;
         private int[] touched = new int[1024];
         private int touchedCount;
         private final List<Object[]> loot = new ArrayList<>();
@@ -195,42 +215,47 @@ final class PropContextPass<T> {
             this.minY = minY;
             this.maxY = maxY;
             this.h = maxY - minY;
+            this.cx0 = x0 >> 4;
+            this.cz0 = z0 >> 4;
+            this.side = w >> 4;
+            this.tileGrid = new ImmutableChunkSnapshot<?>[side * side];
+            this.cur = new Object[w * d][];
+            this.pend = new Object[w * d][];
+            this.written = new long[w * d][];
         }
 
         static <T> ContextSpace<T> acquire(int x0, int z0, int w, int d, int minY, int maxY, Object air) {
-            ContextSpace<T> s = new ContextSpace<>(x0, z0, w, d, minY, maxY, air);
-            int n = w * d * s.h;
-            Object[] c = POOL_CUR.get(), p = POOL_PEND.get();
-            if (c == null || c.length < n) { c = new Object[n]; POOL_CUR.set(c); }
-            if (p == null || p.length < n) { p = new Object[n]; POOL_PEND.set(p); }
-            Arrays.fill(c, 0, n, null);
-            Arrays.fill(p, 0, n, null);
-            s.cur = c;
-            s.pend = p;
-            return s;
+            return new ContextSpace<>(x0, z0, w, d, minY, maxY, air);
         }
 
-        void release() {
-            // arrays stay in the thread-local pool; drop references so a finished chunk does not pin its blocks
-            Arrays.fill(cur, 0, w * d * h, null);
-            cur = null;
-            pend = null;
+        void release() { }
+
+        private int column(int x, int z) {
+            int lx = x - x0, lz = z - z0;
+            if (lx < 0 || lz < 0 || lx >= w || lz >= d) return -1;
+            return lx * d + lz;
         }
 
-        private int index(int x, int y, int z) {
-            int lx = x - x0, lz = z - z0, ly = y - minY;
-            if (lx < 0 || lz < 0 || lx >= w || lz >= d || ly < 0 || ly >= h) return -1;
-            return (lx * d + lz) * h + ly;
-        }
-
+        /** Terrain of one chunk; the region reads through to it until a prop writes the column. */
         void loadTile(ImmutableChunkSnapshot<?> tile, int cx, int cz) {
-            if (tile == null) return;
-            for (int lx = 0; lx < 16; lx++) {
-                for (int lz = 0; lz < 16; lz++) {
-                    int idx = index((cx << 4) + lx, minY, (cz << 4) + lz);
-                    if (idx >= 0) tile.copyColumn(lx, lz, cur, idx, h);
-                }
+            int gx = cx - cx0, gz = cz - cz0;
+            if (tile != null && gx >= 0 && gz >= 0 && gx < side && gz < side) tileGrid[gx * side + gz] = tile;
+        }
+
+        private Object terrain(int x, int y, int z) {
+            ImmutableChunkSnapshot<?> t = tileGrid[((x >> 4) - cx0) * side + ((z >> 4) - cz0)];
+            return t == null ? null : t.getRaw(x, y, z);
+        }
+
+        private Object[] materialize(int col, int x, int z) {
+            Object[] a = cur[col];
+            if (a == null) {
+                a = new Object[h];
+                ImmutableChunkSnapshot<?> t = tileGrid[((x >> 4) - cx0) * side + ((z >> 4) - cz0)];
+                if (t != null) t.copyColumn(x & 15, z & 15, a, 0, h);
+                cur[col] = a;
             }
+            return a;
         }
 
         View view() { return new View(); }
@@ -238,9 +263,13 @@ final class PropContextPass<T> {
         void commitStage() {
             for (int i = 0; i < touchedCount; i++) {
                 int idx = touched[i];
-                cur[idx] = pend[idx];
-                pend[idx] = null;
-                written.set(idx);
+                int col = idx / h, ly = idx % h;
+                Object[] a = materialize(col, x0 + col / d, z0 + col % d);
+                a[ly] = pend[col][ly];
+                pend[col][ly] = null;
+                long[] wr = written[col];
+                if (wr == null) wr = written[col] = new long[(h + 63) >> 6];
+                wr[ly >> 6] |= 1L << (ly & 63);
             }
             touchedCount = 0;
         }
@@ -249,13 +278,19 @@ final class PropContextPass<T> {
         @SuppressWarnings("unchecked")
         void copyFootprintTo(VoxelSpace<T> real, int chunkX, int chunkZ) {
             int fx = chunkX << 4, fz = chunkZ << 4;
-            for (int idx = written.nextSetBit(0); idx >= 0; idx = written.nextSetBit(idx + 1)) {
-                int ly = idx % h;
-                int col = idx / h;
-                int lz = col % d, lx = col / d;
-                int x = x0 + lx, z = z0 + lz;
-                if (x < fx || x >= fx + 16 || z < fz || z >= fz + 16) continue;
-                real.setBlock(x, minY + ly, z, (T) cur[idx]);
+            for (int x = fx; x < fx + 16; x++) {
+                for (int z = fz; z < fz + 16; z++) {
+                    int col = column(x, z);
+                    long[] wr = col < 0 ? null : written[col];
+                    if (wr == null) continue;
+                    Object[] a = cur[col];
+                    for (int wi = 0; wi < wr.length; wi++) {
+                        for (long bits = wr[wi]; bits != 0; bits &= bits - 1) {
+                            int ly = (wi << 6) + Long.numberOfTrailingZeros(bits);
+                            real.setBlock(x, minY + ly, z, (T) a[ly]);
+                        }
+                    }
+                }
             }
             for (Object[] l : loot) {
                 int x = (Integer) l[0], y = (Integer) l[1], z = (Integer) l[2];
@@ -267,26 +302,31 @@ final class PropContextPass<T> {
         final class View implements VoxelSpace<T> {
             @Override @SuppressWarnings("unchecked")
             public T getBlock(int x, int y, int z) {
-                int idx = index(x, y, z);
-                return idx < 0 ? null : (T) cur[idx];
+                int col = column(x, z), ly = y - minY;
+                if (col < 0 || ly < 0 || ly >= h) return null;
+                Object[] a = cur[col];
+                return (T) (a != null ? a[ly] : terrain(x, y, z));
             }
 
             @Override
             public void setBlock(int x, int y, int z, T block) {
-                int idx = index(x, y, z);
-                if (idx < 0 || block == null) return;
-                if (pend[idx] == null) {
+                int col = column(x, z), ly = y - minY;
+                if (col < 0 || ly < 0 || ly >= h || block == null) return;
+                Object[] p = pend[col];
+                if (p == null) p = pend[col] = new Object[h];
+                if (p[ly] == null) {
                     if (touchedCount == touched.length) touched = Arrays.copyOf(touched, touched.length * 2);
-                    touched[touchedCount++] = idx;
+                    touched[touchedCount++] = col * h + ly;
                 }
-                pend[idx] = block;
+                p[ly] = block;
             }
 
             @Override
             public boolean isAir(int x, int y, int z) {
-                int idx = index(x, y, z);
-                if (idx < 0) return true;
-                Object b = cur[idx];
+                int col = column(x, z), ly = y - minY;
+                if (col < 0 || ly < 0 || ly >= h) return true;
+                Object[] a = cur[col];
+                Object b = a != null ? a[ly] : terrain(x, y, z);
                 return b == null || b.equals(air);
             }
 
@@ -296,7 +336,7 @@ final class PropContextPass<T> {
 
             @Override
             public void setBlockLoot(int x, int y, int z, String lootTableId, long seed) {
-                if (index(x, y, z) >= 0) loot.add(new Object[]{x, y, z, lootTableId, seed});
+                if (column(x, z) >= 0) loot.add(new Object[]{x, y, z, lootTableId, seed});
             }
         }
     }

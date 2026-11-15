@@ -298,6 +298,12 @@ tasks.register('probeHytaleAssets', JavaExec) {
     mainClass = 'com.worldgenv2.HytaleAssetConformanceProbe'
 }
 
+tasks.register('probeHytaleSpeed', JavaExec) {
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.worldgenv2.HytaleSpeedProbe'
+    if (project.hasProperty('only')) args project.property('only')
+}
+
 tasks.register('verifyPhase33', JavaExec) {
     group = 'verification'
     description = 'Verifies the shapes Hytale own asset files use'

@@ -45,8 +45,11 @@ public final class CacheDensity implements DensityFunction {
         return v;
     }
 
+    @Override public boolean yIndependent() { return source.yIndependent(); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         CacheEntry entry = cache.get();
         int height = maxY - minY;
         if (entry.colX == x && entry.colZ == z && entry.minY == minY && entry.maxY == maxY && entry.colData != null) {

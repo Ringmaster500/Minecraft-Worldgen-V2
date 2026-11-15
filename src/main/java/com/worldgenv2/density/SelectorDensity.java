@@ -26,8 +26,11 @@ public final class SelectorDensity implements DensityFunction {
         return cond != 0.0f ? thenDensity.compute(x, y, z) : elseDensity.compute(x, y, z);
     }
 
+    @Override public boolean yIndependent() { return condition.yIndependent() && thenDensity.yIndependent() && elseDensity.yIndependent(); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         int height = maxY - minY;
         for (int i = 0; i < height; i++) {
             float y = minY + i;

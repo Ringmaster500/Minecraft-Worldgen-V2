@@ -19,4 +19,5 @@ public final class XValueDensity implements DensityFunction {
             out[i] = x;
         }
     }
+    @Override public boolean yIndependent() { return true; }
 }

@@ -25,4 +25,5 @@ public final class ConstantDensity implements DensityFunction {
     public float getValue() {
         return value;
     }
+    @Override public boolean yIndependent() { return true; }
 }

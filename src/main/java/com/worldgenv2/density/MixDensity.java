@@ -40,8 +40,11 @@ public final class MixDensity implements DensityFunction {
         return va + t * (vb - va);
     }
 
+    @Override public boolean yIndependent() { return a.yIndependent() && b.yIndependent() && factor.yIndependent(); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         int height = maxY - minY;
         float[] bufA = new float[height];
         float[] bufB = new float[height];

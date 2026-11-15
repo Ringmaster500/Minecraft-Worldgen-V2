@@ -47,6 +47,9 @@ public final class DensityBiomeMap {
 
     private double field(float x, float z) { return density.compute(x, 0f, z); }
 
+    /** The biome a position belongs to, from a single sample of the field (no edge distance or blending). */
+    public TileBiome primaryAt(float x, float z) { return resolver.apply(biomeIdAt(field(x, z))); }
+
     public BiCarta.CellQueryResult<TileBiome> query(float x, float z) {
         double v = field(x, z);
         int primaryId = biomeIdAt(v);

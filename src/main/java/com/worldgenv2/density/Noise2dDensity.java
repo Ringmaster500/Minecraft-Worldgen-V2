@@ -57,4 +57,5 @@ public final class Noise2dDensity implements DensityFunction {
     public float getAmplitude() {
         return amplitude;
     }
+    @Override public boolean yIndependent() { return true; }
 }

@@ -19,8 +19,11 @@ public final class SingleInstanceDensity implements DensityFunction {
         return delegate.compute(x, y, z);
     }
 
+    @Override public boolean yIndependent() { return delegate.yIndependent(); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         delegate.computeColumn(x, z, minY, maxY, out);
     }
 

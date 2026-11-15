@@ -19,4 +19,5 @@ public final class ZValueDensity implements DensityFunction {
             out[i] = z;
         }
     }
+    @Override public boolean yIndependent() { return true; }
 }

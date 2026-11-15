@@ -612,6 +612,19 @@ public final class WorldStructure {
     /**
      * Resolves the complete biome query result (including CustomBiome smooth overrides and macro radial zone overrides) for (x, z).
      */
+    /**
+     * The props of the biome at a position. With a density biome map (Hytale's World Structure) a prop belongs to the biome whose
+     * range contains the position, which takes one sample of the field instead of a full blended biome query.
+     */
+    public <T> List<Prop<T>> propsAt(float x, float z, List<Prop<T>> fallback) {
+        DensityBiomeMap map = biomeMap;
+        if (map != null && customBiomes.isEmpty() && dimensionLayout == null) {
+            TileBiome b = map.primaryAt(x, z);
+            if (b != null) { List<Prop<T>> p = b.typedProps(); return p.isEmpty() ? fallback : p; }
+        }
+        return queryBiome(x, z).resolveProps(fallback);
+    }
+
     public BiomeQueryResult queryBiome(float x, float z) {
         DensityBiomeMap map = biomeMap;
         BiCarta.CellQueryResult<TileBiome> cell = map != null ? map.query(x, z) : biCarta.query(x, z);

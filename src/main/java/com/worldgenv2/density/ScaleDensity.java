@@ -43,8 +43,11 @@ public final class ScaleDensity implements DensityFunction {
         return input.compute(x * scaleX, y * scaleY, z * scaleZ);
     }
 
+    @Override public boolean yIndependent() { return input.yIndependent(); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         if (unitYScale) {
             input.computeColumn(x * scaleX, z * scaleZ, minY, maxY, out);
         } else {

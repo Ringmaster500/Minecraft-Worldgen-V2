@@ -217,3 +217,13 @@ A node name that exists in Hytale must mean exactly what it means there: same pa
 - Hytale block names map to Minecraft blocks through `hytale_blocks.json` (exact name, then longest prefix).
 - Tested by `verifyPhase33`; `probeHytaleAssets` compiles 201 of 202 real asset files.
 - Known gaps: generation speed on full real assets, prefab block rotations, Angle IsAxis, biome transitions.
+
+### Generation speed (Phase 33 follow-up)
+
+Measured on a Hytale world setup (real Assets.zip, Zone1_Plains1) by generating a fresh 16-chunk view radius: about 256 s at first, about 90 s now.
+- Terrain columns skip repeated work when a density does not depend on Y (`yIndependent`).
+- Chunk snapshots are stored run-length encoded and the tile cache is sized from the real prop reach (it was thrashing, so neighbour terrain was recomputed for every chunk).
+- The prop pass works out, per distribution, how far it can reach and only uses biomes actually near the chunk; most chunks no longer load the worst-case 11 x 11 tile neighbourhood.
+- The prop context reads through to the terrain tiles and copies only the columns props write.
+- Props take the biome from a single sample of the biome-map density (Hytale: a prop belongs to the biome whose range contains it); the edge-blending of props between two biomes is only used with Voronoi biome maps.
+- `probeHytaleSpeed` times terrain per real biome with a sampling profile of the slowest.

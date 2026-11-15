@@ -18,7 +18,9 @@ public final class ImmutableChunkSnapshot<T> implements VoxelSpace<T> {
     private final int minY;
     private final int maxY;
     private final int height;
-    private final Object[] blocks;
+    /** Each column is stored as runs of equal blocks: runBlocks[col][i] fills the heights below runEnds[col][i] (exclusive, relative to minY). */
+    private final Object[][] runBlocks = new Object[CHUNK_SIZE_X * CHUNK_SIZE_Z][];
+    private final short[][] runEnds = new short[CHUNK_SIZE_X * CHUNK_SIZE_Z][];
     private final T airBlock;
 
     @SuppressWarnings("unchecked")
@@ -28,8 +30,20 @@ public final class ImmutableChunkSnapshot<T> implements VoxelSpace<T> {
         this.minY = minY;
         this.maxY = maxY;
         this.height = Math.max(1, maxY - minY);
-        this.blocks = Objects.requireNonNull(blocks, "blocks");
+        Objects.requireNonNull(blocks, "blocks");
         this.airBlock = airBlock;
+        Object[] tmpBlocks = new Object[height];
+        short[] tmpEnds = new short[height];
+        for (int col = 0; col < CHUNK_SIZE_X * CHUNK_SIZE_Z; col++) {
+            int base = col * height, n = 0;
+            for (int y = 0; y < height; y++) {
+                Object b = blocks[base + y];
+                if (n > 0 && tmpBlocks[n - 1] == b) { tmpEnds[n - 1] = (short) (y + 1); }
+                else { tmpBlocks[n] = b; tmpEnds[n] = (short) (y + 1); n++; }
+            }
+            runBlocks[col] = java.util.Arrays.copyOf(tmpBlocks, n);
+            runEnds[col] = java.util.Arrays.copyOf(tmpEnds, n);
+        }
     }
 
     public static <T> ImmutableChunkSnapshot<T> capture(int chunkX, int chunkZ, VoxelSpace<T> source, T airBlock) {
@@ -69,12 +83,23 @@ public final class ImmutableChunkSnapshot<T> implements VoxelSpace<T> {
         if (y < minY || y >= maxY) {
             return airBlock;
         }
-        int lx = x & 15;
-        int lz = z & 15;
+        int col = ((x & 15) << 4) | (z & 15);
         int yIdx = y - minY;
-        int idx = ((lx << 4) | lz) * height + yIdx;
-        T state = (T) blocks[idx];
+        short[] ends = runEnds[col];
+        int lo = 0, hi = ends.length - 1;
+        while (lo < hi) { int mid = (lo + hi) >>> 1; if (ends[mid] > yIdx) hi = mid; else lo = mid + 1; }
+        T state = (T) runBlocks[col][lo];
         return state != null ? state : airBlock;
+    }
+
+    /** The stored block at a position, null when nothing was stored (the snapshot's air). The position must be inside the height range. */
+    public Object getRaw(int x, int y, int z) {
+        int col = ((x & 15) << 4) | (z & 15);
+        int yIdx = y - minY;
+        short[] ends = runEnds[col];
+        int lo = 0, hi = ends.length - 1;
+        while (lo < hi) { int mid = (lo + hi) >>> 1; if (ends[mid] > yIdx) hi = mid; else lo = mid + 1; }
+        return runBlocks[col][lo];
     }
 
     @Override
@@ -100,6 +125,12 @@ public final class ImmutableChunkSnapshot<T> implements VoxelSpace<T> {
 
     /** Copies one column (all heights) into dst starting at dstOffset; used to assemble context regions without per-block calls. */
     public void copyColumn(int lx, int lz, Object[] dst, int dstOffset, int count) {
-        System.arraycopy(blocks, ((lx << 4) | lz) * height, dst, dstOffset, Math.min(count, height));
+        int col = (lx << 4) | lz, n = Math.min(count, height), from = 0;
+        short[] ends = runEnds[col];
+        for (int i = 0; i < ends.length && from < n; i++) {
+            int to = Math.min(n, ends[i]);
+            java.util.Arrays.fill(dst, dstOffset + from, dstOffset + to, runBlocks[col][i]);
+            from = to;
+        }
     }
 }

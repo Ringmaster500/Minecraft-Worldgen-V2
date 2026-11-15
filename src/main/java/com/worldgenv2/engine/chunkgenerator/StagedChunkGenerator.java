@@ -456,6 +456,7 @@ public final class StagedChunkGenerator<T> {
         // Distribution props (positions -> scanner -> assignments) run as Prop Runtime stages over a context region:
         // every anchor that can reach this chunk is evaluated against deterministic neighbour terrain, so nothing clips at a border.
         final int ctxMinY = minY, ctxMaxY = maxY;
+        contextCache.ensureCapacity(propPass.tilesPerChunk() * 16);
         propPass.run(chunkX, chunkZ, voxelSpace, b -> b != null && !b.equals(airBlock) && !fluidTest.test(b), (cx, cz) -> getTerrainTile(cx, cz, ctxMinY, ctxMaxY));
 
         // Capture immutable snapshot at stage 1

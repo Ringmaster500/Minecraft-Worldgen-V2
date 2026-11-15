@@ -45,8 +45,11 @@ public final class OffsetDensity implements DensityFunction {
         return input.compute(x + offsetX, y + offsetY, z + offsetZ);
     }
 
+    @Override public boolean yIndependent() { return input.yIndependent(); }
+
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+        if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         if (integerYOffset) {
             input.computeColumn(x + offsetX, z + offsetZ, minY + intOffsetY, maxY + intOffsetY, out);
         } else {

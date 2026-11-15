@@ -37,6 +37,9 @@ public interface DensityFunction {
         }
     }
 
+    /** True when the value does not depend on Y, so a whole column needs one evaluation. Only ever answer true when certain. */
+    default boolean yIndependent() { return false; }
+
     default DensityFunction add(DensityFunction other) {
         return new SumDensity(this, other);
     }
