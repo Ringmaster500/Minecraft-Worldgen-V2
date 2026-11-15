@@ -1,6 +1,6 @@
 [
   {"id": "start", "section": "Getting started", "title": "What the Studio is", "body": [
-    "# What the Studio is",
+    "# Overview",
     "The Studio is where you build a world setup: a folder of files that tells Worldgen V2 how to generate a world. You edit it with forms and node graphs, and see the result on a map or in the world you are standing in.",
     "# The pieces",
     "- World Settings: the height of the world and sea level.",

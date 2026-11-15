@@ -25,11 +25,22 @@ final class GuideView extends Widget {
     private String linesFor = "";
     private int linesW = -1;
     private String builtFilter = null;
+    private final Button addRecipe = new Button("Add to my setup", () -> {});
 
     GuideView(StudioApp app) {
         this.app = app;
         add(search);
         search.onChange = s -> { builtFilter = null; navScroll = 0; };
+        add(addRecipe);
+        addRecipe.style(Button.Style.PRIMARY);
+        addRecipe.tooltip = "Adds this biome to the open world setup so you can open it in the Graph and change it";
+        addRecipe.onClick = () -> {
+            GuideRecipes.Recipe r = selectedId.startsWith("recipe:") ? GuideRecipes.byId(selectedId.substring(7)) : null;
+            if (r == null) return;
+            if (app.project == null) { app.say("Open a world setup first (the project button at the top), then add this biome to it.", Ui.YELLOW); return; }
+            app.guideOpen = false;
+            app.importBiome(r.id().startsWith("guide_") ? r.id() : "guide_" + r.id(), r.biome());
+        };
     }
 
     @Override
@@ -126,6 +137,8 @@ final class GuideView extends Widget {
             g.textMid(p.title(), px, y + 8, 14, Ui.ACCENT);
         }
         g.hline(px, y + 26, pw, Ui.LINE);
+        addRecipe.visible = p.id().startsWith("recipe:");
+        if (addRecipe.visible) addRecipe.setBounds(px + pw - 130, y + 6, 130, 16);
 
         if (!p.id().equals(demoFor)) {
             if (demo != null) { remove(demo); demo = null; }

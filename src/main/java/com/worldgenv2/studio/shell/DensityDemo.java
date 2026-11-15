@@ -43,14 +43,20 @@ final class DensityDemo extends Widget {
             if (!seenKeys.add(p.key().toLowerCase(java.util.Locale.ROOT))) continue;
             addControl(p);
         }
-        viewSize = add(new Slider(32, 1024, 16, 256, true, v -> dirty = true));
+        this.curve = type.kind().equals("curve");
+        viewSize = add(curve ? new Slider(0.5, 20, 0.5, 2, false, v -> dirty = true) : new Slider(32, 1024, 16, 256, true, v -> dirty = true));
         sliceY = add(new Slider(-64, 320, 4, 90, true, v -> dirty = true));
+        sliceY.visible = !curve;
         this.h = 214;
     }
 
-    /** A demo for this node, or null when it is not a density node the engine can build on its own. */
+    private final boolean curve;
+    private com.worldgenv2.curve.Curve curveFn;
+    private final float[] plot = new float[160];
+
+    /** A demo for this node, or null when it is not a density or curve node the engine can build on its own. */
     static DensityDemo forNode(NodeSchemas.NodeType t) {
-        if (!t.kind().equals("density")) return null;
+        if (!t.kind().equals("density") && !t.kind().equals("curve")) return null;
         DensityDemo d = new DensityDemo(t);
         d.rebuild();
         return d.error == null ? d : null;
@@ -59,6 +65,17 @@ final class DensityDemo extends Widget {
     private void fillInputs() {
         int n = 0;
         for (NodeSchemas.Slot s : type.slots()) {
+            if (type.kind().equals("curve") && s.kind().equals("curve")) {
+                // a stand-in curve that rises from -1 to 1, so what this node does to its input is easy to see
+                JsonObject c = new JsonObject();
+                c.addProperty("type", "Manual");
+                JsonArray pts = new JsonArray();
+                for (double[] pt : new double[][]{{-1, -1}, {1, 1}}) { JsonObject p = new JsonObject(); p.addProperty("in", pt[0]); p.addProperty("out", pt[1]); pts.add(p); }
+                c.add("points", pts);
+                if (s.multi()) { JsonArray arr = new JsonArray(); arr.add(c); arr.add(c.deepCopy()); json.add(s.key(), arr); } else json.add(s.key(), c);
+                standIns.add(s.key() + " = a straight line from -1 to 1");
+                continue;
+            }
             if (!(s.kind().equals("density") || s.kind().equals("any"))) continue;
             if (s.multi()) {
                 JsonArray arr = new JsonArray();
@@ -123,9 +140,17 @@ final class DensityDemo extends Widget {
         try {
             JsonAstCompiler.registerBuiltInTypes();
             Map<String, Object> map = (Map<String, Object>) new JsonAstCompiler.SimpleJsonParser(json.toString()).parseValue();
-            fn = JsonAstCompiler.compileDensity(map, new JsonAstCompiler.CompileContext(1234L));
-            float probe = fn.compute(3.5f, 70f, 9.5f);
-            error = Float.isNaN(probe) && false ? "gives no value" : null;
+            JsonAstCompiler.CompileContext ctx = new JsonAstCompiler.CompileContext(1234L);
+            if (curve) {
+                curveFn = JsonAstCompiler.compileCurve(map, ctx);
+                double probe = curveFn.evaluate(0.25);
+                error = curveFn == null ? "no curve" : null;
+                if (Double.isNaN(probe) && false) error = "no value";
+            } else {
+                fn = JsonAstCompiler.compileDensity(map, ctx);
+                fn.compute(3.5f, 70f, 9.5f);
+                error = null;
+            }
         } catch (Throwable t) {
             fn = null;
             error = String.valueOf(t.getMessage());
@@ -133,6 +158,13 @@ final class DensityDemo extends Widget {
     }
 
     private void evaluate() {
+        if (curve) {
+            if (curveFn == null) return;
+            double r = viewSize.value;
+            try { for (int i = 0; i < plot.length; i++) plot[i] = (float) curveFn.evaluate(-r + 2 * r * i / (plot.length - 1.0)); }
+            catch (Throwable t) { error = String.valueOf(t.getMessage()); }
+            return;
+        }
         if (fn == null) return;
         float span = (float) viewSize.value;
         float y = (float) sliceY.value;
@@ -159,6 +191,30 @@ final class DensityDemo extends Widget {
         sliceY.setBounds(cx + 74, y + h - 20, cw - 74, 16);
     }
 
+    private void drawCurve(Gfx g, int px, int py) {
+        int pw = Math.min(GRID * CELL + 130, x + w - px - 10), ph = GRID * CELL;
+        g.box(px, py, pw, ph, Ui.BG_INPUT, Ui.LINE_STRONG);
+        float lo = Float.MAX_VALUE, hi = -Float.MAX_VALUE;
+        for (float v : plot) { if (Float.isNaN(v) || Float.isInfinite(v)) continue; lo = Math.min(lo, v); hi = Math.max(hi, v); }
+        if (lo > hi) return;
+        lo = Math.min(lo, -1f); hi = Math.max(hi, 1f);
+        float span = hi - lo;
+        int zeroY = py + ph - 1 - (int) ((0 - lo) / span * (ph - 2));
+        g.hline(px, zeroY, pw, Ui.LINE_STRONG);
+        g.vline(px + pw / 2, py, ph, Ui.LINE_STRONG);
+        int prevX = -1, prevY = -1;
+        for (int i = 0; i < plot.length; i++) {
+            if (Float.isNaN(plot[i])) { prevX = -1; continue; }
+            int cx = px + 1 + (int) ((long) i * (pw - 3) / (plot.length - 1));
+            int cy = py + ph - 1 - (int) ((plot[i] - lo) / span * (ph - 2));
+            cy = Math.max(py, Math.min(py + ph - 1, cy));
+            if (prevX >= 0) { int a = Math.min(prevY, cy), b = Math.max(prevY, cy); g.fill(cx, a, 2, Math.max(1, b - a + 1), Ui.ACCENT); }
+            else g.fill(cx, cy, 2, 2, Ui.ACCENT);
+            prevX = cx; prevY = cy;
+        }
+        g.textMid("output against input (the line you set; the grey cross is zero)", px, py + ph + 1, 12, Ui.TEXT_FAINT);
+    }
+
     private static int shade(float v) {
         if (Float.isNaN(v)) return 0xFFFF00FF;
         float t = Math.max(-1f, Math.min(1f, v));
@@ -174,14 +230,15 @@ final class DensityDemo extends Widget {
         g.box(x, y, w, h, Ui.BG_RAISED, Ui.LINE);
         g.textMid("TRY IT  (the real node, run live)", x + 6, y + 2, 16, Ui.ACCENT);
         for (int i = 0; i < controls.size(); i++) g.textMid(g.fit(labels.get(i), 70), x + 6, controls.get(i).y, 16, Ui.TEXT_DIM);
-        g.textMid("view (blocks)", x + 6, viewSize.y, 16, Ui.TEXT_DIM);
-        g.textMid("slice at Y", x + 6, sliceY.y, 16, Ui.TEXT_DIM);
+        g.textMid(curve ? "input range +-" : "view (blocks)", x + 6, viewSize.y, 16, Ui.TEXT_DIM);
+        if (!curve) g.textMid("slice at Y", x + 6, sliceY.y, 16, Ui.TEXT_DIM);
 
         if (error != null) {
             g.textFit("Cannot run this node here: " + error, x + 214, y + 24, 14, w - 220, Ui.RED);
             return;
         }
         int px = x + 214, py = y + 22;
+        if (curve) { drawCurve(g, px, py); return; }
         for (int j = 0; j < GRID; j++) for (int i = 0; i < GRID; i++) g.fill(px + i * CELL, py + j * CELL, CELL, CELL, shade(slice[j * GRID + i]));
         g.border(px - 1, py - 1, GRID * CELL + 2, GRID * CELL + 2, Ui.LINE_STRONG);
         g.textMid("top-down slice", px, py + GRID * CELL + 1, 12, Ui.TEXT_FAINT);

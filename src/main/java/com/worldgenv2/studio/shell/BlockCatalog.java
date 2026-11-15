@@ -18,7 +18,26 @@ import java.util.Map;
 final class BlockCatalog {
     private BlockCatalog() {}
 
-    record Entry(String id, String name, String mod, ItemStack stack, String search) {}
+    /** The icon is made on first use: item components are not bound until a world is loaded, so it cannot be built up front. */
+    static final class Entry {
+        private final String id, name, mod, search;
+        private final Item item;
+        private ItemStack stack;
+
+        Entry(String id, String name, String mod, Item item, String search) { this.id = id; this.name = name; this.mod = mod; this.item = item; this.search = search; }
+
+        String id() { return id; }
+        String name() { return name; }
+        String mod() { return mod; }
+        String search() { return search; }
+
+        /** The block's item picture, or an empty stack while the game cannot make one yet (the title screen). */
+        ItemStack stack() {
+            if (stack != null) return stack;
+            try { stack = new ItemStack(item); } catch (RuntimeException e) { return ItemStack.EMPTY; }
+            return stack;
+        }
+    }
 
     private static List<Entry> all;
     private static final Map<String, Entry> BY_ID = new HashMap<>();
@@ -30,13 +49,13 @@ final class BlockCatalog {
             Identifier id = BuiltInRegistries.BLOCK.getKey(b);
             if (id == null || b == Blocks.AIR) continue;
             Item item = b.asItem();
-            ItemStack stack;
-            if (b == Blocks.WATER) stack = new ItemStack(Items.WATER_BUCKET);
-            else if (b == Blocks.LAVA) stack = new ItemStack(Items.LAVA_BUCKET);
+            Item icon;
+            if (b == Blocks.WATER) icon = Items.WATER_BUCKET;
+            else if (b == Blocks.LAVA) icon = Items.LAVA_BUCKET;
             else if (item == Items.AIR) continue;      // technical blocks without an item have no icon to show
-            else stack = new ItemStack(item);
+            else icon = item;
             String name = b.getName().getString();
-            Entry e = new Entry(id.toString(), name, id.getNamespace(), stack, (name + " " + id).toLowerCase(Locale.ROOT));
+            Entry e = new Entry(id.toString(), name, id.getNamespace(), icon, (name + " " + id).toLowerCase(Locale.ROOT));
             out.add(e);
             BY_ID.put(e.id(), e);
         }

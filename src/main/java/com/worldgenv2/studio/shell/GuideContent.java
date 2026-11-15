@@ -42,8 +42,21 @@ final class GuideContent {
                 }
             }
         } catch (Exception ignored) { }
+        for (GuideRecipes.Recipe r : GuideRecipes.all()) {
+            out.add(new Page("recipe:" + r.id(), "Teaching setups", r.title(), r.lines(), null,
+                    (r.title() + " teaching setup example tutorial " + String.join(" ", r.lines())).toLowerCase(Locale.ROOT)));
+        }
+        String[] aliasSuffixes = {"Density", "MaterialProvider", "Provider", "Prop", "Pattern", "Scanner", "Curve"};
         for (String kind : NodeSchemas.KINDS) {
+            java.util.Set<String> names = new java.util.HashSet<>();
+            for (NodeSchemas.NodeType t : NodeSchemas.ofKind(kind)) names.add(t.name().toLowerCase(Locale.ROOT));
             for (NodeSchemas.NodeType t : NodeSchemas.ofKind(kind)) {
+                // Hytale's short name is the real one; our long spelling of the same node (AbsDensity) would only be a duplicate page
+                boolean alias = false;
+                for (String suf : aliasSuffixes) {
+                    if (t.name().endsWith(suf) && t.name().length() > suf.length() && names.contains(t.name().substring(0, t.name().length() - suf.length()).toLowerCase(Locale.ROOT))) { alias = true; break; }
+                }
+                if (alias) continue;
                 JsonObject w = wikiFor(t.name());
                 String text = t.name() + " " + kind + " " + (w == null ? "" : w.has("doc") ? w.get("doc").getAsString() : "");
                 out.add(new Page("node:" + kind + ":" + t.name(), "Nodes: " + kind, t.name(), List.of(), t, text.toLowerCase(Locale.ROOT)));
