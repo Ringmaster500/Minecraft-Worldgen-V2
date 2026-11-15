@@ -22,12 +22,14 @@ public final class Shell extends Widget {
     private final ProblemsPanel problems;
     private final StatusBar status;
     private final HomeView home;
+    private final GuideView guide;
     private int explorerW = 220;
 
     public Shell(StudioApp app, Runnable onClose) {
         this.app = app;
         top = add(new TopBar(app, onClose));
         home = add(new HomeView(app, () -> root));
+        guide = add(new GuideView(app));
         explorer = add(new Explorer(app));
         docs = add(new DocPane(app));
         problems = add(new ProblemsPanel(app));
@@ -45,9 +47,11 @@ public final class Shell extends Widget {
         status.setBounds(x, y + h - Ui.STATUS_H, w, Ui.STATUS_H);
         int bodyY = y + Ui.TOPBAR_H;
         int bodyH = h - Ui.TOPBAR_H - Ui.STATUS_H;
-        home.visible = !has;
-        explorer.visible = docs.visible = splitter.visible = has;
-        problems.visible = has && app.problemsOpen;
+        home.visible = !has && !app.guideOpen;
+        guide.visible = app.guideOpen;
+        explorer.visible = docs.visible = splitter.visible = has && !app.guideOpen;
+        problems.visible = has && app.problemsOpen && !app.guideOpen;
+        if (app.guideOpen) { guide.setBounds(x, bodyY, w, bodyH); return; }
         if (!has) {
             home.setBounds(x, bodyY, w, bodyH);
             return;

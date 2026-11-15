@@ -4,7 +4,7 @@ import com.worldgenv2.studio.ui.*;
 
 final class TopBar extends Widget {
     private final StudioApp app;
-    private Button project, undo, redo, save, close, apply, regen, liveBtn, pinBtn, radBtn; // not final: the project button's lambda refers to itself
+    private Button project, undo, redo, save, close, apply, regen, liveBtn, pinBtn, radBtn, guideBtn; // not final: the project button's lambda refers to itself
     private final Runnable onClose;
 
     TopBar(StudioApp app, Runnable onClose) {
@@ -19,6 +19,8 @@ final class TopBar extends Widget {
         apply.tooltip = "Save, make this the active project and re-compile it into the open world  (Ctrl+Enter)";
         regen = add(new Button("Regen", app::regenAroundPlayer));
         regen.tooltip = "Rebuild the whole world generated so far (saved chunks and everything around you) with the current setup. Player builds in those chunks are replaced.";
+        guideBtn = add(new Button("Guide", () -> app.guideOpen = !app.guideOpen));
+        guideBtn.tooltip = "How to use the Studio, and what every node does, with live demos";
         liveBtn = add(new Button("Live", () -> app.setLive(!app.live)));
         liveBtn.tooltip = "Live preview: after each edit, rebuild only a square of chunks around you so you see the change in the world";
         pinBtn = add(new Button("Pin", app::repinLive));
@@ -44,6 +46,8 @@ final class TopBar extends Widget {
         pinBtn.visible = radBtn.visible = has && app.live;
         int rx = x + w - 6 - 20;
         close.setBounds(rx, by, 20, 18);
+        guideBtn.setBounds(rx - 4 - 40, by, 40, 18);
+        rx -= 44;
         rx -= 54 + 6;
         save.setBounds(rx, by, 54, 18);
         redo.setBounds(rx - 6 - 44, by, 44, 18);
@@ -72,6 +76,7 @@ final class TopBar extends Widget {
         redo.enabled = has && app.project.canRedo();
         save.enabled = has && app.project.isDirty();
         regen.enabled = LiveWorld.inWorld();
+        guideBtn.selected = app.guideOpen;
         liveBtn.selected = app.live;
         liveBtn.enabled = LiveWorld.inWorld();
         radBtn.label = "r" + app.liveRadius;

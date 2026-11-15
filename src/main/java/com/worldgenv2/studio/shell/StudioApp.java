@@ -29,6 +29,7 @@ public final class StudioApp {
     public String activeDoc;
     public final Map<String, View> views = new HashMap<>();
     public boolean problemsOpen;
+    public boolean guideOpen;
     public boolean previewOpen = true;
     public int uiScale = 2;
     /** Bumped by app-level changes (doc open/close, status) so views know to refresh. */

@@ -1,0 +1,82 @@
+[
+  {"id": "start", "section": "Getting started", "title": "What the Studio is", "body": [
+    "# What the Studio is",
+    "The Studio is where you build a world setup: a folder of files that tells Worldgen V2 how to generate a world. You edit it with forms and node graphs, and see the result on a map or in the world you are standing in.",
+    "# The pieces",
+    "- World Settings: the height of the world and sea level.",
+    "- Dimensions: the overworld and any other dimension. Each one says which biomes exist, where, and what else is generated.",
+    "- Biomes: what the ground is made of and what grows on it. A biome is a small graph of nodes.",
+    "- Zones, Placement rules and Prefabs are optional extras.",
+    "# Opening it",
+    "Press G, type /studio, or press the Studio button on the pause screen. Inside a world it opens the setup that world was made from."
+  ]},
+  {"id": "worlds", "section": "Getting started", "title": "World setups and worlds", "body": [
+    "# A world remembers its setup",
+    "When you create a world you choose a world setup on the Customize screen. The world keeps that setup for good (it is saved in the world's folder), so choosing a different setup for the next world never changes the old one.",
+    "# Editing a world",
+    "Opening the Studio in a world edits that world's setup. Press Apply to recompile it into the world. New chunks use the change at once; use Regen to rebuild chunks that already exist.",
+    "# Heights",
+    "World Settings sets Min Y and the depth. A world gets the height its setup asks for when it is created. The default is Y -64 to 320. Existing worlds keep their height."
+  ]},
+  {"id": "tour", "section": "Getting started", "title": "The top bar", "body": [
+    "# Buttons",
+    "- Undo and Redo go through every edit in this setup.",
+    "- Save writes your changes to disk (Ctrl+S).",
+    "- Apply saves and recompiles the setup into the world you are in (Ctrl+Enter).",
+    "- Regen rebuilds every chunk generated so far, so old terrain picks up the change. Blocks you placed in those chunks are replaced.",
+    "- Live rebuilds only a square of chunks around you after each edit, so you watch your change happen. Pin moves the square to where you stand, and the r button sets how big it is.",
+    "- Guide opens this guide."
+  ]},
+  {"id": "dimension", "section": "Editors", "title": "The dimension editor", "body": [
+    "# Biomes come from",
+    "Choose Your biome pool for random regions of the biomes you list, or a Hytale zone to let Hytale's own map decide where its biomes go. While a Hytale zone is chosen your pool is not used.",
+    "# Biome pool",
+    "Each row is a biome the dimension may use. Weight is how common it is compared with the others. Size makes its regions bigger or smaller. Blend is how far it fades into its neighbours. Add all missing adds every biome you have made.",
+    "# Features",
+    "Zones, spawn structure, connected structures, points of interest, placement rules, ores, terrain shapes and pillar rings each have Off, Default and Custom. Off does nothing (your settings are kept). Default is the built-in behaviour. Custom is yours to edit.",
+    "# World edge, rivers, caves, oceans",
+    "Base block and Fluid are the stone and liquid the world is made of. Rivers and caves can be classic (simple settings) or a node graph in the Hytale way. Ocean depth scales how deep the seas are without touching land.",
+    "# The map",
+    "The Map shows the biome layout from the real engine. Drag to pan, scroll to zoom. Click a spot to teleport there while in a world."
+  ]},
+  {"id": "biome", "section": "Editors", "title": "The biome editor", "body": [
+    "# Form view",
+    "Name, category and the Minecraft biome it uses for sky colour, grass colour, mobs and music. Weight, size and blend decide how often and how large it appears. The climate pad places it among its neighbours.",
+    "# Graph view",
+    "The graph is the biome. Its output node has three sockets: Terrain (a density that shapes the ground), Material (what the ground is made of) and Props (what grows or is built on it). Wire nodes into those sockets.",
+    "# JSON view",
+    "Shows the same biome as text. Everything the graph can do is here too, and you can paste in nodes from Hytale files."
+  ]},
+  {"id": "graph", "section": "Editors", "title": "Using the node graph", "body": [
+    "# Adding nodes",
+    "Double-click a node or empty space, or right-click, to open a search box. Type part of a name and press Enter. Or click an empty input on a node to add something that fits it.",
+    "# Moving around",
+    "Drag empty space to pan and scroll to zoom. Press F to fit everything on screen.",
+    "# Editing",
+    "Click a node to see its settings on the right. Right-click for Wrap in, Replace with, Duplicate, Copy and Delete. Delete or Backspace removes the selected node and what is under it.",
+    "# Blocks",
+    "Any block field has a Pick button: a searchable list of every block with its picture."
+  ]},
+  {"id": "terrain", "section": "How it fits together", "title": "How terrain is made", "body": [
+    "# Density",
+    "Terrain is a number for every point in space. Above zero the point is solid, below zero it is air. The surface is where the number crosses zero.",
+    "# Building a hill",
+    "Start with a vertical gradient (high near the ground, falling with height), add a noise so it varies from place to place, and the zero line becomes rolling ground. Add more noise at a larger scale for mountains. Multiply a noise by another to make some areas flat and others rough.",
+    "# Why nodes",
+    "Each node does one small job: make noise, add two things, clamp, remap with a curve. Wiring them together builds the field."
+  ]},
+  {"id": "materials", "section": "How it fits together", "title": "Materials and props", "body": [
+    "# Materials",
+    "A material provider says what block goes at each spot of solid ground: for example grass on top, then dirt, then stone. Queue tries its children in order, SpaceAndDepth measures how deep a block is below the surface, and Constant is one block everywhere.",
+    "# Props",
+    "A prop is something placed on the ground: a tree, a bush, a rock, a prefab. Positions decide where to try, a scanner searches for a good spot, and the prop is built there. Masks stop props replacing or covering the wrong blocks."
+  ]},
+  {"id": "hytale", "section": "Hytale", "title": "Using Hytale's content", "body": [
+    "# Hytale assets",
+    "If Hytale is installed, a dimension can read its files in place. Set hytale.assets to the Assets.zip path and hytale.worldStructure to a zone such as Zone1_Plains1. Nothing is copied; it is read when the setup compiles.",
+    "# Importing a biome",
+    "The plus next to Biomes offers every Hytale biome. Importing copies it into your setup so you can edit it.",
+    "# Blocks",
+    "Hytale block names are mapped to the nearest Minecraft block. Stairs, halves, logs, vines and dripstone keep their orientation."
+  ]}
+]

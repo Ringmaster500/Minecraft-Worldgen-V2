@@ -98,7 +98,7 @@ Nothing from vanilla generation runs (`applyBiomeDecoration`, `createStructures`
 **Studio**: the shell, editors, graph, map, block picker, new-biome and new-dimension lists, live region preview, per-world setups, a Biome map switch, and the dev bridge.
 
 ## 5. Verification
-- `./gradlew verifyEngine verifyGemini verifyPhase33 verifyWorldHeight` (the chain also runs verifyPhase3..32). All pass.
+- `./gradlew verifyEngine verifyGemini verifyPhase33 verifyWorldHeight` and `verifyGuide` (the chain also runs verifyPhase3..32). All pass.
 - **Same output after optimising**: `tools\samecheck.ps1` hashes 75 chunks in three areas (the `/hash` route) against `tools\samecheck_reference.txt` (valid for the 384-tall `projtest` world). Prefab changes intentionally alter output for Hytale prefabs, so that reference needs regenerating after them.
 - `tools\benchgen.ps1` times first view-radius generation (`-Profile` records JFR, `tools\jfrtop.ps1` summarises; `WG2_COUNTERS=1` writes per-chunk timings).
 - Probes: `probeHytaleAssets`, `probeHytaleCoverage`, `probeHytaleDensity`, `probeHytaleSpeed`.
@@ -129,7 +129,7 @@ Windows PowerShell pitfalls seen repeatedly: `R` alias clashes, backtick quoting
 5. Remaining parity items from section 6.
 6. Optional: Voxy adapter, density bytecode compiler.
 
-### 8.1 The in-game wiki (planned)
+### 8.1 The in-game wiki (started: the Guide button)
 A **Guide** tab inside the Studio, opened from the top bar (and from any editor with a "?" next to a field or node). Built from data already in the repo, not hand-copied.
 
 - **How-to sections**: the Studio overall; the biome editor; the dimension editor (each feature: zones, spawn, landmarks, rivers, caves, ores, height); the graph editor; the map and Live preview; world setups and how worlds remember them; importing from Hytale and presets; addons.
@@ -137,6 +137,8 @@ A **Guide** tab inside the Studio, opened from the top bar (and from any editor 
 - **Interactive demos**: for a node where it makes sense, a small simulated preview with sliders for the node's parameters and a stand-in for every input it needs, so the effect can be seen and played with. Order of build: density nodes first (a 1D curve and a 2D heightmap preview, since most terrain nodes are densities), then curves, then materials (a column of blocks), then positions and scanners (dots on a grid), then props (a stamped footprint). The preview evaluates the real engine node, not a copy, so it cannot drift from the game.
 - **Teaching setups**: short guided examples that load into a scratch setup: a flat biome, rolling hills, mountains with snow, a beach, a forest with trees, a river, a cave, a floating island. Each explains why every node is there.
 - **Search** across everything; links between pages (a node page lists what it commonly connects to).
+
+Built so far: the Guide tab (top bar), search, nine written how-to pages (`guide.json`), a generated page for every node (421 of them, from the schemas plus `node_wiki.json`), and a live demo for density nodes (`DensityDemo`: sliders for the settings, stand-ins for the inputs, a top-down slice and a height profile, run by the real engine; 109 of 111 density nodes build one). Still to build: demos for curve, material, positions, scanner and prop nodes; the teaching setups; more how-to text; "?" links from editors into pages.
 
 Build order for 8.1: the page framework and search; the node reference generated from the schemas; the how-to text; density demos; the teaching setups; remaining demo kinds.
 
