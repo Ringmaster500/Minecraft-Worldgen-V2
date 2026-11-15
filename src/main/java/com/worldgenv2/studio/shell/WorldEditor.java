@@ -11,6 +11,7 @@ final class WorldEditor extends Editor {
 
     private static final Preset[] PRESETS = {
             new Preset("standard", "Standard (Y -64 to 320)", -64, 384, 63),
+            new Preset("hytale_320", "Hytale Default 320 (Y 0 to 320)", 0, 320, 100),
             new Preset("hytale_512", "Hytale Canonical 512 (Y 0 to 512)", 0, 512, 128),
             new Preset("hytale_extended", "Hytale Extended 576 (Y -64 to 512)", -64, 576, 128),
             new Preset("epic_1024", "Epic 1024 (Y -64 to 960)", -64, 1024, 128),
@@ -31,7 +32,8 @@ final class WorldEditor extends Editor {
         field("Ceiling Y", ceiling);
         bind(() -> ceiling.text = String.valueOf((int) (getNum("minY", -64) + getNum("genDepth", 384))));
         block(new HeightBar());
-        note("Edits save with Ctrl+S. Dimensions inherit this range.", Ui.TEXT_FAINT);
+        note("Edits save with Ctrl+S. Dimensions inherit this range. A world gets this height when it is created from this setup: change it, save, "
+            + "then create the world (a height you have not used before is ready the next time the Create World screen opens).", Ui.TEXT_FAINT);
     }
 
     private Dropdown choiceNoEdit() {

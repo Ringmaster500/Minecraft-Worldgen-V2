@@ -207,6 +207,28 @@ public final class DevBridge {
                 q.getOrDefault("text", "").codePoints().forEach(cp -> scr.charTyped(new CharacterEvent(cp)));
                 return ok();
             });
+            case "/newworld" -> onRender(() -> {
+                // name, project (a world setup), preset (default worldgenv2:project): a fresh world with the setup's height
+                String name = q.getOrDefault("name", "devworld");
+                String project = q.getOrDefault("project", "");
+                try {
+                    if (!project.isBlank()) com.worldgenv2.pack.ProjectRuntime.setActiveProject(project);
+                } catch (Exception e) { return "{\"error\":\"" + esc(String.valueOf(e)) + "\"}"; }
+                int[] h = project.isBlank() ? null : com.worldgenv2.minecraft.WorldHeightDimensions.heightOf(project);
+                if (q.containsKey("minY")) h = new int[]{(int) d(q, "minY"), (int) d(q, "depth", 384)};
+                final int[] height = h;
+                Minecraft mc = Minecraft.getInstance();
+                var settings = new net.minecraft.world.level.LevelSettings(name, net.minecraft.world.level.GameType.CREATIVE,
+                    net.minecraft.world.level.LevelSettings.DifficultySettings.DEFAULT, true, net.minecraft.world.level.WorldDataConfiguration.DEFAULT);
+                var options = new net.minecraft.world.level.levelgen.WorldOptions(d(q, "seed", 1337) == 0 ? 1337L : (long) d(q, "seed", 1337), true, false);
+                var presetKey = net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.WORLD_PRESET,
+                    net.minecraft.resources.Identifier.parse(q.getOrDefault("preset", "worldgenv2:project")));
+                mc.createWorldOpenFlows().createFreshLevel(name, settings, options, provider -> {
+                    var dims = provider.lookupOrThrow(net.minecraft.core.registries.Registries.WORLD_PRESET).getOrThrow(presetKey).value().createWorldDimensions();
+                    return height == null ? dims : com.worldgenv2.minecraft.WorldHeightDimensions.apply(provider, dims, height[0], height[1]);
+                }, mc.screen);
+                return ok();
+            });
             case "/openproject" -> onRender(() -> {
                 var app = com.worldgenv2.studio.shell.StudioApp.get();
                 app.openProject(q.getOrDefault("name", ""));

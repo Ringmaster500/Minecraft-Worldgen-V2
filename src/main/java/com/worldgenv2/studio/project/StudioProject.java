@@ -201,6 +201,12 @@ public final class StudioProject {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             a.dirty = false;
             a.parseError = null;
+            if (Asset.WORLD_PATH.equals(a.path) && a.json != null) {
+                // a world setup's height becomes a registered dimension type, ready for the next world created from it
+                int minY = a.json.has("minY") ? a.json.get("minY").getAsInt() : -64;
+                int depth = a.json.has("genDepth") ? a.json.get("genDepth").getAsInt() : 384;
+                com.worldgenv2.minecraft.HeightPack.ensure(minY, depth);
+            }
             return true;
         } catch (IOException e) {
             a.problems.add(new Asset.Problem(Asset.Severity.ERROR, a.path, "Could not save: " + e.getMessage()));

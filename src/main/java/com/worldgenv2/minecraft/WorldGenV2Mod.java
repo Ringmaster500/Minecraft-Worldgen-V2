@@ -52,6 +52,10 @@ public final class WorldGenV2Mod {
         CHUNK_GENERATORS.register(modEventBus);
         BIOME_SOURCES.register(modEventBus);
 
+        // heights: one dimension type per world setup's height, offered as an always-on data pack
+        HeightPack.ensureAll();
+        modEventBus.addListener(HeightPack::register);
+
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::onCreateSpawnPosition);
 

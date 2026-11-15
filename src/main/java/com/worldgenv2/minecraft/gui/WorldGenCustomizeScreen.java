@@ -68,6 +68,12 @@ public class WorldGenCustomizeScreen extends Screen {
         try {
             if (sel.isProject()) {
                 ProjectRuntime.setActiveProject(sel.id());
+                // the new world gets the height the world setup asks for (Min Y and depth)
+                int[] h = com.worldgenv2.minecraft.WorldHeightDimensions.heightOf(sel.id());
+                if (h != null && parentScreen instanceof net.minecraft.client.gui.screens.worldselection.CreateWorldScreen create) {
+                    create.getUiState().updateDimensions((access, dims) ->
+                        com.worldgenv2.minecraft.WorldHeightDimensions.apply(access, dims, h[0], h[1]));
+                }
             } else {
                 Files.createDirectories(ProjectRuntime.activeFile().getParent());
                 JsonObject o = new JsonObject();

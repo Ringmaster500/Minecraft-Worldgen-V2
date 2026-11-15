@@ -217,7 +217,7 @@ final class LiveWorld {
                     if (bs.isAir()) continue;
                     counts.merge(bs.getBlock().builtInRegistryHolder().key().identifier().getPath(), 1, Integer::sum);
                 }
-                StringBuilder sb = new StringBuilder("chunk " + chunk.getPos().x() + "," + chunk.getPos().z());
+                StringBuilder sb = new StringBuilder("chunk " + chunk.getPos().x() + "," + chunk.getPos().z() + " Y " + minY + ".." + maxY);
                 if (level.getChunkSource().getGenerator() instanceof WorldGenV2ChunkGenerator v2) {
                     var q = v2.getActiveWorldStructure().queryBiome(x, z);
                     var tb = q.primaryTileBiome();
