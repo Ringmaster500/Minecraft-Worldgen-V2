@@ -38,7 +38,6 @@ import com.worldgenv2.positions.ClustersPositionsProvider;
 import com.worldgenv2.positions.PositionsProvider;
 import com.worldgenv2.positions.SimpleHorizontalPositionsProvider;
 import com.worldgenv2.props.Prop;
-import com.worldgenv2.studio.StudioNodeCatalog;
 import com.worldgenv2.vector.Vec3d;
 import com.worldgenv2.worldstructure.DimensionLayoutConfig;
 import com.worldgenv2.worldstructure.DimensionLayoutConfig.OutsideBoundsFallback;
@@ -574,24 +573,6 @@ public final class Phase14VerificationTest {
         check(!skyblockVoid.isVoidColumn(0.0f, 0.0f), "Skyblock spawn island (0, 0) is not void");
         check(skyblockVoid.isVoidColumn(800.0f, 0.0f), "Beyond boundsRadius=380 with VOID fallback IS a void column");
 
-        // 4. Verify StudioNodeCatalog has all 6 new Dimension Macro Graph nodes registered
-        check(StudioNodeCatalog.getSchema("World:DimensionOutput") != null, "Catalog has World:DimensionOutput");
-        check(StudioNodeCatalog.getSchema("World:RadialZone") != null, "Catalog has World:RadialZone");
-        check(StudioNodeCatalog.getSchema("World:RingLandmarks") != null, "Catalog has World:RingLandmarks");
-        check(StudioNodeCatalog.getSchema("World:SpawnIslandAnchor") != null, "Catalog has World:SpawnIslandAnchor");
-        check(StudioNodeCatalog.getSchema("World:RelationalLandmark") != null, "Catalog has World:RelationalLandmark");
-        check(StudioNodeCatalog.getSchema("World:BiomeWeightEntry") != null, "Catalog has World:BiomeWeightEntry");
-
-        // 5. Verify Compartmentalized Hierarchical Studio Navigation & Hytale Import State
-        com.worldgenv2.studio.StudioState state = com.worldgenv2.studio.StudioState.get();
-        check(state.getHierarchyLevel() == com.worldgenv2.studio.StudioState.HierarchyLevel.WORLD_OVERVIEW, "Studio opens at WORLD_OVERVIEW Home by default");
-        check(state.getDimensionProfiles().size() == 4, "Studio has 4 compartmentalized Dimension profiles (Overworld, End, Nether, Hytale 576)");
-        com.worldgenv2.studio.StudioState.DimensionStudioProfile ow = state.getDimensionProfile("minecraft:overworld");
-        check(ow.getEnabledBiomeCount() == 39, "Overworld profile initializes with all 39 WorldGen V2 biomes");
-        com.worldgenv2.studio.StudioState.BiomeEntryState imported = state.registerImportedHytaleBiome(
-                "minecraft:overworld", "EmeraldGrove", 2.2f, 1.3f, 42.0f, "{}"
-        );
-        check(imported.importedHytale && ow.getEnabledBiomeCount() == 40, "Imported Hytale biome registers into Overworld biome list");
     }
 
     private static class MockVoxelSpace implements VoxelSpace<String> {

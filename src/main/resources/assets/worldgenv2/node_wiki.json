@@ -1,0 +1,2197 @@
+{
+ "positions": {
+  "label": "cell",
+  "formula": "voronoi",
+  "doc": "points"
+ },
+ "clamp": {
+  "label": "limit",
+  "formula": "bound",
+  "doc": "range"
+ },
+ "normalizer": {
+  "label": "remap",
+  "formula": "range",
+  "doc": "scale"
+ },
+ "mix": {
+  "label": "lerp",
+  "formula": "blend",
+  "doc": "interpolate"
+ },
+ "multimix": {
+  "label": "array",
+  "formula": "blend",
+  "doc": "lerp"
+ },
+ "invert": {
+  "label": "negate",
+  "formula": "flip",
+  "doc": "minus"
+ },
+ "pow": {
+  "label": "power",
+  "formula": "exponent",
+  "doc": "math"
+ },
+ "fast": {
+  "label": "warp",
+  "formula": "gradient",
+  "doc": "overhang"
+ },
+ "vector": {
+  "label": "constant",
+  "formula": "direction",
+  "doc": "xyz"
+ },
+ "scale": {
+  "label": "stretch",
+  "formula": "frequency",
+  "doc": "transform"
+ },
+ "plane": {
+  "label": "flat",
+  "formula": "halfspace",
+  "doc": "sdf"
+ },
+ "DistanceToBiomeEdgeDensity": {
+  "label": "DistanceToBiomeEdge",
+  "formula": "D = distToEdge / maxDist",
+  "doc": "Normalized distance [0, 1] to the nearest Voronoi biome boundary for seamless edge blending."
+ },
+ "ComparatorDensity": {
+  "label": "ComparatorDensity",
+  "formula": "D = compare(A, B)",
+  "doc": "Compares two density inputs and outputs signed difference."
+ },
+ "EqualDensity": {
+  "label": "EqualDensity",
+  "formula": "D = |A - B| <= eps ? 1 : -1",
+  "doc": "Outputs +1 where A and B are equal within tolerance."
+ },
+ "GreaterThanDensity": {
+  "label": "GreaterThan",
+  "formula": "D = (A > B) ? 1 : -1",
+  "doc": "Boolean relational operator A > B."
+ },
+ "GreaterOrEqualDensity": {
+  "label": "GreaterOrEqual",
+  "formula": "D = (A >= B) ? 1 : -1",
+  "doc": "Boolean relational operator A >= B."
+ },
+ "LessThanDensity": {
+  "label": "LessThan",
+  "formula": "D = (A < B) ? 1 : -1",
+  "doc": "Boolean relational operator A < B."
+ },
+ "LessOrEqualDensity": {
+  "label": "LessOrEqual",
+  "formula": "D = (A <= B) ? 1 : -1",
+  "doc": "Boolean relational operator A <= B."
+ },
+ "AndDensity": {
+  "label": "AndDensity",
+  "formula": "D = (A > 0 && B > 0) ? 1 : -1",
+  "doc": "Logical AND gate on volumetric density sign."
+ },
+ "OrDensity": {
+  "label": "OrDensity",
+  "formula": "D = (A > 0 || B > 0) ? 1 : -1",
+  "doc": "Logical OR gate on volumetric density sign."
+ },
+ "NotDensity": {
+  "label": "NotDensity",
+  "formula": "D = (In <= 0) ? 1 : -1",
+  "doc": "Logical NOT gate on volumetric density sign."
+ },
+ "NorDensity": {
+  "label": "NorDensity",
+  "formula": "D = !(A > 0 || B > 0)",
+  "doc": "Logical NOR gate on volumetric density sign."
+ },
+ "XorDensity": {
+  "label": "XorDensity",
+  "formula": "D = (A > 0) ^ (B > 0)",
+  "doc": "Logical XOR gate on volumetric density sign."
+ },
+ "SelectorDensity": {
+  "label": "SelectorDensity",
+  "formula": "D = (Cond >= min && Cond <= max) ? TrueIn : FalseIn",
+  "doc": "Selects between two density branches based on a condition range."
+ },
+ "SwitchDensity": {
+  "label": "SwitchDensity",
+  "formula": "D = CaseBranch(Selector)",
+  "doc": "Multi-branch switch selector across density subgraphs."
+ },
+ "SwitchState": {
+  "label": "SwitchStateDensity",
+  "formula": "D = StateMap[ActiveState]",
+  "doc": "Evaluates different density subgraphs depending on named contextual state."
+ },
+ "XValueDensity": {
+  "label": "XValue",
+  "formula": "D(x,y,z) = x",
+  "doc": "Outputs the raw world X coordinate."
+ },
+ "YValueDensity": {
+  "label": "YValue",
+  "formula": "D(x,y,z) = y",
+  "doc": "Outputs the raw world Y coordinate (elevation)."
+ },
+ "ZValueDensity": {
+  "label": "ZValue",
+  "formula": "D(x,y,z) = z",
+  "doc": "Outputs the raw world Z coordinate."
+ },
+ "XOverrideDensity": {
+  "label": "XOverride",
+  "formula": "D(x,y,z) = In(NewX, y, z)",
+  "doc": "Overrides the X coordinate before evaluating Input using a second density node."
+ },
+ "YOverrideDensity": {
+  "label": "YOverride",
+  "formula": "D(x,y,z) = In(x, NewY, z)",
+  "doc": "Overrides the Y coordinate before evaluating Input (e.g. flattening Y to 2D)."
+ },
+ "ZOverrideDensity": {
+  "label": "ZOverride",
+  "formula": "D(x,y,z) = In(x, y, NewZ)",
+  "doc": "Overrides the Z coordinate before evaluating Input."
+ },
+ "CacheDensity": {
+  "label": "CacheDensity",
+  "formula": "D = ThreadLocalCache(In)",
+  "doc": "Caches costly 2D/3D subgraph evaluations per column or voxel."
+ },
+ "SingleInstanceDensity": {
+  "label": "SingleInstance",
+  "formula": "D = SharedSubgraph(In)",
+  "doc": "Ensures an exported subgraph shares a single cache instance across all consumers."
+ },
+ "PositionsPinch": {
+  "label": "PositionsPinch",
+  "formula": "D = PinchAroundPoints(In, Points)",
+  "doc": "Pinches/compresses coordinates radially toward nearby PositionsProvider points."
+ },
+ "PositionsTwist": {
+  "label": "PositionsTwist",
+  "formula": "D = TwistAroundPoints(In, Points)",
+  "doc": "Swirls/twists coordinates in a vortex around nearby PositionsProvider points."
+ },
+ "Anchor": {
+  "label": "AnchorDensity",
+  "formula": "D = In(x - Anchor)",
+  "doc": "Evaluates child density in local coordinates relative to the active Prop/Structure anchor."
+ },
+ "BaseHeight": {
+  "label": "BaseHeightPositions",
+  "formula": "Pt.y = BaseHeight(Pt.x, Pt.z)",
+  "doc": "Projects 2D points onto the world structure macro base height."
+ },
+ "Terrain": {
+  "label": "TerrainDensity",
+  "formula": "D = ActiveTerrainField(x,y,z)",
+  "doc": "References the current biome's primary terrain density field."
+ },
+ "Distance": {
+  "label": "DistanceDensity",
+  "formula": "D = ||x - origin||",
+  "doc": "Radial Euclidean distance from origin."
+ },
+ "Angle": {
+  "label": "AngleVector",
+  "formula": "D = acos((A.B)/(|A||B|))",
+  "doc": "Angle in radians/degrees between two 3D vectors."
+ },
+ "GraphDensity": {
+  "label": "GraphDensity",
+  "formula": "D = GraphCarver(x,y,z)",
+  "doc": "Reads volumetric density carved or deposited by the Procedural Graph Generator."
+ },
+ "Imported": {
+  "label": "ImportedAssignment",
+  "kind": "Assign",
+  "formula": "Assign = Asset(path)",
+  "doc": "Imports an external Assignments JSON asset.",
+  "tags": [
+   "assignment",
+   "imported"
+  ]
+ },
+ "Exported": {
+  "label": "ExportedAssignment",
+  "kind": "Assign",
+  "formula": "Assign = Export(In)",
+  "doc": "Exports an Assignments subgraph.",
+  "tags": [
+   "assignment",
+   "exported"
+  ]
+ },
+ "exponential": {
+  "label": "falloff",
+  "formula": "distance",
+  "doc": "curve"
+ },
+ "SetXVectorProvider": {
+  "label": "SetXVector",
+  "formula": "V = (NewX, V.y, V.z)",
+  "doc": "Replaces the X component of a 3D vector using a scalar Density input."
+ },
+ "SetYVectorProvider": {
+  "label": "SetYVector",
+  "formula": "V = (V.x, NewY, V.z)",
+  "doc": "Replaces the Y component of a 3D vector using a scalar Density input."
+ },
+ "SetZVectorProvider": {
+  "label": "SetZVector",
+  "formula": "V = (V.x, V.y, NewZ)",
+  "doc": "Replaces the Z component of a 3D vector using a scalar Density input."
+ },
+ "AdderVectorProvider": {
+  "label": "AdderVector",
+  "formula": "V = A + B",
+  "doc": "Component-wise 3D vector addition."
+ },
+ "SubtracterVectorProvider": {
+  "label": "SubtracterVector",
+  "formula": "V = A - B",
+  "doc": "Component-wise 3D vector subtraction."
+ },
+ "MultiplierVectorProvider": {
+  "label": "MultiplierVector",
+  "formula": "V = A * B",
+  "doc": "Component-wise Hadamard 3D vector product."
+ },
+ "ScalarMultiplierVectorProvider": {
+  "label": "ScalarMultiplier",
+  "formula": "V = Vec * Scalar",
+  "doc": "Scales a 3D vector by a scalar Density field."
+ },
+ "NormalizerVectorProvider": {
+  "label": "NormalizerVector",
+  "formula": "V = Vec / ||Vec||",
+  "doc": "Normalizes a 3D vector to unit length 1.0."
+ },
+ "CrossVectorProvider": {
+  "label": "CrossVector",
+  "formula": "V = A x B",
+  "doc": "3D vector cross product orthogonal to A and B."
+ },
+ "PlaneProjectorVectorProvider": {
+  "label": "PlaneProjector",
+  "formula": "V = Vec - (Vec . N) * N",
+  "doc": "Projects a 3D vector onto a plane defined by normal N."
+ },
+ "VectorProjectorVectorProvider": {
+  "label": "VectorProjector",
+  "formula": "V = ((A . B) / ||B||^2) * B",
+  "doc": "Projects vector A onto vector B."
+ },
+ "RandomVectorProvider": {
+  "label": "RandomVector",
+  "formula": "V = RandomUnitVec(x,y,z)",
+  "doc": "Stochastic 3D jitter vector field."
+ },
+ "CacheVectorProvider": {
+  "label": "CacheVector",
+  "formula": "V = Cache(Vec)",
+  "doc": "Caches 3D vector evaluations per voxel."
+ },
+ "Rotate": {
+  "label": "RotateVector",
+  "formula": "V = Rot(Vec, Axis, Deg)",
+  "doc": "Rotates a 3D vector around X, Y, or Z."
+ },
+ "Scale": {
+  "label": "ScaleVector",
+  "formula": "V = (Vx*sx, Vy*sy, Vz*sz)",
+  "doc": "Scales individual components of a 3D vector."
+ },
+ "Interpolate": {
+  "label": "InterpolateVector",
+  "formula": "V = lerp(A, B, t)",
+  "doc": "Linearly interpolates between two 3D vectors."
+ },
+ "Combine": {
+  "label": "CombineVector",
+  "formula": "V = (Dx, Dy, Dz)",
+  "doc": "Combines three scalar Density fields into a single 3D Vector."
+ },
+ "Split": {
+  "label": "SplitVector",
+  "formula": "D = V.component",
+  "doc": "Extracts X, Y, or Z component from a 3D Vector."
+ },
+ "DotProduct": {
+  "label": "DotProductVector",
+  "formula": "D = A . B",
+  "doc": "Computes scalar dot product of two 3D vectors."
+ },
+ "material": {
+  "label": "block",
+  "formula": "constant",
+  "doc": "stone"
+ },
+ "queue": {
+  "label": "priority",
+  "formula": "list",
+  "doc": "material"
+ },
+ "SolidityMaterialProvider": {
+  "label": "SolidityMaterial",
+  "formula": "Block = (D >= threshold) ? Solid : Fluid",
+  "doc": "Switches between solid and fluid material providers based on a Density threshold."
+ },
+ "LayerMaterialProvider": {
+  "label": "LayerMaterial",
+  "formula": "Block = (y in [minY, maxY]) ? Inside : Outside",
+  "doc": "Applies a material within a specific [minY, maxY] altitude layer."
+ },
+ "SimpleHorizontalMaterialProvider": {
+  "label": "SimpleHorizontalMat",
+  "formula": "Block = HorizontalBand(y)",
+  "doc": "Applies material across a horizontal elevation span."
+ },
+ "FieldFunctionMaterialProvider": {
+  "label": "FieldFunctionMat",
+  "formula": "Block = BandLookup(Density(x,y,z))",
+  "doc": "Selects materials based on continuous 3D noise/density intervals."
+ },
+ "ConditionMaterialProvider": {
+  "label": "ConditionMaterial",
+  "formula": "Block = Pattern.matches(x,y,z) ? TrueMat : FalseMat",
+  "doc": "Applies a material only where a structural Pattern matches (e.g., Floor, Ceiling, Slope)."
+ },
+ "TransparentMaterialProvider": {
+  "label": "TransparentMaterial",
+  "formula": "Block = null (Skip)",
+  "doc": "Returns null/transparent so downstream queue providers can handle the voxel."
+ },
+ "SurfaceMaterialProvider": {
+  "label": "SurfaceMaterial",
+  "formula": "Block = SurfaceRule(depth)",
+  "doc": "Top-surface material rule with configurable depth."
+ },
+ "StackedMaterialProvider": {
+  "label": "StackedMaterial",
+  "formula": "Block = VerticalStack(depth)",
+  "doc": "Stacks multiple material layers downward from the surface."
+ },
+ "TerrainMaterialProvider": {
+  "label": "TerrainMaterial",
+  "formula": "Block = DefaultTerrainBlock",
+  "doc": "Outputs the dimension or biome default stone block."
+ },
+ "MaskMaterialProvider": {
+  "label": "MaskMaterial",
+  "formula": "Block = Masked(Material, BlockMask)",
+  "doc": "Filters material placement through a BlockMask."
+ },
+ "GraphMaterialProvider": {
+  "label": "GraphMaterial",
+  "formula": "Block = GraphContentMaterial(x,y,z)",
+  "doc": "Reads road, riverbed, or dungeon materials from the Procedural Graph Generator."
+ },
+ "Material": {
+  "label": "MaterialLiteral",
+  "formula": "Block + Rotation(Yaw,Pitch,Roll)",
+  "doc": "Explicit solid + fluid material pair with 90-degree 3D rotation metadata."
+ },
+ "CeilingPattern": {
+  "label": "CeilingPattern",
+  "formula": "Match = IsSolid(y) && IsAir(y-1)",
+  "doc": "Matches subterranean cave ceiling undersides."
+ },
+ "WallPattern": {
+  "label": "WallPattern",
+  "formula": "Match = IsSolid(y) && HasAdjacentAirXZ()",
+  "doc": "Matches vertical cliff walls and cave walls."
+ },
+ "Floor": {
+  "label": "FloorPattern",
+  "formula": "Match = IsAir(y) && IsSolid(y-1)",
+  "doc": "Matches air voxel immediately resting on a solid floor."
+ },
+ "DepthPattern": {
+  "label": "DepthPattern",
+  "formula": "Match = depthBelowSurface in [min, max]",
+  "doc": "Matches voxels within a specific depth range below the terrain surface."
+ },
+ "SpaceCheckPattern": {
+  "label": "SpaceCheckPattern",
+  "formula": "Match = BoxIsClear(hx, hy, hz)",
+  "doc": "Verifies that a 3D bounding volume is unobstructed before placing structures."
+ },
+ "GapPattern": {
+  "label": "GapPattern",
+  "formula": "Match = VerticalSpanInRange(min, max)",
+  "doc": "Matches cave or canyon gaps of a specific vertical height."
+ },
+ "CuboidPattern": {
+  "label": "CuboidPattern",
+  "formula": "Match = AllVoxelsInBoxMatch(SubPattern)",
+  "doc": "Checks that every voxel in a 3D cuboid satisfies a sub-pattern."
+ },
+ "BlockSet": {
+  "label": "BlockSetPattern",
+  "formula": "Match = Block in AllowedSet",
+  "doc": "Matches if the voxel belongs to a set/tag of blocks."
+ },
+ "OffsetPattern": {
+  "label": "OffsetPattern",
+  "formula": "Match = Pat(x+dx, y+dy, z+dz)",
+  "doc": "Evaluates a child pattern at a relative (dx, dy, dz) offset."
+ },
+ "Rotator": {
+  "label": "RotatorDensity",
+  "kind": "Density",
+  "formula": "D(x) = In(Rotate(x, Axis, Angle))",
+  "doc": "Rotates the 3D coordinate system around X, Y, or Z by Angle degrees for tilted strata.",
+  "tags": [
+   "rotate",
+   "rotator",
+   "tilt",
+   "angle",
+   "transform"
+  ]
+ },
+ "AndPattern": {
+  "label": "AndPattern",
+  "formula": "Match = A && B",
+  "doc": "Logical AND of multiple voxel patterns."
+ },
+ "OrPattern": {
+  "label": "OrPattern",
+  "formula": "Match = A || B",
+  "doc": "Logical OR of multiple voxel patterns."
+ },
+ "NotPattern": {
+  "label": "NotPattern",
+  "formula": "Match = !Pat",
+  "doc": "Logical NOT inversion of a voxel pattern."
+ },
+ "FieldFunction": {
+  "label": "FieldFunctionPattern",
+  "formula": "Match = Density(x,y,z) in [min, max]",
+  "doc": "Matches where a 3D Density field falls within a target range."
+ },
+ "Constant": {
+  "label": "ConstantPattern",
+  "formula": "Match = true / false",
+  "doc": "Always-true or always-false constant pattern."
+ },
+ "BlockMask": {
+  "label": "BlockMaskPattern",
+  "formula": "Match = Mask.canReplace()",
+  "doc": "Adapts a BlockMask into a Pattern."
+ },
+ "mask": {
+  "label": "advanced",
+  "formula": "matrix",
+  "doc": "replace"
+ },
+ "destination": {
+  "label": "dest",
+  "formula": "mask",
+  "doc": "material"
+ },
+ "square": {
+  "label": "grid",
+  "formula": "2d",
+  "doc": "positions"
+ },
+ "jitter": {
+  "label": "random",
+  "formula": "3d",
+  "doc": "positions"
+ },
+ "DirectionalJitterPositionsProvider": {
+  "label": "DirectionalJitter",
+  "formula": "Pt' = Pt + Dir * Rand()",
+  "doc": "Perturbs points along a specific 3D direction vector."
+ },
+ "ScalerPositionsProvider": {
+  "label": "ScalerPositions",
+  "formula": "Pt' = Pt * (sx, sy, sz)",
+  "doc": "Scales point coordinates by (sx, sy, sz)."
+ },
+ "ClustersPositionsProvider": {
+  "label": "ClustersPositions",
+  "formula": "Pts = ExpandCluster(SeedPts, count, radius)",
+  "doc": "Spawns tight organic clusters of child points around each parent point (e.g., flower patches, ore veins)."
+ },
+ "OccurrencePositionsProvider": {
+  "label": "OccurrencePositions",
+  "formula": "Pts = FilterByChance(In, probability)",
+  "doc": "Randomly keeps or culls each input point based on a probability [0, 1] or Density field."
+ },
+ "FieldFunctionPositionsProvider": {
+  "label": "FieldFunctionPositions",
+  "formula": "Pts = FilterByDensity(In, min, max)",
+  "doc": "Retains only points where a 3D Density field falls within [min, max] (e.g., lush patches)."
+ },
+ "OffsetPositionsProvider": {
+  "label": "OffsetPositions",
+  "formula": "Pt' = Pt + (dx, dy, dz)",
+  "doc": "Translates all candidate points by a constant (dx, dy, dz) offset."
+ },
+ "VectorOffsetPositionsProvider": {
+  "label": "VectorOffsetPositions",
+  "formula": "Pt' = Pt + Vector(Pt)",
+  "doc": "Displaces candidate points using a 3D VectorProvider field."
+ },
+ "UnionPositionsProvider": {
+  "label": "UnionPositions",
+  "formula": "Pts = A U B",
+  "doc": "Merges multiple point streams into a single unified PositionsProvider."
+ },
+ "SimpleHorizontalPositionsProvider": {
+  "label": "SimpleHorizontalPos",
+  "formula": "Pts =GridXZ at fixed Y",
+  "doc": "Generates a horizontal plane of points at a target Y elevation."
+ },
+ "AnchorPositionsProvider": {
+  "label": "AnchorPositions",
+  "formula": "Pt = LocalAnchor(x, y, z)",
+  "doc": "Emits a single local anchor point."
+ },
+ "ListPositionsProvider": {
+  "label": "ListPositions",
+  "formula": "Pts = ExplicitCoordinateList",
+  "doc": "Emits an explicit list of fixed (x, y, z) coordinates."
+ },
+ "BoundPositionsProvider": {
+  "label": "BoundPositions",
+  "formula": "Pts = CropToAABB(In, Box)",
+  "doc": "Clips a point stream to a 3D bounding box."
+ },
+ "Framework": {
+  "label": "FrameworkPositions",
+  "formula": "Pts = GlobalFrameworkPoints(Name)",
+  "doc": "Reads global world-structure framework points."
+ },
+ "Cache": {
+  "label": "CachePositions",
+  "formula": "Pts = Cached(In)",
+  "doc": "Caches generated point coordinates per chunk."
+ },
+ "GraphPositionsProvider": {
+  "label": "GraphPositions",
+  "formula": "Pts = GraphNodeAndEdgePoints",
+  "doc": "Samples positions along Procedural Graph nodes and edges."
+ },
+ "scanner": {
+  "label": "radial",
+  "formula": "sphere",
+  "doc": "probe"
+ },
+ "assignment": {
+  "label": "sandwich",
+  "formula": "altitude",
+  "doc": "elevation"
+ },
+ "prop": {
+  "label": "assignments",
+  "formula": "distribution",
+  "doc": "pipeline"
+ },
+ "MaskProp": {
+  "label": "MaskProp",
+  "formula": "PlaceWithMask(Child, BlockMask)",
+  "doc": "Wraps a child Prop with a BlockMask replacement filter."
+ },
+ "RandomRotatorProp": {
+  "label": "RandomRotatorProp",
+  "formula": "RotateY(Child, Random90())",
+  "doc": "Randomly rotates child Prop by 0, 90, 180, or 270 degrees."
+ },
+ "StaticRotatorProp": {
+  "label": "StaticRotatorProp",
+  "formula": "RotateY(Child, FixedDeg)",
+  "doc": "Rotates child Prop by a fixed 90-degree increment."
+ },
+ "OrienterProp": {
+  "label": "OrienterProp",
+  "formula": "OrientToSurfaceNormal(Child, Pattern)",
+  "doc": "Automatically rotates child Prop to face adjacent walls, ceilings, or slopes."
+ },
+ "OffsetProp": {
+  "label": "OffsetProp",
+  "formula": "Place(Child, Anchor + Offset)",
+  "doc": "Shifts child Prop placement by (dx, dy, dz) blocks."
+ },
+ "WeightedProp": {
+  "label": "WeightedProp",
+  "formula": "RandomWeightedChoice(Props[])",
+  "doc": "Selects one child Prop from a weighted probability list."
+ },
+ "QueueProp": {
+  "label": "QueueProp",
+  "formula": "PlaceFirstSucceeded(Props[])",
+  "doc": "Attempts child Props in priority order until one succeeds."
+ },
+ "UnionProp": {
+  "label": "UnionProp",
+  "formula": "PlaceAll(PropA, PropB, ...)",
+  "doc": "Executes all connected child Props at the same anchor (e.g., tree trunk + vines + roots)."
+ },
+ "DensitySelectorProp": {
+  "label": "DensitySelectorProp",
+  "formula": "SelectPropByDensity(D(anchor))",
+  "doc": "Picks a child Prop based on a 3D Density field value."
+ },
+ "ManualProp": {
+  "label": "ManualProp",
+  "formula": "PlaceExplicitBlockMap(Offsets[])",
+  "doc": "Places an explicit inline list of relative (dx, dy, dz, block) voxels."
+ },
+ "GraphProp": {
+  "label": "GraphProp",
+  "formula": "PlaceGraphContentProps()",
+  "doc": "Places props generated by the Procedural Graph Generator."
+ },
+ "PropRuntime": {
+  "label": "PropRuntimeStage",
+  "formula": "ExecuteInStage(StageIdx, Precision, Prop)",
+  "doc": "Assigns a Prop pipeline to a discrete generation Stage (0..N) with Context Precision (BIOME/CHUNK/PROP)."
+ },
+ "ContextPrecision": {
+  "label": "ContextPrecision",
+  "formula": "Precision = BIOME | CHUNK | PROP",
+  "doc": "Configures halo context precision mode for staged prop execution."
+ },
+ "ConstantPropDist": {
+  "label": "ConstantPropDist",
+  "formula": "PropDist = Constant(Prop)",
+  "doc": "Constant prop distribution field."
+ },
+ "PositionsPropDist": {
+  "label": "PositionsPropDist",
+  "formula": "PropDist = AtPositions(Positions, Prop)",
+  "doc": "Binds a Prop directly to a PositionsProvider field."
+ },
+ "AssignedPropDist": {
+  "label": "AssignedPropDist",
+  "formula": "PropDist = Assigned(Positions, Assign)",
+  "doc": "Binds an Assignments table to a PositionsProvider field."
+ },
+ "UnionPropDist": {
+  "label": "UnionPropDist",
+  "formula": "PropDist = Union(DistA, DistB)",
+  "doc": "Combines multiple PropDistribution fields."
+ },
+ "AnchorPropDist": {
+  "label": "AnchorPropDist",
+  "formula": "PropDist = RelativeToAnchor(Dist)",
+  "doc": "Evaluates PropDistribution relative to a parent structure anchor."
+ },
+ "GraphGenerator": {
+  "label": "GraphGenerator",
+  "formula": "Graph = RunPasses(Passes[], CellSize)",
+  "doc": "Macro topological network solver for rivers, cave labyrinths, and road networks."
+ },
+ "PositionsGraphPass": {
+  "label": "PositionsGraphPass",
+  "formula": "V = V U SamplePositions(PositionsProvider)",
+  "doc": "Populates graph vertices (V) from a PositionsProvider point field."
+ },
+ "NodeActionPass": {
+  "label": "NodeActionPass",
+  "formula": "ForEach(SelectedNodes) -> Apply(NodeAction)",
+  "doc": "Executes a NodeAction on all graph vertices matching a NodeSelector."
+ },
+ "EdgeActionPass": {
+  "label": "EdgeActionPass",
+  "formula": "ForEach(SelectedEdges) -> Apply(EdgeAction)",
+  "doc": "Executes an EdgeAction on all graph edges matching an EdgeSelector."
+ },
+ "ManualGraphPass": {
+  "label": "ManualGraphPass",
+  "formula": "Graph += ExplicitNodesAndEdges",
+  "doc": "Injects explicit hand-authored vertices and edges into the topological graph."
+ },
+ "EmptyGraphPass": {
+  "label": "EmptyGraphPass",
+  "formula": "No-op pass",
+  "doc": "Placeholder pass in a GraphGenerator pipeline."
+ },
+ "GraphContent": {
+  "label": "GraphContent",
+  "formula": "BindContentToGraph(Tags, Readers)",
+  "doc": "Attaches density carvers, materials, and props to graph vertices and edges."
+ },
+ "DensityContent": {
+  "label": "DensityContent",
+  "formula": "D_graph = RadialEdgeFalloff(Radius, Density)",
+  "doc": "Sweeps a volumetric 3D density field along graph edges and vertices (e.g., cave tunnels, canyons)."
+ },
+ "MaterialContent": {
+  "label": "MaterialContent",
+  "formula": "Mat_graph = PaintAlongEdges(Radius, Material)",
+  "doc": "Paints road cobblestones, river gravel, or tunnel linings along graph edges."
+ },
+ "PropDistributionContent": {
+  "label": "PropDistributionContent",
+  "formula": "PlacePropsAlongGraph(PropDist)",
+  "doc": "Distributes lanterns, bridges, or dungeon props along graph nodes/edges."
+ },
+ "PositionsContent": {
+  "label": "PositionsContent",
+  "formula": "EmitGraphPositions()",
+  "doc": "Exposes graph vertices and edge samples as a PositionsProvider."
+ },
+ "AllNodeSelector": {
+  "label": "AllNodeSelector",
+  "formula": "Select(v) = true",
+  "doc": "Selects every vertex in the graph."
+ },
+ "ConnectionCountNodeSelector": {
+  "label": "ConnectionCountNodeSel",
+  "formula": "Select(v) = deg(v) in [min, max]",
+  "doc": "Selects vertices by edge degree (e.g., dead-ends deg=1, crossroads deg>=3)."
+ },
+ "ContentNodeSelector": {
+  "label": "ContentNodeSelector",
+  "formula": "Select(v) = ContentPred(v)",
+  "doc": "Selects vertices whose attached content tags match a ContentPredicate."
+ },
+ "DensityDelimitedNodeSelector": {
+  "label": "DensityDelimitedNodeSel",
+  "formula": "Select(v) = D(v.pos) in [min, max]",
+  "doc": "Selects vertices where a 3D Density field falls within [min, max]."
+ },
+ "NeighborNodesNodeSelector": {
+  "label": "NeighborNodesSelector",
+  "formula": "Select(v) = AnyNeighborMatches(Sel)",
+  "doc": "Selects vertices adjacent to another selected vertex set."
+ },
+ "NeighborEdgesNodeSelector": {
+  "label": "NeighborEdgesSelector",
+  "formula": "Select(v) = AnyIncidentEdgeMatches(EdgeSel)",
+  "doc": "Selects vertices incident to selected edges."
+ },
+ "RandomNodeSelector": {
+  "label": "RandomNodeSelector",
+  "formula": "Select(v) = Rand() < probability",
+  "doc": "Stochastically selects a subset of graph vertices."
+ },
+ "AndNodeSelector": {
+  "label": "AndNodeSelector",
+  "formula": "Select(v) = SelA(v) && SelB(v)",
+  "doc": "Intersection of two NodeSelectors."
+ },
+ "OrNodeSelector": {
+  "label": "OrNodeSelector",
+  "formula": "Select(v) = SelA(v) || SelB(v)",
+  "doc": "Union of two NodeSelectors."
+ },
+ "NotNodeSelector": {
+  "label": "NotNodeSelector",
+  "formula": "Select(v) = !Sel(v)",
+  "doc": "Inverts a NodeSelector."
+ },
+ "ProximityConnectorNodeAction": {
+  "label": "ProximityConnector",
+  "formula": "Connect(u, v) if ||u - v|| <= maxDist",
+  "doc": "Links nearby vertices with edges (Delaunay / Relative Neighborhood / k-NN road & cave networks)."
+ },
+ "Jitter2dNodeAction": {
+  "label": "Jitter2dNodeAction",
+  "formula": "v.xz += RandXZ(mag)",
+  "doc": "Perturbs selected graph vertices horizontally."
+ },
+ "Jitter3dNodeAction": {
+  "label": "Jitter3dNodeAction",
+  "formula": "v.xyz += RandXYZ(mag)",
+  "doc": "Perturbs selected graph vertices in 3D."
+ },
+ "MoveNodeAction": {
+  "label": "MoveNodeAction",
+  "formula": "v.xyz += Vector(v.pos)",
+  "doc": "Displaces selected vertices along a 3D VectorProvider."
+ },
+ "SpawnerNodeAction": {
+  "label": "SpawnerNodeAction",
+  "formula": "SpawnChildNodes(v, count, radius)",
+  "doc": "Spawns satellite vertices and branches around selected parent vertices."
+ },
+ "ContentNodeAction": {
+  "label": "ContentNodeAction",
+  "formula": "v.content += ContentSupplier()",
+  "doc": "Assigns content tags/payloads to selected vertices."
+ },
+ "ContentCopyNodeAction": {
+  "label": "ContentCopyNodeAction",
+  "formula": "CopyContentToNeighbors(v)",
+  "doc": "Propagates vertex content tags to connected neighbors."
+ },
+ "ConnectedNodesNodeAction": {
+  "label": "ConnectedNodesAction",
+  "formula": "RunActionOnNeighbors(v, Action)",
+  "doc": "Executes a child NodeAction on all neighbors of v."
+ },
+ "ConnectedEdgesNodeAction": {
+  "label": "ConnectedEdgesAction",
+  "formula": "RunEdgeActionOnIncident(v, EdgeAction)",
+  "doc": "Executes an EdgeAction on all edges incident to v."
+ },
+ "DeleteNodeAction": {
+  "label": "DeleteNodeAction",
+  "formula": "RemoveVertex(v)",
+  "doc": "Deletes selected vertices and their incident edges from the graph."
+ },
+ "EmptyNodeAction": {
+  "label": "EmptyNodeAction",
+  "formula": "No-op",
+  "doc": "Empty vertex action."
+ },
+ "SelectorNodeAction": {
+  "label": "SelectorNodeAction",
+  "formula": "If(NodeSelector(v)) -> Action(v)",
+  "doc": "Conditionally executes a NodeAction."
+ },
+ "WeightedNodeAction": {
+  "label": "WeightedNodeAction",
+  "formula": "WeightedChoice(Actions[])",
+  "doc": "Randomly chooses one NodeAction by weight."
+ },
+ "AllEdgeSelector": {
+  "label": "AllEdgeSelector",
+  "formula": "Select(e) = true",
+  "doc": "Selects all edges in the graph."
+ },
+ "LengthEdgeSelector": {
+  "label": "LengthEdgeSelector",
+  "formula": "Select(e) = ||e|| in [minLen, maxLen]",
+  "doc": "Selects edges whose Euclidean length falls within [min, max]."
+ },
+ "AngleEdgeSelector": {
+  "label": "AngleEdgeSelector",
+  "formula": "Select(e) = SlopeAngle(e) in [min, max]",
+  "doc": "Selects edges by 3D inclination or azimuth angle."
+ },
+ "NodesEdgeSelector": {
+  "label": "NodesEdgeSelector",
+  "formula": "Select(e=(u,v)) = NodeSel(u) && NodeSel(v)",
+  "doc": "Selects edges whose endpoints match a NodeSelector."
+ },
+ "RandomEdgeSelector": {
+  "label": "RandomEdgeSelector",
+  "formula": "Select(e) = Rand() < probability",
+  "doc": "Stochastically selects a fraction of edges."
+ },
+ "AndEdgeSelector": {
+  "label": "AndEdgeSelector",
+  "formula": "Select(e) = A(e) && B(e)",
+  "doc": "Logical AND of two EdgeSelectors."
+ },
+ "OrEdgeSelector": {
+  "label": "OrEdgeSelector",
+  "formula": "Select(e) = A(e) || B(e)",
+  "doc": "Logical OR of two EdgeSelectors."
+ },
+ "NotEdgeSelector": {
+  "label": "NotEdgeSelector",
+  "formula": "Select(e) = !Sel(e)",
+  "doc": "Inverts an EdgeSelector."
+ },
+ "SplitterEdgeAction": {
+  "label": "SplitterEdgeAction",
+  "formula": "Subdivide(e=(u,v) -> u - m - v)",
+  "doc": "Subdivides edges by inserting midpoint vertices (used with Jitter for winding rivers and caves)."
+ },
+ "NodesEdgeAction": {
+  "label": "NodesEdgeAction",
+  "formula": "ApplyNodeActionToEndpoints(e, NodeAction)",
+  "doc": "Runs a NodeAction on both endpoints of selected edges."
+ },
+ "ProxyEdgeAction": {
+  "label": "ProxyEdgeAction",
+  "formula": "DelegateEdgeAction(e)",
+  "doc": "Delegates execution to a referenced EdgeAction."
+ },
+ "SelectorEdgeAction": {
+  "label": "SelectorEdgeAction",
+  "formula": "If(EdgeSelector(e)) -> EdgeAction(e)",
+  "doc": "Conditionally executes an EdgeAction."
+ },
+ "DeleteEdgeAction": {
+  "label": "DeleteEdgeAction",
+  "formula": "RemoveEdge(e)",
+  "doc": "Removes selected edges (e.g., pruning overly steep road segments)."
+ },
+ "EmptyEdgeAction": {
+  "label": "EmptyEdgeAction",
+  "formula": "No-op",
+  "doc": "Empty edge action."
+ },
+ "ConstantContentPredicate": {
+  "label": "ConstantContentPred",
+  "formula": "Match = HasTag(tag)",
+  "doc": "Checks whether a graph element carries a specific content tag."
+ },
+ "SetContentPredicate": {
+  "label": "SetContentPredicate",
+  "formula": "Match = Tag in AllowedSet",
+  "doc": "Checks whether a graph element matches a set of content tags."
+ },
+ "AndContentPredicate": {
+  "label": "AndContentPredicate",
+  "formula": "Match = A && B",
+  "doc": "Logical AND of ContentPredicates."
+ },
+ "OrContentPredicate": {
+  "label": "OrContentPredicate",
+  "formula": "Match = A || B",
+  "doc": "Logical OR of ContentPredicates."
+ },
+ "NotContentPredicate": {
+  "label": "NotContentPredicate",
+  "formula": "Match = !Pred",
+  "doc": "Logical NOT of a ContentPredicate."
+ },
+ "ConstantContentSupplier": {
+  "label": "ConstantContentSupplier",
+  "formula": "Supply() = ContentTag",
+  "doc": "Supplies a constant content tag/radius payload to graph elements."
+ },
+ "WeightedContentSupplier": {
+  "label": "WeightedContentSupplier",
+  "formula": "Supply() = WeightedChoice(Tags[])",
+  "doc": "Supplies a weighted random content payload."
+ },
+ "WorldStructure": {
+  "label": "WorldStructure",
+  "formula": "World = BiCarta(Biomes, TransitionDist)",
+  "doc": "Top-level dimension WorldStructure configuring global Voronoi biomes and transition blending."
+ },
+ "BiCarta": {
+  "label": "BiCartaVoronoi",
+  "formula": "Biome(x,z) = Voronoi5x5(Seed, Climate)",
+  "doc": "5x5 cellular Voronoi biome layout with domain warping and smooth neighbor transition weights."
+ },
+ "TileBiome": {
+  "label": "TileBiome",
+  "formula": "SurfaceBiome(Terrain, Strata, Props)",
+  "doc": "Primary surface biome definition with climate coordinates and weight."
+ },
+ "CustomBiome": {
+  "label": "CustomBiome",
+  "formula": "OverlayBiome(Condition, ParentBiomes)",
+  "doc": "Contextual sub-biome (e.g., Riparian Shoreline, Oasis, Canyon Rim) that triggers inside parent biomes."
+ },
+ "UndergroundBiome": {
+  "label": "UndergroundBiome",
+  "formula": "CaveBiome(DepthRange, Climate)",
+  "doc": "3D subterranean biome overriding materials and props inside deep cavern layers."
+ },
+ "ClimateTarget": {
+  "label": "ClimateTarget",
+  "formula": "Climate = (Temp, Humidity, Cont, Erosion, Weird)",
+  "doc": "5D climate target vector slotting a biome into the dimension's climate distribution."
+ },
+ "CaveCarver": {
+  "label": "CaveCarver",
+  "formula": "Carve(SwissCheese, Spaghetti, Noodle)",
+  "doc": "Volumetric 3D cave carver combining Worley chambers and spaghetti tunnels."
+ },
+ "RiverCarver": {
+  "label": "RiverCarver",
+  "formula": "Carve(DownhillSpline, BankWidth, Depth)",
+  "doc": "Hydrological river channel carver with riparian shoreline blending."
+ },
+ "SplineRoadEngine": {
+  "label": "SplineRoadEngine",
+  "formula": "Road = AStarSpline(Landmarks, MaxGrade)",
+  "doc": "Slope-constrained Catmull-Rom road network generator with bridges and tunnels."
+ },
+ "MacroFeatureGraph": {
+  "label": "MacroFeatureGraph",
+  "formula": "MacroGraph(Landmarks, Rivers, Roads)",
+  "doc": "Region-level relational landmark and road/river solver."
+ },
+ "ConditionalSpawnProvider": {
+  "label": "ConditionalSpawnProvider",
+  "formula": "Spawn = EnvironmentalCheck(Mob, Rules)",
+  "doc": "Contextual entity spawn rules driven by elevation, slope, and sky visibility."
+ },
+ "DefaultBiome": {
+  "label": "DefaultBiome",
+  "formula": "FallbackBiome = BiomeID",
+  "doc": "Sets the dimension's default fallback biome."
+ },
+ "DefaultTransitionDistance": {
+  "label": "DefaultTransitionDist",
+  "formula": "TransitionWidth = Blocks",
+  "doc": "Global Voronoi biome boundary blending distance in blocks."
+ },
+ "MaxBiomeEdgeDistance": {
+  "label": "MaxBiomeEdgeDistance",
+  "formula": "MaxEdgeSearch = Blocks",
+  "doc": "Maximum search distance for DistanceToBiomeEdgeDensity."
+ },
+ "SpawnPositions": {
+  "label": "SpawnPositions",
+  "formula": "PlayerSpawn = Locator(Pattern)",
+  "doc": "Defines valid player world spawn search positions."
+ },
+ "FrameworkPositionsDef": {
+  "label": "FrameworkPositionsDef",
+  "formula": "GlobalPoints[Name] = Positions",
+  "doc": "Registers named global point fields in the WorldStructure framework."
+ },
+ "FrameworkDecimalConstants": {
+  "label": "FrameworkDecimals",
+  "formula": "GlobalConst[Name] = Value",
+  "doc": "Registers named global numeric constants in the WorldStructure framework."
+ },
+ "ConstantDensity": {
+  "label": "ConstantDensity",
+  "kind": "Density",
+  "formula": "D(x,y,z) = c",
+  "doc": "Outputs a constant scalar value everywhere in 3D space.",
+  "tags": [
+   "constant",
+   "number",
+   "scalar",
+   "value",
+   "math"
+  ]
+ },
+ "VerticalGradientDensity": {
+  "label": "VerticalGradient",
+  "kind": "Density",
+  "formula": "D(y) = (baseHeight - y) / scale",
+  "doc": "Gravitational vertical gradient: positive (solid) below Base Y, negative (air) above.",
+  "tags": [
+   "gravity",
+   "height",
+   "vertical",
+   "gradient",
+   "elevation",
+   "y"
+  ]
+ },
+ "YSampledDensity": {
+  "label": "YSampledDensity",
+  "kind": "Density",
+  "formula": "D(x,y,z) = Lerp(D(y0), D(y1))",
+  "doc": "Samples child 3D density every Y Step blocks vertically and linearly interpolates in-between for massive SIMD speedups.",
+  "tags": [
+   "ysampled",
+   "interpolate",
+   "cache",
+   "height",
+   "gravity"
+  ]
+ },
+ "SimplexNoise2D": {
+  "label": "SimplexNoise2D",
+  "kind": "Density",
+  "formula": "D(x,z) =Amp * FBM_Simplex2D(x*f, z*f)",
+  "doc": "2D multi-octave OpenSimplex2 fractal noise for continental heightmaps and hills.",
+  "tags": [
+   "noise",
+   "simplex",
+   "2d",
+   "heightmap",
+   "hills",
+   "mountain"
+  ]
+ },
+ "SimplexNoise3D": {
+  "label": "SimplexNoise3D",
+  "kind": "Density",
+  "formula": "D(x,y,z) = Amp * FBM_Simplex3D(x,y,z)",
+  "doc": "3D volumetric multi-octave OpenSimplex2 noise for overhangs, floating islands, and 3D cliffs.",
+  "tags": [
+   "noise",
+   "simplex",
+   "3d",
+   "overhang",
+   "arch",
+   "volumetric"
+  ]
+ },
+ "Noise2dDensity": {
+  "label": "Noise2dDensity",
+  "kind": "Density",
+  "formula": "D(x,z) = FastNoise2D(x, z)",
+  "doc": "Configurable 2D FastNoiseLite generator supporting OpenSimplex2, Perlin, Cellular, and Ridged fractals.",
+  "tags": [
+   "noise",
+   "fastnoiselite",
+   "2d",
+   "perlin",
+   "ridged"
+  ]
+ },
+ "Noise3dDensity": {
+  "label": "Noise3dDensity",
+  "kind": "Density",
+  "formula": "D(x,y,z) = FastNoise3D(x, y, z)",
+  "doc": "Configurable 3D FastNoiseLite volumetric noise generator.",
+  "tags": [
+   "noise",
+   "fastnoiselite",
+   "3d",
+   "perlin",
+   "volumetric"
+  ]
+ },
+ "WhiteNoise": {
+  "label": "WhiteNoise",
+  "kind": "Density",
+  "formula": "D(x,y,z) = Hash(x,y,z) in [-1, 1]",
+  "doc": "Deterministic 3D stochastic white noise for dithering and rough surface breakup.",
+  "tags": [
+   "white",
+   "noise",
+   "random",
+   "dither",
+   "hash"
+  ]
+ },
+ "CellNoise2D": {
+  "label": "CellNoise2D",
+  "kind": "Density",
+  "formula": "D(x,z) = Voronoi2D(x, z)",
+  "doc": "2D Cellular Voronoi noise for cracked plateaus, canyons, and polygonal cells.",
+  "tags": [
+   "cell",
+   "voronoi",
+   "worley",
+   "2d",
+   "cracks",
+   "mesa"
+  ]
+ },
+ "CellNoise3D": {
+  "label": "CellNoise3D",
+  "kind": "Density",
+  "formula": "D(x,y,z) = Voronoi3D(x, y, z)",
+  "doc": "3D Cellular Worley noise for Swiss-cheese caverns, tunnels, and crystal pockets.",
+  "tags": [
+   "cell",
+   "voronoi",
+   "worley",
+   "3d",
+   "cave",
+   "caverns"
+  ]
+ },
+ "CellWallDistance": {
+  "label": "CellWallDistance",
+  "kind": "Density",
+  "formula": "D = d2 - d1 - wallThickness",
+  "doc": "Computes distance to 3D Voronoi cell walls; ideal for interconnected cave walls and ridges.",
+  "tags": [
+   "cave",
+   "wall",
+   "worley",
+   "voronoi",
+   "ridge",
+   "tunnels"
+  ]
+ },
+ "PositionsCellNoise": {
+  "label": "PositionsCellNoise",
+  "kind": "Density",
+  "formula": "D(x) = DistToNearestPoint(Positions)",
+  "doc": "Evaluates Voronoi cellular distance around an arbitrary PositionsProvider point field.",
+  "tags": [
+   "positions",
+   "cell",
+   "voronoi",
+   "points"
+  ]
+ },
+ "SumDensity": {
+  "label": "SumDensity",
+  "kind": "Density",
+  "formula": "D = A + B (+ C) + Bias",
+  "doc": "Adds multiple density fields together (e.g., Gravity Gradient + Mountain Noise).",
+  "tags": [
+   "sum",
+   "add",
+   "plus",
+   "combine",
+   "math"
+  ]
+ },
+ "ProductDensity": {
+  "label": "ProductDensity",
+  "kind": "Density",
+  "formula": "D = A * B * Scale",
+  "doc": "Multiplies two density fields together; used for masking and amplitude modulation.",
+  "tags": [
+   "product",
+   "multiply",
+   "mul",
+   "mask",
+   "math"
+  ]
+ },
+ "MinDensity": {
+  "label": "MinDensity",
+  "kind": "Density",
+  "formula": "D = min(A, B)",
+  "doc": "Outputs the minimum of two density fields (CSG intersection / cave carving).",
+  "tags": [
+   "min",
+   "minimum",
+   "intersect",
+   "carve",
+   "math"
+  ]
+ },
+ "MaxDensity": {
+  "label": "MaxDensity",
+  "kind": "Density",
+  "formula": "D = max(A, B)",
+  "doc": "Outputs the maximum of two density fields (CSG union of solid shapes).",
+  "tags": [
+   "max",
+   "maximum",
+   "union",
+   "combine",
+   "math"
+  ]
+ },
+ "SmoothMin": {
+  "label": "SmoothMin",
+  "kind": "Density",
+  "formula": "D = smin(A, B, k)",
+  "doc": "Polynomial smooth minimum that blends CSG intersections without sharp creases.",
+  "tags": [
+   "smooth",
+   "min",
+   "blend",
+   "organic",
+   "sdf"
+  ]
+ },
+ "SmoothMax": {
+  "label": "SmoothMax",
+  "kind": "Density",
+  "formula": "D = smax(A, B, k)",
+  "doc": "Polynomial smooth maximum that organically merges 3D terrain shapes.",
+  "tags": [
+   "smooth",
+   "max",
+   "blend",
+   "organic",
+   "sdf"
+  ]
+ },
+ "ClampDensity": {
+  "label": "ClampDensity",
+  "kind": "Density",
+  "formula": "D = clamp(In, min, max)",
+  "doc": "Restricts a scalar density value to the closed interval [min, max].",
+  "tags": [
+   "clamp",
+   "limit",
+   "bound",
+   "range"
+  ]
+ },
+ "SmoothClamp": {
+  "label": "SmoothClamp",
+  "kind": "Density",
+  "formula": "D = sclamp(In, min, max, k)",
+  "doc": "C1-continuous smooth clamping function for soft plateau tops.",
+  "tags": [
+   "smooth",
+   "clamp",
+   "plateau"
+  ]
+ },
+ "NormalizerDensity": {
+  "label": "NormalizerDensity",
+  "kind": "Density",
+  "formula": "D = remap(In, [fromMin,fromMax] -> [toMin,toMax])",
+  "doc": "Linearly remaps an input range into a target output range.",
+  "tags": [
+   "normalizer",
+   "remap",
+   "range",
+   "scale"
+  ]
+ },
+ "Mix": {
+  "label": "Mix (Lerp)",
+  "kind": "Density",
+  "formula": "D = A * (1 - t) + B * t",
+  "doc": "Linearly interpolates between density A and density B by factor t.",
+  "tags": [
+   "mix",
+   "lerp",
+   "blend",
+   "interpolate"
+  ]
+ },
+ "MultiMix": {
+  "label": "MultiMix",
+  "kind": "Density",
+  "formula": "D = PiecewiseLerp(Inputs[], Index)",
+  "doc": "Blends across an array of density inputs driven by a continuous selector field.",
+  "tags": [
+   "multimix",
+   "array",
+   "blend",
+   "lerp"
+  ]
+ },
+ "AbsDensity": {
+  "label": "AbsDensity",
+  "kind": "Density",
+  "formula": "D = |In|",
+  "doc": "Absolute value |D|; turns zero-crossings into sharp creases and ridged mountains.",
+  "tags": [
+   "abs",
+   "absolute",
+   "ridge",
+   "crease",
+   "math"
+  ]
+ },
+ "InvertDensity": {
+  "label": "InvertDensity",
+  "kind": "Density",
+  "formula": "D = -In",
+  "doc": "Negates the density sign (-D), swapping solid terrain and empty air.",
+  "tags": [
+   "invert",
+   "negate",
+   "flip",
+   "minus"
+  ]
+ },
+ "Sqrt": {
+  "label": "SqrtDensity",
+  "kind": "Density",
+  "formula": "D = sqrt(max(0, In))",
+  "doc": "Square root operator (clamped at 0 to prevent NaN).",
+  "tags": [
+   "sqrt",
+   "root",
+   "math"
+  ]
+ },
+ "Pow": {
+  "label": "PowDensity",
+  "kind": "Density",
+  "formula": "D = sgn(In) * |In|^exponent",
+  "doc": "Sign-preserving power function for steepening or flattening slopes.",
+  "tags": [
+   "pow",
+   "power",
+   "exponent",
+   "math"
+  ]
+ },
+ "Trig": {
+  "label": "TrigDensity",
+  "kind": "Density",
+  "formula": "D = Amp * trig(In * Freq + Phase)",
+  "doc": "Trigonometric wave shaper (SIN, COS, TAN) for periodic ripples and terraces.",
+  "tags": [
+   "trig",
+   "sin",
+   "cos",
+   "tan",
+   "wave",
+   "math"
+  ]
+ },
+ "CurveMapperDensity": {
+  "label": "CurveMapper",
+  "kind": "Density",
+  "formula": "D = Curve.eval(In)",
+  "doc": "Passes a 3D density scalar through a 1D Transfer Curve (e.g., ManualCurve spline).",
+  "tags": [
+   "curve",
+   "mapper",
+   "spline",
+   "shaper",
+   "transfer"
+  ]
+ },
+ "GradientWarpDensity": {
+  "label": "GradientWarp",
+  "kind": "Density",
+  "formula": "D(x) = In(x + strength * grad(Warp))",
+  "doc": "Displaces coordinates along the 3D gradient of a secondary field for organic overhangs.",
+  "tags": [
+   "warp",
+   "gradient",
+   "domain",
+   "overhang",
+   "distort"
+  ]
+ },
+ "FastGradientWarp": {
+  "label": "FastGradientWarp",
+  "kind": "Density",
+  "formula": "D(x) = In(x + strength * FastGrad(Warp))",
+  "doc": "High-speed forward-difference 3D domain warp node.",
+  "tags": [
+   "fast",
+   "warp",
+   "gradient",
+   "overhang"
+  ]
+ },
+ "VectorWarpDensity": {
+  "label": "VectorWarp",
+  "kind": "Density",
+  "formula": "D(x) = In(x + Vector(x))",
+  "doc": "Warps sampling coordinates using any 3D VectorProvider field.",
+  "tags": [
+   "vector",
+   "warp",
+   "displace",
+   "domain"
+  ]
+ },
+ "OffsetDensity": {
+  "label": "Offset (Slider)",
+  "kind": "Density",
+  "formula": "D(x,y,z) = In(x - dx, y - dy, z - dz)",
+  "doc": "Translates / slides a 3D density field in world space.",
+  "tags": [
+   "offset",
+   "slider",
+   "translate",
+   "move",
+   "shift"
+  ]
+ },
+ "ScaleDensity": {
+  "label": "ScaleDensity",
+  "kind": "Density",
+  "formula": "D(x,y,z) = In(x/sx, y/sy, z/sz)",
+  "doc": "Stretches or compresses the spatial coordinates of a child density node.",
+  "tags": [
+   "scale",
+   "stretch",
+   "frequency",
+   "transform"
+  ]
+ },
+ "EllipsoidDensity": {
+  "label": "Ellipsoid SDF",
+  "kind": "Density",
+  "formula": "D = 1 - sqrt((x/rx)^2 + (y/ry)^2 + (z/rz)^2)",
+  "doc": "3D Ellipsoid / Sphere signed distance field for floating islands, domes, and caverns.",
+  "tags": [
+   "ellipsoid",
+   "sphere",
+   "ball",
+   "sdf",
+   "shape",
+   "island"
+  ]
+ },
+ "CuboidDensity": {
+  "label": "Cuboid SDF",
+  "kind": "Density",
+  "formula": "D = BoxSDF(x, y, z, hx, hy, hz)",
+  "doc": "3D Rectangular Box / Cube signed distance field.",
+  "tags": [
+   "cuboid",
+   "cube",
+   "box",
+   "sdf",
+   "shape"
+  ]
+ },
+ "CylinderDensity": {
+  "label": "Cylinder SDF",
+  "kind": "Density",
+  "formula": "D = CylinderSDF(Axis, r, h)",
+  "doc": "3D Cylinder signed distance field for pillars, shafts, and tunnels.",
+  "tags": [
+   "cylinder",
+   "pillar",
+   "column",
+   "tube",
+   "sdf"
+  ]
+ },
+ "PlaneDensity": {
+  "label": "Plane SDF",
+  "kind": "Density",
+  "formula": "D = -(nx*x + ny*y + nz*z) + d",
+  "doc": "Infinite 3D half-space plane defined by normal vector and distance.",
+  "tags": [
+   "plane",
+   "flat",
+   "halfspace",
+   "sdf"
+  ]
+ },
+ "ShellDensity": {
+  "label": "Shell SDF",
+  "kind": "Density",
+  "formula": "D = HollowShell(In, r_in, r_out)",
+  "doc": "Converts a solid SDF shape into a hollow spherical/tubular shell with configurable wall thickness.",
+  "tags": [
+   "shell",
+   "hollow",
+   "dome",
+   "geode",
+   "sdf"
+  ]
+ },
+ "ManualCurve": {
+  "label": "ManualCurve (Spline)",
+  "kind": "Curve",
+  "formula": "y = HermiteSpline(x, Keyframes)",
+  "doc": "Piecewise Hermite/Catmull-Rom spline curve for sculpting continental shelves, terraces, and peaks.",
+  "tags": [
+   "curve",
+   "manual",
+   "spline",
+   "hermite",
+   "terrace",
+   "continental"
+  ]
+ },
+ "DistanceSCurve": {
+  "label": "DistanceSCurve",
+  "kind": "Curve",
+  "formula": "y = 3t^2 - 2t^3",
+  "doc": "Smooth S-shaped sigmoidal curve for feathering biome transitions and shorelines.",
+  "tags": [
+   "scurve",
+   "sigmoid",
+   "smoothstep",
+   "distance",
+   "curve"
+  ]
+ },
+ "DistanceExponentialCurve": {
+  "label": "DistanceExponential",
+  "kind": "Curve",
+  "formula": "y = (1 - clamp(x/range, 0, 1))^exp",
+  "doc": "Exponential falloff curve over distance.",
+  "tags": [
+   "exponential",
+   "falloff",
+   "distance",
+   "curve"
+  ]
+ },
+ "ConstantVectorProvider": {
+  "label": "ConstantVector",
+  "kind": "Vector",
+  "formula": "V = (x, y, z)",
+  "doc": "Constant 3D directional vector.",
+  "tags": [
+   "vector",
+   "constant",
+   "direction",
+   "xyz"
+  ]
+ },
+ "DensityGradientVectorProvider": {
+  "label": "DensityGradient",
+  "kind": "Vector",
+  "formula": "V = grad(D) = (dD/dx, dD/dy, dD/dz)",
+  "doc": "Computes the 3D spatial gradient vector of a scalar Density field (surface normal direction).",
+  "tags": [
+   "gradient",
+   "normal",
+   "slope",
+   "vector",
+   "density"
+  ]
+ },
+ "SimplexNoise": {
+  "label": "SimplexNoiseVector",
+  "kind": "Vector",
+  "formula": "V(x) = (NoiseX, NoiseY, NoiseZ) * Strength",
+  "doc": "3-channel decorrelated Simplex vector field for 3D domain warping.",
+  "tags": [
+   "simplex",
+   "noise",
+   "vector",
+   "warp",
+   "turbulence"
+  ]
+ },
+ "ConstantMaterialProvider": {
+  "label": "ConstantMaterial",
+  "kind": "Material",
+  "formula": "Block = ConstantBlock",
+  "doc": "Assigns a single solid or fluid block (supports all vanilla and modded blocks).",
+  "tags": [
+   "material",
+   "block",
+   "constant",
+   "stone"
+  ]
+ },
+ "SpaceAndDepthMaterialProvider": {
+  "label": "SpaceAndDepth",
+  "kind": "Material",
+  "formula": "Block = MatchStrata(depth, slopeAngle, airClearance)",
+  "doc": "Core geological strata engine: places Topsoil on gentle slopes, Subsoil below, and bare Cliff Block on steep cliff faces.",
+  "tags": [
+   "strata",
+   "spaceanddepth",
+   "layers",
+   "grass",
+   "dirt",
+   "cliff",
+   "surface",
+   "material"
+  ]
+ },
+ "StrataMaterialProvider": {
+  "label": "StrataMaterial",
+  "kind": "Material",
+  "formula": "Block = StrataByElevation(y)",
+  "doc": "Assigns geological rock strata based on Y elevation bands.",
+  "tags": [
+   "strata",
+   "elevation",
+   "deepslate",
+   "layers",
+   "material"
+  ]
+ },
+ "StripedMaterialProvider": {
+  "label": "StripedMaterial",
+  "kind": "Material",
+  "formula": "Block = Stripes[(y / thickness) % N]",
+  "doc": "Repeating horizontal terracotta/sedimentary bands for Badlands and canyons.",
+  "tags": [
+   "striped",
+   "bands",
+   "terracotta",
+   "badlands",
+   "mesa",
+   "material"
+  ]
+ },
+ "QueueMaterialProvider": {
+  "label": "QueueMaterial",
+  "kind": "Material",
+  "formula": "Block = FirstNonNull(Rule1, Rule2, ...)",
+  "doc": "Evaluates an ordered queue of material providers and returns the first match.",
+  "tags": [
+   "queue",
+   "priority",
+   "list",
+   "material"
+  ]
+ },
+ "WeightedMaterialProvider": {
+  "label": "WeightedMaterial",
+  "kind": "Material",
+  "formula": "Block = WeightedChoice(A, B, Hash(x,y,z))",
+  "doc": "Randomly mixes blocks according to probability weights for textured surfaces.",
+  "tags": [
+   "weighted",
+   "random",
+   "mix",
+   "palette",
+   "material"
+  ]
+ },
+ "SurfacePattern": {
+  "label": "SurfacePattern",
+  "kind": "Pattern",
+  "formula": "Match = IsSolid(x,y,z) && IsAir(x, y+1..k, z)",
+  "doc": "Matches solid top surface blocks with required open air clearance above.",
+  "tags": [
+   "surface",
+   "floor",
+   "ground",
+   "top",
+   "pattern"
+  ]
+ },
+ "SlopePattern": {
+  "label": "SlopePattern",
+  "kind": "Pattern",
+  "formula": "Match = slopeAngle in [minSlope, maxSlope]",
+  "doc": "Matches terrain surfaces whose steepness angle in degrees falls within [min, max].",
+  "tags": [
+   "slope",
+   "angle",
+   "cliff",
+   "steep",
+   "pattern"
+  ]
+ },
+ "BlockType": {
+  "label": "BlockTypePattern",
+  "kind": "Pattern",
+  "formula": "Match = (WorldBlock(x,y,z) == Block)",
+  "doc": "Matches when the existing voxel in the chunk matches the selected Block.",
+  "tags": [
+   "blocktype",
+   "block",
+   "match",
+   "filter",
+   "pattern"
+  ]
+ },
+ "DontReplaceMask": {
+  "label": "DontReplaceMask",
+  "kind": "Mask",
+  "formula": "Allow = (Dest != ProtectedBlock)",
+  "doc": "Prevents props or carvers from overwriting protected existing blocks (e.g., bedrock).",
+  "tags": [
+   "mask",
+   "dontreplace",
+   "protect",
+   "bedrock"
+  ]
+ },
+ "DontPlaceMask": {
+  "label": "DontPlaceMask",
+  "kind": "Mask",
+  "formula": "Allow = (Source != ExcludedBlock)",
+  "doc": "Prevents placing specific source blocks (e.g., skipping structure air pockets).",
+  "tags": [
+   "mask",
+   "dontplace",
+   "air",
+   "skip"
+  ]
+ },
+ "AdvancedBlockMask": {
+  "label": "AdvancedBlockMask",
+  "kind": "Mask",
+  "formula": "Allow = MatrixMatch(Source, Dest)",
+  "doc": "N x M source-to-destination replacement matrix rule.",
+  "tags": [
+   "mask",
+   "advanced",
+   "matrix",
+   "replace"
+  ]
+ },
+ "SourceMaterial": {
+  "label": "SourceMaterialRule",
+  "kind": "Mask",
+  "formula": "Source == Block",
+  "doc": "Specifies the incoming Source Material in a BlockMask rule.",
+  "tags": [
+   "source",
+   "mask",
+   "material"
+  ]
+ },
+ "DestinationMaterial": {
+  "label": "DestinationMaterialRule",
+  "kind": "Mask",
+  "formula": "Dest == Block",
+  "doc": "Specifies the existing world Destination Material in a BlockMask rule.",
+  "tags": [
+   "destination",
+   "dest",
+   "mask",
+   "material"
+  ]
+ },
+ "PoissonDisk": {
+  "label": "PoissonDisk (BlueNoise)",
+  "kind": "Positions",
+  "formula": "Pts = PoissonDisk2D(minDistance)",
+  "doc": "Natural blue-noise point distribution with guaranteed minimum spacing; ideal for trees and boulders.",
+  "tags": [
+   "poisson",
+   "bluenoise",
+   "scatter",
+   "trees",
+   "positions"
+  ]
+ },
+ "TriangularGrid2dPositionsProvider": {
+  "label": "TriangularGrid2d",
+  "kind": "Positions",
+  "formula": "Pts = HexTriangularLattice(spacing)",
+  "doc": "Equilateral triangular / hexagonal 2D point tessellation.",
+  "tags": [
+   "triangular",
+   "hex",
+   "grid",
+   "lattice",
+   "positions"
+  ]
+ },
+ "SquareGrid2dPositionsProvider": {
+  "label": "SquareGrid2d",
+  "kind": "Positions",
+  "formula": "Pts = SquareGrid2D(spacing)",
+  "doc": "Regular 2D Cartesian grid of candidate column coordinates.",
+  "tags": [
+   "square",
+   "grid",
+   "2d",
+   "positions"
+  ]
+ },
+ "SquareGrid3dPositionsProvider": {
+  "label": "SquareGrid3d",
+  "kind": "Positions",
+  "formula": "Pts = Grid3D(dx, dy, dz)",
+  "doc": "3D volumetric lattice of candidate points for cave features and floating props.",
+  "tags": [
+   "square",
+   "grid",
+   "3d",
+   "volumetric",
+   "positions"
+  ]
+ },
+ "Jitter2dPositionsProvider": {
+  "label": "Jitter2d",
+  "kind": "Positions",
+  "formula": "Pt' = Pt + RandomOffsetXZ(mag)",
+  "doc": "Randomly perturbs input points horizontally in X and Z to break up grid regularity.",
+  "tags": [
+   "jitter",
+   "random",
+   "2d",
+   "perturb",
+   "positions"
+  ]
+ },
+ "Jitter3dPositionsProvider": {
+  "label": "Jitter3d",
+  "kind": "Positions",
+  "formula": "Pt' = Pt + RandomOffsetXYZ(mag)",
+  "doc": "Randomly perturbs input points in all three dimensions (X, Y, Z).",
+  "tags": [
+   "jitter",
+   "random",
+   "3d",
+   "positions"
+  ]
+ },
+ "LinearScanner": {
+  "label": "LinearScanner",
+  "kind": "Scanner",
+  "formula": "Hits = Raycast(Axis, Range, Pattern)",
+  "doc": "Casts a linear voxel probe along X, Y, or Z (e.g. top-down sky raycast) to find surfaces matching Pattern.",
+  "tags": [
+   "scanner",
+   "linear",
+   "raycast",
+   "surface",
+   "ground",
+   "ceiling"
+  ]
+ },
+ "RadialScanner": {
+  "label": "RadialScanner",
+  "kind": "Scanner",
+  "formula": "Hits = SphereSearch(Origin, Radius, Pattern)",
+  "doc": "Probes outward in a 3D spherical shell to locate valid anchor voxels.",
+  "tags": [
+   "scanner",
+   "radial",
+   "sphere",
+   "probe"
+  ]
+ },
+ "RandomScanner": {
+  "label": "RandomScanner",
+  "kind": "Scanner",
+  "formula": "Hits = MonteCarloProbe(Radius, Attempts)",
+  "doc": "Stochastically samples candidate offsets around the origin until Pattern matches.",
+  "tags": [
+   "scanner",
+   "random",
+   "montecarlo"
+  ]
+ },
+ "OriginScanner": {
+  "label": "OriginScanner",
+  "kind": "Scanner",
+  "formula": "Hits = Pattern(Origin) ? [Origin] : []",
+  "doc": "Tests the exact input coordinate without raycasting.",
+  "tags": [
+   "scanner",
+   "origin",
+   "point"
+  ]
+ },
+ "QueueScanner": {
+  "label": "QueueScanner",
+  "kind": "Scanner",
+  "formula": "Hits = FirstNonEmpty(Scanner1, Scanner2)",
+  "doc": "Tries a sequence of Scanners in order until valid placement anchors are found.",
+  "tags": [
+   "scanner",
+   "queue",
+   "fallback"
+  ]
+ },
+ "ConstantAssignment": {
+  "label": "ConstantAssignment",
+  "kind": "Assign",
+  "formula": "Assign(pt) = Prop",
+  "doc": "Always assigns the connected Prop to every candidate point.",
+  "tags": [
+   "assignment",
+   "constant",
+   "prop"
+  ]
+ },
+ "WeightedAssignment": {
+  "label": "WeightedAssignment",
+  "kind": "Assign",
+  "formula": "Assign(pt) = WeightedChoice(PropA, PropB)",
+  "doc": "Randomly selects between multiple Props (e.g., Oak vs Birch tree variants) by weight.",
+  "tags": [
+   "assignment",
+   "weighted",
+   "random",
+   "variant"
+  ]
+ },
+ "FieldFunctionAssignment": {
+  "label": "FieldFunctionAssign",
+  "kind": "Assign",
+  "formula": "Assign(pt) = LookupByDensity(D(pt))",
+  "doc": "Selects which Prop to place based on a continuous 3D Density field (e.g., tall trees in core, shrubs on edge).",
+  "tags": [
+   "assignment",
+   "field",
+   "density",
+   "zone"
+  ]
+ },
+ "SandwichAssignment": {
+  "label": "SandwichAssignment",
+  "kind": "Assign",
+  "formula": "Assign(pt) = ElevationBand(pt.y)",
+  "doc": "Assigns different Props across vertical altitude strata (e.g., valley oaks -> mid pines -> alpine shrubs).",
+  "tags": [
+   "assignment",
+   "sandwich",
+   "altitude",
+   "elevation"
+  ]
+ },
+ "BlockProp": {
+  "label": "BlockProp",
+  "kind": "Prop",
+  "formula": "PlaceBlock(Anchor, Block)",
+  "doc": "Places a single block (flower, grass, ore, or modded block) at each scanned anchor.",
+  "tags": [
+   "prop",
+   "block",
+   "flower",
+   "grass",
+   "foliage"
+  ]
+ },
+ "CuboidProp": {
+  "label": "CuboidProp",
+  "kind": "Prop",
+  "formula": "PlaceBox(sizeX, sizeY, sizeZ, Material)",
+  "doc": "Places a 3D cuboid volume of blocks or MaterialProvider at the anchor.",
+  "tags": [
+   "prop",
+   "cuboid",
+   "box",
+   "boulder",
+   "pillar"
+  ]
+ },
+ "PrefabProp": {
+  "label": "PrefabProp",
+  "kind": "Prop",
+  "formula": "PlacePrefab(ID, Rotation, FoundationPlinths)",
+  "doc": "Places a 3D `.prefab.json` structure with optional adaptive foundation plinths and socket alignment.",
+  "tags": [
+   "prop",
+   "prefab",
+   "structure",
+   "tree",
+   "house",
+   "dungeon",
+   "plinth"
+  ]
+ },
+ "DensityProp": {
+  "label": "DensityProp (3D Blob)",
+  "kind": "Prop",
+  "formula": "PlaceWhere(D_local(x,y,z) >= 0)",
+  "doc": "Evaluates a local 3D Density field around each anchor to sculpt organic boulders, stalactites, or bushes.",
+  "tags": [
+   "prop",
+   "density",
+   "blob",
+   "boulder",
+   "stalactite",
+   "spike"
+  ]
+ },
+ "PondFillerProp": {
+  "label": "PondFillerProp",
+  "kind": "Prop",
+  "formula": "FillClosedBasin(Origin, Fluid, Basin)",
+  "doc": "Flood-fills closed terrain depressions with water/lava Only if the rim is sealed against spilling.",
+  "tags": [
+   "prop",
+   "pond",
+   "lake",
+   "water",
+   "pool",
+   "filler"
+  ]
+ },
+ "LocatorProp": {
+  "label": "LocatorProp",
+  "kind": "Prop",
+  "formula": "ForEachHit(Scanner, Pattern) -> Place(Child)",
+  "doc": "Runs a Scanner and Pattern check around the candidate point and places Child Prop at valid surface hits.",
+  "tags": [
+   "prop",
+   "locator",
+   "scanner",
+   "anchor"
+  ]
+ },
+ "AssignmentsProp": {
+  "label": "AssignmentsProp",
+  "kind": "Prop",
+  "formula": "Distribute(Positions -> Scanner -> Assignments)",
+  "doc": "Full decoupled prop distribution pipeline connecting PositionsProvider, Scanner, and Assignments.",
+  "tags": [
+   "prop",
+   "assignments",
+   "distribution",
+   "pipeline"
+  ]
+ },
+ "BiomeRoot": {
+  "label": "Biome Root Output",
+  "kind": "World",
+  "formula": "Biome = Compile(Terrain, Material, Props)",
+  "doc": "Master output node for a Biome definition. Connect your final Density, MaterialProvider, and Props here.",
+  "tags": [
+   "biome",
+   "root",
+   "output",
+   "world",
+   "master"
+  ]
+ },
+ "DimensionOutput": {
+  "label": "Dimension Output & Fallback",
+  "kind": "World",
+  "formula": "Dimension = MacroLayout(Zones, Biomes, Landmarks, Fallback)",
+  "doc": "Master Dimension Output node. Controls concentric zones, biome pools, landmarks, bounding radius (0=Infinite), and Outside-Bounds Fallback (DEFAULT_BIOMES, VOID, OCEAN, VANILLA_DEFAULT).",
+  "tags": [
+   "dimension",
+   "output",
+   "fallback",
+   "void",
+   "bounds",
+   "end",
+   "preset",
+   "world"
+  ]
+ },
+ "RadialZone": {
+  "label": "Radial Zone / Ring",
+  "kind": "World",
+  "formula": "Zone(r) = SmoothRing(innerR, outerR, Mode)",
+  "doc": "Concentric radial zone or ring (e.g. Central End Island 0..190, Void Moat 190..960, Outer Archipelago Islands 960+).",
+  "tags": [
+   "radial",
+   "ring",
+   "zone",
+   "end",
+   "island",
+   "void",
+   "moat",
+   "bounds"
+  ]
+ },
+ "RingLandmarks": {
+  "label": "Ring Towers / Pillars",
+  "kind": "World",
+  "formula": "Pillars[i] = Polar(ringRadius, 2*pi*i/count)",
+  "doc": "Places a circular ring of procedural pillars or towers (e.g. 10 End Obsidian Pillars around (0,0)).",
+  "tags": [
+   "ring",
+   "obsidian",
+   "pillar",
+   "tower",
+   "end",
+   "landmark",
+   "circle"
+  ]
+ },
+ "SpawnIslandAnchor": {
+  "label": "Spawn Island Anchor",
+  "kind": "World",
+  "formula": "SpawnIsland = RadialIsland(0, 0, islandRadius) + HubAnchor",
+  "doc": "Sculpts a starter island at (0,0) with an optional center structure and exports a Hub Anchor for connecting procedural landmarks.",
+  "tags": [
+   "spawn",
+   "island",
+   "starter",
+   "anchor",
+   "hub",
+   "landmark"
+  ]
+ },
+ "RelationalLandmark": {
+  "label": "Structure Landmark (A=>B)",
+  "kind": "World",
+  "formula": "LandmarkB = PlaceStructure(ParentA, [minDist, maxDist], Structure) + SplineBridge",
+  "doc": "Procedurally places 1 or more instances of a chosen Structure within [minDist, maxDist] of its Parent Hub and connects them with a bridge or road.",
+  "tags": [
+   "landmark",
+   "structure",
+   "relational",
+   "connected",
+   "bridge",
+   "road",
+   "watchtower",
+   "shrine"
+  ]
+ },
+ "SubIslandCluster": {
+  "label": "Satellite Islands Cluster",
+  "kind": "World",
+  "formula": "SubIslands = ScatterIslands(Parent, count, [minDist, maxDist])",
+  "doc": "Procedurally scatters satellite islands around a parent hub with an optional landmark structure on each island.",
+  "tags": [
+   "island",
+   "satellite",
+   "cluster",
+   "archipelago",
+   "structure"
+  ]
+ },
+ "BiomeWeightEntry": {
+  "label": "Biome Weight & Pool Entry",
+  "kind": "World",
+  "formula": "Pool += Biome(weight, sizeMod, transitionDist)",
+  "doc": "Assigns a biome to the active dimension with configurable weight, cell size multiplier, and boundary blend width. Double-click header to edit this biome's terrain graph!",
+  "tags": [
+   "biome",
+   "weight",
+   "pool",
+   "dimension",
+   "voronoi",
+   "rarity"
+  ]
+ }
+}
