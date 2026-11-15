@@ -40,5 +40,14 @@ public interface VoxelSpace<T> {
     /** Sets heights [yFrom, yTo) of one column to the same block. Implementations may do better than one call per block. */
     default void setBlockRun(int x, int z, int yFrom, int yTo, T block) { for (int y = yFrom; y < yTo; y++) setBlock(x, y, z, block); }
 
+    /**
+     * A bulk write is about to happen (many {@link #setBlockRun} calls into an empty space); implementations may defer bookkeeping until
+     * {@link #endBulk}. Reads in between are not allowed.
+     */
+    default void beginBulk() {}
+
+    /** Finishes a bulk write: the space is consistent again. */
+    default void endBulk() {}
+
     default void setBlockLoot(int x, int y, int z, String lootTableId, long seed) {}
 }

@@ -82,6 +82,21 @@ public final class MinecraftVoxelSpace implements VoxelSpace<BlockState> {
         }
     }
 
+    /** In a bulk write: blocks go straight into the palettes, and each touched section recounts its blocks once at the end. */
+    private boolean bulk;
+    private final boolean[] bulkTouched = new boolean[64];
+
+    @Override
+    public void beginBulk() { bulk = true; }
+
+    @Override
+    public void endBulk() {
+        bulk = false;
+        for (int i = 0; i < sections.length && i < bulkTouched.length; i++) {
+            if (bulkTouched[i]) { sections[i].recalcBlockCounts(); bulkTouched[i] = false; }
+        }
+    }
+
     @Override
     public void setBlockRun(int x, int z, int yFrom, int yTo, BlockState block) {
         if (block == null) return;
@@ -95,6 +110,12 @@ public final class MinecraftVoxelSpace implements VoxelSpace<BlockState> {
             int sectionIdx = chunk.getSectionIndex(y);
             if (sectionIdx < 0 || sectionIdx >= sections.length) continue;
             LevelChunkSection section = sections[sectionIdx];
+            if (bulk) {
+                if (air) { y |= 15; continue; }          // a bulk write goes into an empty chunk: air is already there
+                section.getStates().getAndSetUnchecked(lx, y & 15, lz, block);
+                if (sectionIdx < bulkTouched.length) bulkTouched[sectionIdx] = true;
+                continue;
+            }
             if (air && section.hasOnlyAir()) { y |= 15; continue; }
             section.setBlockState(lx, y & 15, lz, block, false);
         }

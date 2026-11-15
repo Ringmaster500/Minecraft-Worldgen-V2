@@ -442,7 +442,8 @@ public final class StagedChunkGenerator<T> {
             // neighbour whose props read it): copy it in, then run the prop pass.
             ImmutableChunkSnapshot<T> tile = getTerrainTile(chunkX, chunkZ, minY, maxY);
             long c0 = COUNTERS ? System.nanoTime() : 0;
-            tile.copyTo(voxelSpace);
+            voxelSpace.beginBulk();
+            try { tile.copyTo(voxelSpace); } finally { voxelSpace.endBulk(); }
             if (COUNTERS) COPY_NANOS.addAndGet(System.nanoTime() - c0);
             long p0 = COUNTERS ? System.nanoTime() : 0;
             runDistributionPass(chunkX, chunkZ, voxelSpace, minY, maxY);
