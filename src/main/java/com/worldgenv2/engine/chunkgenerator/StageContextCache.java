@@ -19,19 +19,17 @@ public final class StageContextCache<T> {
         this(DEFAULT_CAPACITY);
     }
 
+    /** Memory the snapshots may use together; older ones go first. */
+    private static final long BYTE_BUDGET = 320L * 1024 * 1024;
+    private long bytes;
+
     public StageContextCache(int capacity) {
         this.capacity = Math.max(16, capacity);
-        this.cache = new LinkedHashMap<>(this.capacity, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<Long, ImmutableChunkSnapshot<T>> eldest) {
-                return size() > StageContextCache.this.capacity;
-            }
-        };
+        this.cache = new LinkedHashMap<>(this.capacity, 0.75f, true);
     }
 
     /** Grows the cache so the working set of every worker thread fits (never shrinks). */
     public void ensureCapacity(int wanted) { if (wanted > capacity) capacity = wanted; }
-
     public static long key(int chunkX, int chunkZ, int stage) {
         long k = (((long) chunkX & 0xFFFFFFL) << 36) | (((long) chunkZ & 0xFFFFFFL) << 12) | ((long) stage & 0xFFFL);
         return k;
@@ -48,7 +46,17 @@ public final class StageContextCache<T> {
         if (snapshot == null) return;
         long k = key(chunkX, chunkZ, stage);
         synchronized (cache) {
-            cache.put(k, snapshot);
+            ImmutableChunkSnapshot<T> old = cache.put(k, snapshot);
+            if (old != null) bytes -= old.approxBytes();
+            bytes += snapshot.approxBytes();
+            // drop the least recently used until both the count and the memory budget fit
+            var it = cache.entrySet().iterator();
+            while ((cache.size() > capacity || bytes > BYTE_BUDGET) && cache.size() > 16 && it.hasNext()) {
+                var e = it.next();
+                if (e.getKey() == k) continue;
+                bytes -= e.getValue().approxBytes();
+                it.remove();
+            }
         }
     }
 
@@ -68,6 +76,7 @@ public final class StageContextCache<T> {
     public void clear() {
         synchronized (cache) {
             cache.clear();
+            bytes = 0;
         }
     }
 }

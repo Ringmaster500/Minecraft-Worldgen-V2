@@ -45,7 +45,24 @@ public final class DensityBiomeMap {
         return defaultBiomeId;
     }
 
-    private double field(float x, float z) { return density.compute(x, 0f, z); }
+    /** Recent field values: a chunk asks for each column and for its four neighbours, so every value is wanted about five times. */
+    private static final class FieldCache {
+        final long[] keys = new long[8192];
+        final double[] values = new double[8192];
+        FieldCache() { java.util.Arrays.fill(keys, -1L); }
+    }
+    private final ThreadLocal<FieldCache> fieldCache = ThreadLocal.withInitial(FieldCache::new);
+
+    private double field(float x, float z) {
+        long key = ((long) Float.floatToIntBits(x) << 32) | (Float.floatToIntBits(z) & 0xFFFFFFFFL);
+        int slot = (int) (((key ^ (key >>> 29)) * 0x9E3779B97F4A7C15L) >>> 51);
+        FieldCache c = fieldCache.get();
+        if (c.keys[slot] == key) return c.values[slot];
+        double v = density.compute(x, 0f, z);
+        c.keys[slot] = key;
+        c.values[slot] = v;
+        return v;
+    }
 
     /** The biome a position belongs to, from a single sample of the field (no edge distance or blending). */
     public TileBiome primaryAt(float x, float z) { return resolver.apply(biomeIdAt(field(x, z))); }

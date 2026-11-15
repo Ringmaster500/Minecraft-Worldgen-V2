@@ -20,7 +20,9 @@ public final class HDensity {
     /** A pointwise function of one input. */
     public static DensityFunction pointwise(DensityFunction in, FloatOp1 op) {
         return new DensityFunction() {
-            @Override public boolean yIndependent() { return in.yIndependent(); }
+            private final boolean yFlat = in.yIndependent(), xzFlat = in.xzIndependent();
+            @Override public boolean yIndependent() { return yFlat; }
+            @Override public boolean xzIndependent() { return xzFlat; }
             @Override public float compute(float x, float y, float z) { return op.apply(in.compute(x, y, z)); }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
                 if (in.yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, op.apply(in.compute(x, minY, z))); return; }
@@ -33,7 +35,9 @@ public final class HDensity {
     /** A pointwise function of two inputs. */
     public static DensityFunction pointwise(DensityFunction a, DensityFunction b, FloatOp2 op) {
         return new DensityFunction() {
-            @Override public boolean yIndependent() { return a.yIndependent() && b.yIndependent(); }
+            private final boolean yFlat = a.yIndependent() && b.yIndependent(), xzFlat = a.xzIndependent() && b.xzIndependent();
+            @Override public boolean yIndependent() { return yFlat; }
+            @Override public boolean xzIndependent() { return xzFlat; }
             @Override public float compute(float x, float y, float z) { return op.apply(a.compute(x, y, z), b.compute(x, y, z)); }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
                 int n = maxY - minY;
@@ -53,7 +57,9 @@ public final class HDensity {
                 for (DensityFunction d : in) { float v = d.compute(x, y, z); if (v == 0f) return 0f; r *= v; }
                 return r;
             }
-            @Override public boolean yIndependent() { for (DensityFunction d : in) if (!d.yIndependent()) return false; return true; }
+            private final boolean yFlat = in.stream().allMatch(DensityFunction::yIndependent), xzFlat = in.stream().allMatch(DensityFunction::xzIndependent);
+            @Override public boolean yIndependent() { return yFlat; }
+            @Override public boolean xzIndependent() { return xzFlat; }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
                 int n = maxY - minY;
                 if (yIndependent()) { java.util.Arrays.fill(out, 0, n, compute(x, minY, z)); return; }
@@ -86,22 +92,44 @@ public final class HDensity {
         return pointwise(in, v -> smoothMin(smoothMax(v, lo, range), hi, range));
     }
 
-    public static DensityFunction inverter(DensityFunction in) { return pointwise(in, v -> -v); }
+    public static DensityFunction inverter(DensityFunction in) { return new com.worldgenv2.density.LinearDensity(in, -1f, 0f); }
 
     /** Stretches (above 1), contracts (below 1) or flips (below 0) the input field per axis. */
     public static DensityFunction scale(DensityFunction in, float sx, float sy, float sz) {
         float ax = sx == 0 ? 1 : sx, ay = sy == 0 ? 1 : sy, az = sz == 0 ? 1 : sz;
-        return (x, y, z) -> in.compute(x / ax, y / ay, z / az);
+        return new DensityFunction() {
+            @Override public boolean yIndependent() { return in.yIndependent(); }
+            @Override public boolean xzIndependent() { return in.xzIndependent(); }
+            @Override public float compute(float x, float y, float z) { return in.compute(x / ax, y / ay, z / az); }
+            @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                if (in.yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, in.compute(x / ax, minY / ay, z / az)); return; }
+                if (ay == 1f) { in.computeColumn(x / ax, z / az, minY, maxY, out); return; }
+                for (int i = 0, n = maxY - minY; i < n; i++) out[i] = in.compute(x / ax, (minY + i) / ay, z / az);
+            }
+        };
     }
 
     /** Linearly remaps the input range [fromMin, fromMax] to [toMin, toMax]. */
     public static DensityFunction normalizer(DensityFunction in, float fromMin, float fromMax, float toMin, float toMax) {
         float span = fromMax - fromMin;
-        return pointwise(in, v -> span == 0f ? toMin : toMin + (v - fromMin) * (toMax - toMin) / span);
+        if (span == 0f) return pointwise(in, v -> toMin);
+        float k = (toMax - toMin) / span;
+        return new com.worldgenv2.density.LinearDensity(in, k, toMin - fromMin * k);
     }
 
     /** Slides the input field along a vector. */
-    public static DensityFunction slider(DensityFunction in, float sx, float sy, float sz) { return (x, y, z) -> in.compute(x - sx, y - sy, z - sz); }
+    public static DensityFunction slider(DensityFunction in, float sx, float sy, float sz) {
+        return new DensityFunction() {
+            @Override public boolean yIndependent() { return in.yIndependent(); }
+            @Override public boolean xzIndependent() { return in.xzIndependent(); }
+            @Override public float compute(float x, float y, float z) { return in.compute(x - sx, y - sy, z - sz); }
+            @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
+                if (in.yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, in.compute(x - sx, minY - sy, z - sz)); return; }
+                if (sy == Math.rint(sy)) { in.computeColumn(x - sx, z - sz, minY - (int) sy, maxY - (int) sy, out); return; }
+                for (int i = 0, n = maxY - minY; i < n; i++) out[i] = in.compute(x - sx, minY + i - sy, z - sz);
+            }
+        };
+    }
 
     /** Outputs Then where the condition is non-zero, otherwise Else; only the chosen branch is evaluated. */
     public static DensityFunction selector(List<DensityFunction> in) {
@@ -113,6 +141,8 @@ public final class HDensity {
     /** A named decimal constant from the World Structure: its Y (Distance off) or the signed distance to it (Distance on). */
     public static DensityFunction baseHeight(DoubleSupplier height, boolean distance) {
         return new DensityFunction() {
+            @Override public boolean yIndependent() { return !distance; }
+            @Override public boolean xzIndependent() { return true; }
             @Override public float compute(float x, float y, float z) { return distance ? (float) (y - height.getAsDouble()) : (float) height.getAsDouble(); }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
                 float h = (float) height.getAsDouble();
@@ -215,12 +245,25 @@ public final class HDensity {
         };
     }
 
+    private record PositionBox(double x0, double y0, double z0, double x1, double y1, double z1, java.util.List<com.worldgenv2.vector.Vec3d> points) {}
+
     public static DensityFunction positionsCellNoise(com.worldgenv2.positions.PositionsProvider positions, ReturnType rt, boolean manhattan, double maxDistance) {
         double max = Math.max(1e-6, maxDistance);
+        final double pad = Math.max(8.0, max * 0.5);
+        final ThreadLocal<PositionBox> boxes = new ThreadLocal<>();
         return (x, y, z) -> {
             double d1 = Double.MAX_VALUE, d2 = Double.MAX_VALUE;
             double[] core = null;
-            for (com.worldgenv2.vector.Vec3d p : positions.getPositions(x - max, y - max, z - max, x + max, y + max, z + max)) {
+            // The positions around a point hardly change from one block to the next, so one larger query serves many calls. Only
+            // positions inside this call's own search box count, exactly as if it had asked for just that box.
+            PositionBox box = boxes.get();
+            if (box == null || x - max < box.x0 || x + max > box.x1 || y - max < box.y0 || y + max > box.y1 || z - max < box.z0 || z + max > box.z1) {
+                double bx0 = x - max - pad, by0 = y - max - pad, bz0 = z - max - pad, bx1 = x + max + pad, by1 = y + max + pad, bz1 = z + max + pad;
+                box = new PositionBox(bx0, by0, bz0, bx1, by1, bz1, positions.getPositions(bx0, by0, bz0, bx1, by1, bz1));
+                boxes.set(box);
+            }
+            for (com.worldgenv2.vector.Vec3d p : box.points) {
+                if (p.x() < x - max || p.x() > x + max || p.y() < y - max || p.y() > y + max || p.z() < z - max || p.z() > z + max) continue;
                 double dx = x - p.x(), dy = y - p.y(), dz = z - p.z();
                 double d = manhattan ? Math.abs(dx) + Math.abs(dy) + Math.abs(dz) : Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (d < d1) { d2 = d1; d1 = d; core = new double[]{p.x(), p.y(), p.z()}; }
@@ -358,7 +401,7 @@ public final class HDensity {
     // ------------------------------------------------------------------ Y-independent caching
 
     private static final class Memo {
-        final float[] xs = new float[8], zs = new float[8], vs = new float[8];
+        final float[] xs = new float[32], zs = new float[32], vs = new float[32];
         int next;
         Memo() { java.util.Arrays.fill(xs, Float.NaN); }
     }
@@ -374,10 +417,10 @@ public final class HDensity {
             @Override public boolean yIndependent() { return true; }
             @Override public float compute(float x, float y, float z) {
                 Memo m = memo.get();
-                for (int i = 0; i < 8; i++) if (m.xs[i] == x && m.zs[i] == z) return m.vs[i];
+                int slot = (Float.floatToRawIntBits(x) * 31 + Float.floatToRawIntBits(z)) * 0x9E3779B1 >>> 27;
+                if (m.xs[slot] == x && m.zs[slot] == z) return m.vs[slot];
                 float v = in.compute(x, fixedY, z);
-                int k = m.next++ & 7;
-                m.xs[k] = x; m.zs[k] = z; m.vs[k] = v;
+                m.xs[slot] = x; m.zs[slot] = z; m.vs[slot] = v;
                 return v;
             }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {

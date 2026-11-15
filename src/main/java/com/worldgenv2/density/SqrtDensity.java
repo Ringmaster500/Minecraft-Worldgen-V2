@@ -23,11 +23,15 @@ public final class SqrtDensity implements DensityFunction {
         return v <= 0.0f ? 0.0f : (float) Math.sqrt(v);
     }
 
-    @Override public boolean yIndependent() { return input.yIndependent(); }
+    private byte yFlat, xzFlat;
+    private final YTable yTable = new YTable();
+    @Override public boolean yIndependent() { byte f = yFlat; if (f == 0) yFlat = f = (byte) (input.yIndependent() ? 1 : 2); return f == 1; }
+    @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (input.xzIndependent() ? 1 : 2); return f == 1; }
 
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
+        if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }
         input.computeColumn(x, z, minY, maxY, out);
         int height = maxY - minY;
         for (int i = 0; i < height; i++) {

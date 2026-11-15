@@ -19,4 +19,5 @@ public final class YValueDensity implements DensityFunction {
             out[i] = minY + i;
         }
     }
+    @Override public boolean xzIndependent() { return true; }
 }

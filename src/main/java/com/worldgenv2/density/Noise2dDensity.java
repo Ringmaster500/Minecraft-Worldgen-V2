@@ -30,18 +30,24 @@ public final class Noise2dDensity implements DensityFunction {
         this.amplitude = amplitude;
     }
 
-    /** The last column evaluated on this thread: a column of voxels asks for the same (x, z) hundreds of times, the value never changes. */
-    private static final class ColumnMemo { float x = Float.NaN, z = Float.NaN, v; }
+    /**
+     * Recent columns evaluated on this thread: a column of voxels asks for the same (x, z) hundreds of times, and gradient sampling
+     * keeps coming back to the same few neighbours. The value never changes, so a small direct-mapped cache is enough.
+     */
+    private static final class ColumnMemo {
+        final float[] xs = new float[16], zs = new float[16], vs = new float[16];
+        ColumnMemo() { java.util.Arrays.fill(xs, Float.NaN); }
+    }
     private final ThreadLocal<ColumnMemo> memo = ThreadLocal.withInitial(ColumnMemo::new);
     @Override
     public float compute(float x, float y, float z) {
         ColumnMemo m = memo.get();
-        if (m.x == x && m.z == z) return m.v;
+        int slot = (Float.floatToRawIntBits(x) * 31 + Float.floatToRawIntBits(z)) * 0x9E3779B1 >>> 28;
+        if (m.xs[slot] == x && m.zs[slot] == z) return m.vs[slot];
         float v = noise.getNoise(x, z) * amplitude;
-        m.x = x; m.z = z; m.v = v;
+        m.xs[slot] = x; m.zs[slot] = z; m.vs[slot] = v;
         return v;
     }
-
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         int height = maxY - minY;

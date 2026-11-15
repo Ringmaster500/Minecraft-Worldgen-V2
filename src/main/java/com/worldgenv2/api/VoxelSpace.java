@@ -37,5 +37,8 @@ public interface VoxelSpace<T> {
      * Optional hook to attach a loot table to a container block entity at (x, y, z).
      * Pure-Java test spaces ignore this by default.
      */
+    /** Sets heights [yFrom, yTo) of one column to the same block. Implementations may do better than one call per block. */
+    default void setBlockRun(int x, int z, int yFrom, int yTo, T block) { for (int y = yFrom; y < yTo; y++) setBlock(x, y, z, block); }
+
     default void setBlockLoot(int x, int y, int z, String lootTableId, long seed) {}
 }

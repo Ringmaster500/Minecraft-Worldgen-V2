@@ -28,6 +28,7 @@ public final class ManualCurve implements Curve {
 
     private final List<Point> points;
     private final InterpolationMode mode;
+    private final double[] xs, ys;
 
     public ManualCurve(List<Point> inputPoints) {
         this(inputPoints, InterpolationMode.LINEAR);
@@ -43,64 +44,35 @@ public final class ManualCurve implements Curve {
             sorted.sort(Comparator.naturalOrder());
             this.points = List.copyOf(sorted);
         }
+        this.xs = new double[points.size()];
+        this.ys = new double[points.size()];
+        for (int i = 0; i < xs.length; i++) { xs[i] = points.get(i).x(); ys[i] = points.get(i).y(); }
     }
 
     @Override
     public double evaluate(double input) {
-        int n = points.size();
-        if (n == 1) {
-            return points.get(0).y();
-        }
+        final double[] xs = this.xs, ys = this.ys;
+        int n = xs.length;
+        if (n == 1 || input <= xs[0]) return ys[0];
+        if (input >= xs[n - 1]) return ys[n - 1];
 
-        // Constant before first point
-        if (input <= points.get(0).x()) {
-            return points.get(0).y();
-        }
-        // Constant after last point
-        if (input >= points.get(n - 1).x()) {
-            return points.get(n - 1).y();
-        }
-
-        // Binary search for interval
-        int low = 0;
-        int high = n - 1;
+        // last point whose x is <= input
+        int low = 0, high = n - 1;
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            if (points.get(mid).x() <= input) {
-                low = mid + 1;
-            } else {
-                high = mid - 1;
-            }
+            if (xs[mid] <= input) low = mid + 1; else high = mid - 1;
         }
         int idx = Math.max(0, high);
-        Point p0 = points.get(idx);
-        Point p1 = points.get(Math.min(n - 1, idx + 1));
-
-        double dx = p1.x() - p0.x();
-        if (dx <= 1e-9) {
-            return p0.y();
-        }
-
-        double t = (input - p0.x()) / dx;
-
+        int next = Math.min(n - 1, idx + 1);
+        double dx = xs[next] - xs[idx];
+        if (dx <= 1e-9) return ys[idx];
+        double t = (input - xs[idx]) / dx;
         switch (mode) {
-            case STEP -> {
-                return p0.y();
-            }
-            case SMOOTH -> {
-                // Smooth Hermite interpolation (smoothstep)
-                double smoothT = t * t * (3.0 - 2.0 * t);
-                return p0.y() + smoothT * (p1.y() - p0.y());
-            }
-            case LINEAR -> {
-                return p0.y() + t * (p1.y() - p0.y());
-            }
-            default -> {
-                return p0.y() + t * (p1.y() - p0.y());
-            }
+            case STEP: return ys[idx];
+            case SMOOTH: return ys[idx] + (t * t * (3.0 - 2.0 * t)) * (ys[next] - ys[idx]);
+            default: return ys[idx] + t * (ys[next] - ys[idx]);
         }
     }
-
     public List<Point> getPoints() {
         return points;
     }

@@ -39,6 +39,12 @@ public final class HytaleDistribution<T> implements Distribution<T> {
     @Override
     public int generateInRegion(int minX, int minZ, int maxX, int maxZ, VoxelSpace<T> space, long seedBase,
                                 BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
+        return generateInRegion(minX, minZ, maxX, maxZ, minX, minZ, maxX, maxZ, space, seedBase, accept, solid);
+    }
+
+    @Override
+    public int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
+                                VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
         List<Vec3d> points = new ArrayList<>(positions.getPositions(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ));
         points.sort((a, b) -> {
             int c = Double.compare(a.x(), b.x());
@@ -54,6 +60,10 @@ public final class HytaleDistribution<T> implements Distribution<T> {
             long seed = seedBase ^ (px * 0x9E3779B97F4A7C15L) ^ (pz * 0xC2B2AE3D27D4EB4FL) ^ (py * 0x165667B19E3779F9L);
             seed ^= seed >>> 29;
             Prop<T> chosen = assignments.assign(p, seed);
+            if (chosen != null) {
+                int reach = chosen.contentReach();
+                if (px + reach < needMinX || px - reach >= needMaxX || pz + reach < needMinZ || pz - reach >= needMaxZ) continue;   // builds nothing anyone reads
+            }
             if (chosen != null && chosen.generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, space, seed))) placed++;
         }
         return placed;

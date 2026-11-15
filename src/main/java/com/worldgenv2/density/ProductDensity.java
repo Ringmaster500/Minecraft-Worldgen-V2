@@ -23,29 +23,43 @@ public final class ProductDensity implements DensityFunction {
         return product;
     }
 
-    @Override public boolean yIndependent() { return allFlat(inputs); }
+    private byte yFlat, xzFlat;
+    private final YTable yTable = new YTable();
+    @Override public boolean yIndependent() { byte f = yFlat; if (f == 0) yFlat = f = (byte) (allFlat(inputs) ? 1 : 2); return f == 1; }
+    @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (allFlatXZ(inputs) ? 1 : 2); return f == 1; }
 
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
+        if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }
         int height = maxY - minY;
         if (height <= 0) return;
+        if (inputs.length == 0) { Arrays.fill(out, 0, height, 1f); return; }
 
-        if (inputs.length == 0) {
-            Arrays.fill(out, 0, height, 1.0f);
-            return;
+        // inputs that do not depend on Y are evaluated once per column and folded in as one number
+        float flat = 1f;
+        boolean haveFlat = false, filled = false;
+        float[] scratch = null;
+        for (DensityFunction in : inputs) {
+            if (in.yIndependent()) {
+                float v = in.compute(x, minY, z);
+                flat *= v;
+                haveFlat = true;
+            } else if (!filled) {
+                in.computeColumn(x, z, minY, maxY, out);
+                filled = true;
+            } else {
+                if (scratch == null) scratch = ColumnPool.take(height);
+                in.computeColumn(x, z, minY, maxY, scratch);
+                for (int i = 0; i < height; i++) {
+                    out[i] *= scratch[i];
+                }
+            }
         }
-
-        inputs[0].computeColumn(x, z, minY, maxY, out);
-        if (inputs.length == 1) {
-            return;
-        }
-
-        float[] scratch = new float[height];
-        for (int k = 1; k < inputs.length; k++) {
-            inputs[k].computeColumn(x, z, minY, maxY, scratch);
+        if (scratch != null) ColumnPool.give(scratch);
+        if (haveFlat) {
             for (int i = 0; i < height; i++) {
-                out[i] *= scratch[i];
+                out[i] *= flat;
             }
         }
     }
@@ -54,4 +68,5 @@ public final class ProductDensity implements DensityFunction {
         return inputs;
     }
     private static boolean allFlat(DensityFunction[] in) { for (DensityFunction f : in) if (!f.yIndependent()) return false; return true; }
+    private static boolean allFlatXZ(DensityFunction[] in) { for (DensityFunction f : in) if (!f.xzIndependent()) return false; return true; }
 }

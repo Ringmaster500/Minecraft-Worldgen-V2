@@ -46,6 +46,48 @@ public final class ImmutableChunkSnapshot<T> implements VoxelSpace<T> {
         }
     }
 
+    private ImmutableChunkSnapshot(int chunkX, int chunkZ, int minY, int maxY, Object[][] blocks, short[][] ends, T airBlock) {
+        this.chunkX = chunkX;
+        this.chunkZ = chunkZ;
+        this.minY = minY;
+        this.maxY = maxY;
+        this.height = Math.max(1, maxY - minY);
+        this.airBlock = airBlock;
+        System.arraycopy(blocks, 0, runBlocks, 0, runBlocks.length);
+        System.arraycopy(ends, 0, runEnds, 0, runEnds.length);
+    }
+
+    /** A snapshot taken over from per-column runs (bottom to top; runEnds are exclusive heights relative to minY). */
+    static <T> ImmutableChunkSnapshot<T> fromRuns(int chunkX, int chunkZ, int minY, int maxY, Object[][] blocks, short[][] ends, T airBlock) {
+        return new ImmutableChunkSnapshot<>(chunkX, chunkZ, minY, maxY, blocks, ends, airBlock);
+    }
+
+    /** A rough size in bytes, for the cache budget. */
+    public int approxBytes() {
+        int n = 64;
+        for (int c = 0; c < runBlocks.length; c++) n += 40 + 4 * runBlocks[c].length + 2 * runEnds[c].length;
+        return n;
+    }
+
+    /** Writes every block that is not air into {@code dst}, a run at a time. */
+    public void copyTo(VoxelSpace<T> dst) {
+        int ox = chunkX << 4, oz = chunkZ << 4;
+        for (int lx = 0; lx < 16; lx++) {
+            for (int lz = 0; lz < 16; lz++) {
+                int col = (lx << 4) | lz;
+                Object[] rb = runBlocks[col];
+                short[] re = runEnds[col];
+                int from = 0;
+                for (int i = 0; i < re.length; i++) {
+                    int to = re[i];
+                    @SuppressWarnings("unchecked") T b = (T) rb[i];
+                    if (b != null && !b.equals(airBlock)) dst.setBlockRun(ox + lx, oz + lz, minY + from, minY + to, b);
+                    from = to;
+                }
+            }
+        }
+    }
+
     public static <T> ImmutableChunkSnapshot<T> capture(int chunkX, int chunkZ, VoxelSpace<T> source, T airBlock) {
         int minY = source.getMinY();
         int maxY = source.getMaxY();

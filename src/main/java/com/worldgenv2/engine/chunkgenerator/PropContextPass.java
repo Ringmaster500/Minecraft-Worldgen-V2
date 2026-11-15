@@ -146,13 +146,14 @@ final class PropContextPass<T> {
 
             for (int si = 0; si < ns; si++) {
                 int stage = pl.stages[si];
-                ContextSpace<T>.View view = ctx.view();
+                int need = after[si];
+                ContextSpace<T>.View view = ctx.view(footMinX - need, footMinZ - need, footMinX + 16 + need, footMinZ + 16 + need);
                 for (Item<T> it : active[si]) {
                     int m = after[si] + it.content();
                     int minX = footMinX - m, maxX = footMinX + 16 + m;
                     int minZ = footMinZ - m, maxZ = footMinZ + 16 + m;
                     long seedBase = ws.seed() * 0x9E3779B97F4A7C15L ^ it.salt() * 0xC2B2AE3D27D4EB4FL ^ stage;
-                    it.dist().generateInRegion(minX, minZ, maxX, maxZ, view, seedBase,
+                    it.dist().generateInRegion(minX, minZ, maxX, maxZ, footMinX - need, footMinZ - need, footMinX + 16 + need, footMinZ + 16 + need, view, seedBase,
                         (x, z) -> contains(biomeProps(biomeCache, x, z), it.wrapper()), solid);
                 }
                 ctx.commitStage();
@@ -170,13 +171,17 @@ final class PropContextPass<T> {
                 if (contains(biomeProps(cache, x, z), wrapper)) return true;
         return false;
     }
+    /** Biome props at recent sample points, shared by every chunk: the sample grid is global, so neighbouring chunks ask for the same points. */
+    private record BiomeSlot<T>(long key, List<Prop<T>> props) {}
+    private final java.util.concurrent.atomic.AtomicReferenceArray<BiomeSlot<T>> biomeSlots = new java.util.concurrent.atomic.AtomicReferenceArray<>(1 << 16);
+
     private List<Prop<T>> biomeProps(Map<Long, List<Prop<T>>> cache, int x, int z) {
         long k = ((long) x << 32) ^ (z & 0xFFFFFFFFL);
-        List<Prop<T>> l = cache.get(k);
-        if (l == null) {
-            l = ws.propsAt(x, z, fallbackProps);
-            cache.put(k, l);
-        }
+        int slot = (int) (((k ^ (k >>> 31)) * 0x9E3779B97F4A7C15L) >>> 48);
+        BiomeSlot<T> s = biomeSlots.get(slot);
+        if (s != null && s.key == k) return s.props;
+        List<Prop<T>> l = ws.propsAt(x, z, fallbackProps);
+        biomeSlots.set(slot, new BiomeSlot<>(k, l));
         return l;
     }
 
@@ -258,7 +263,8 @@ final class PropContextPass<T> {
             return a;
         }
 
-        View view() { return new View(); }
+        /** A view whose writes outside [needMinX, needMaxX) x [needMinZ, needMaxZ) are dropped: nothing reads them later. */
+        View view(int needMinX, int needMinZ, int needMaxX, int needMaxZ) { return new View(needMinX, needMinZ, needMaxX, needMaxZ); }
 
         void commitStage() {
             for (int i = 0; i < touchedCount; i++) {
@@ -300,16 +306,27 @@ final class PropContextPass<T> {
 
         /** What props see: the previous stage's blocks to read, a private buffer to write. */
         final class View implements VoxelSpace<T> {
+            private final int needMinX, needMinZ, needMaxX, needMaxZ;
+
+            View(int needMinX, int needMinZ, int needMaxX, int needMaxZ) {
+                this.needMinX = needMinX;
+                this.needMinZ = needMinZ;
+                this.needMaxX = needMaxX;
+                this.needMaxZ = needMaxZ;
+            }
+
             @Override @SuppressWarnings("unchecked")
             public T getBlock(int x, int y, int z) {
                 int col = column(x, z), ly = y - minY;
                 if (col < 0 || ly < 0 || ly >= h) return null;
                 Object[] a = cur[col];
-                return (T) (a != null ? a[ly] : terrain(x, y, z));
+                if (a == null) a = materialize(col, x, z);
+                return (T) a[ly];
             }
 
             @Override
             public void setBlock(int x, int y, int z, T block) {
+                if (x < needMinX || x >= needMaxX || z < needMinZ || z >= needMaxZ) return;
                 int col = column(x, z), ly = y - minY;
                 if (col < 0 || ly < 0 || ly >= h || block == null) return;
                 Object[] p = pend[col];
@@ -326,7 +343,8 @@ final class PropContextPass<T> {
                 int col = column(x, z), ly = y - minY;
                 if (col < 0 || ly < 0 || ly >= h) return true;
                 Object[] a = cur[col];
-                Object b = a != null ? a[ly] : terrain(x, y, z);
+                if (a == null) a = materialize(col, x, z);
+                Object b = a[ly];
                 return b == null || b.equals(air);
             }
 

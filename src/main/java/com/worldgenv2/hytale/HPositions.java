@@ -51,10 +51,11 @@ public final class HPositions {
 
     public static PositionsProvider squareGrid2d() {
         return (x0, y0, z0, x1, y1, z1) -> {
-            List<Vec3d> out = new ArrayList<>();
-            if (y0 > 0 || y1 < 0) return out;
-            for (long x = (long) Math.ceil(x0); x <= (long) Math.floor(x1); x++)
-                for (long z = (long) Math.ceil(z0); z <= (long) Math.floor(z1); z++) out.add(new Vec3d(x, 0, z));
+            if (y0 > 0 || y1 < 0) return new ArrayList<>();
+            long xa = (long) Math.ceil(x0), xb = (long) Math.floor(x1), za = (long) Math.ceil(z0), zb = (long) Math.floor(z1);
+            List<Vec3d> out = new ArrayList<>((int) Math.max(0, Math.min(1_000_000L, (xb - xa + 1) * (zb - za + 1))));
+            for (long x = xa; x <= xb; x++)
+                for (long z = za; z <= zb; z++) out.add(new Vec3d(x, 0, z));
             return out;
         };
     }
@@ -88,11 +89,12 @@ public final class HPositions {
     public static PositionsProvider scaler(PositionsProvider child, double sx, double sy, double sz) {
         final double ax = sx == 0 ? 1 : sx, ay = sy == 0 ? 1 : sy, az = sz == 0 ? 1 : sz;
         return (x0, y0, z0, x1, y1, z1) -> {
-            List<Vec3d> out = new ArrayList<>();
             double lx = Math.min(x0 / ax, x1 / ax), hx = Math.max(x0 / ax, x1 / ax);
             double ly = Math.min(y0 / ay, y1 / ay), hy = Math.max(y0 / ay, y1 / ay);
             double lz = Math.min(z0 / az, z1 / az), hz = Math.max(z0 / az, z1 / az);
-            for (Vec3d p : child.getPositions(lx, ly, lz, hx, hy, hz)) {
+            List<Vec3d> src = child.getPositions(lx, ly, lz, hx, hy, hz);
+            List<Vec3d> out = new ArrayList<>(src.size());
+            for (Vec3d p : src) {
                 Vec3d q = new Vec3d(p.x() * ax, p.y() * ay, p.z() * az);
                 if (in(q, x0, y0, z0, x1, y1, z1)) out.add(q);
             }
@@ -103,9 +105,10 @@ public final class HPositions {
     /** Moves each position by a deterministic random distance in [0, magnitude] in a random direction (horizontal or all). */
     public static PositionsProvider jitter(PositionsProvider child, double magnitude, long seed, boolean threeD) {
         return (x0, y0, z0, x1, y1, z1) -> {
-            List<Vec3d> out = new ArrayList<>();
             double m = Math.abs(magnitude);
-            for (Vec3d p : child.getPositions(x0 - m, threeD ? y0 - m : y0, z0 - m, x1 + m, threeD ? y1 + m : y1, z1 + m)) {
+            List<Vec3d> src = child.getPositions(x0 - m, threeD ? y0 - m : y0, z0 - m, x1 + m, threeD ? y1 + m : y1, z1 + m);
+            List<Vec3d> out = new ArrayList<>(src.size());
+            for (Vec3d p : src) {
                 double dist = hash01(seed, p.x(), p.y(), p.z(), 1) * m;
                 double a = hash01(seed, p.x(), p.y(), p.z(), 2) * Math.PI * 2;
                 Vec3d q;
@@ -139,8 +142,9 @@ public final class HPositions {
 
     public static PositionsProvider offset(PositionsProvider child, double ox, double oy, double oz) {
         return (x0, y0, z0, x1, y1, z1) -> {
-            List<Vec3d> out = new ArrayList<>();
-            for (Vec3d p : child.getPositions(x0 - ox, y0 - oy, z0 - oz, x1 - ox, y1 - oy, z1 - oz)) out.add(new Vec3d(p.x() + ox, p.y() + oy, p.z() + oz));
+            List<Vec3d> src = child.getPositions(x0 - ox, y0 - oy, z0 - oz, x1 - ox, y1 - oy, z1 - oz);
+            List<Vec3d> out = new ArrayList<>(src.size());
+            for (Vec3d p : src) out.add(new Vec3d(p.x() + ox, p.y() + oy, p.z() + oz));
             return out;
         };
     }

@@ -23,50 +23,107 @@ public final class HMaterials {
         return (h >>> 11) * (1.0 / (1L << 53));
     }
 
-    @FunctionalInterface
-    private interface FullProvider<T> extends MaterialProvider<T> {
+    /** Base of the providers here: they all take the floor and ceiling contexts, and say how long their answer holds down a column. */
+    private abstract static class Prov<T> implements MaterialProvider<T> {
         @Override
-        default T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
+        public T getMaterial(int x, int y, int z, int depth, int space, float slopeAngle, VoxelSpace<T> spaceRef) {
             return getMaterial(x, y, z, depth, space, -1, 0, slopeAngle, spaceRef);
         }
 
         @Override
-        T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
-                      int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef);
+        public abstract T getMaterial(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                                      int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef);
+
+        @Override
+        public int runLength(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) { return 1; }
     }
+
+    private static int smallestAtLeast(double v) { return (int) Math.ceil(v); }
 
     /** The lack of any material. */
     public static <T> MaterialProvider<T> transparent() {
-        return (x, y, z, depth, space, slope, ref) -> null;
-    }
-
-    /** Solid where the terrain density is above 0 (the engine asks providers for solid blocks), Empty elsewhere. */
-    public static <T> MaterialProvider<T> solidity(MaterialProvider<T> solid, MaterialProvider<T> empty) {
-        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) ->
-                solid == null ? null : solid.getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
-    }
-
-    /** The first provider that provides a block. */
-    public static <T> MaterialProvider<T> queue(List<MaterialProvider<T>> queue) {
-        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
-            for (MaterialProvider<T> p : queue) { T m = p.getMaterial(x, y, z, df, sf, dc, sc, slope, ref); if (m != null) return m; }
-            return null;
+        return new Prov<T>() {
+            @Override public T getMaterial(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) { return null; }
+            @Override public int runLength(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) { return Integer.MAX_VALUE; }
         };
     }
 
+    /** Solid where the terrain density is above 0 (the engine asks the solid side for solid blocks), and the Empty side for the rest. */
+    public static <T> MaterialProvider<T> solidity(MaterialProvider<T> solid, MaterialProvider<T> empty) {
+        return new Prov<T>() {
+            @Override public T getMaterial(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                return solid == null ? null : solid.getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
+            }
+            @Override public int runLength(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                return solid == null ? Integer.MAX_VALUE : solid.runLength(x, y, z, df, sf, dc, sc, slope, ref);
+            }
+            @Override public boolean providesEmpty() { return empty != null; }
+            @Override public T getEmptyMaterial(int x, int y, int z, VoxelSpace<T> ref) {
+                return empty == null ? null : empty.getMaterial(x, y, z, 0, 0, -1, 0, 0f, ref);
+            }
+            @Override public int emptyRunLength(int x, int y, int z, VoxelSpace<T> ref) {
+                return empty == null ? Integer.MAX_VALUE : empty.runLength(x, y, z, 0, 0, -1, 0, 0f, ref);
+            }
+        };
+    }
+
+    /** The first provider that provides a block. */
+    @SuppressWarnings("unchecked")
+    public static <T> MaterialProvider<T> queue(List<MaterialProvider<T>> queue) {
+        final MaterialProvider<T>[] arr = queue.toArray(new MaterialProvider[0]);
+        return new Prov<T>() {
+            @Override public T getMaterial(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                for (int i = 0; i < arr.length; i++) { T m = arr[i].getMaterial(x, y, z, df, sf, dc, sc, slope, ref); if (m != null) return m; }
+                return null;
+            }
+            @Override public int runLength(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                int run = Integer.MAX_VALUE;
+                for (int i = 0; i < arr.length; i++) {
+                    T m = arr[i].getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
+                    run = Math.min(run, arr[i].runLength(x, y, z, df, sf, dc, sc, slope, ref));
+                    if (run <= 1) return 1;
+                    if (m != null) return run;
+                }
+                return run;
+            }
+        };
+    }
+
+    private static final class Limits { volatile boolean ready; double top, bottom; }
+
     /** Applies the child to Y in [bottomY, topY): bottom inclusive, top exclusive. A base height makes both relative to it. */
     public static <T> MaterialProvider<T> simpleHorizontal(int topY, int bottomY, DoubleSupplier topBase, DoubleSupplier bottomBase, MaterialProvider<T> child) {
-        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
-            double top = topY + (topBase == null ? 0 : topBase.getAsDouble()), bottom = bottomY + (bottomBase == null ? 0 : bottomBase.getAsDouble());
-            return y >= bottom && y < top ? child.getMaterial(x, y, z, df, sf, dc, sc, slope, ref) : null;
+        // the base heights are world-structure constants: read them once, on first use, not for every block
+        final Limits lim = new Limits();
+        return new Prov<T>() {
+            private void init() {
+                if (!lim.ready) {
+                    lim.top = topY + (topBase == null ? 0 : topBase.getAsDouble());
+                    lim.bottom = bottomY + (bottomBase == null ? 0 : bottomBase.getAsDouble());
+                    lim.ready = true;   // volatile: published after the numbers
+                }
+            }
+            @Override public T getMaterial(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                init();
+                return y >= lim.bottom && y < lim.top ? child.getMaterial(x, y, z, df, sf, dc, sc, slope, ref) : null;
+            }
+            @Override public int runLength(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                init();
+                if (y >= lim.top) return Math.max(1, y - smallestAtLeast(lim.top) + 1);          // nothing until the band begins
+                if (y < lim.bottom) return Integer.MAX_VALUE;                                       // below the band: nothing from here down
+                int insideBand = Math.max(1, y - smallestAtLeast(lim.bottom) + 1);                  // blocks left in the band
+                return Math.min(insideBand, child.runLength(x, y, z, df, sf, dc, sc, slope, ref));
+            }
         };
     }
 
     /** Applies the child inside any stripe; both Y limits are inclusive. */
     public static <T> MaterialProvider<T> striped(List<int[]> stripes, MaterialProvider<T> child) {
-        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
-            for (int[] s : stripes) if (y >= Math.min(s[0], s[1]) && y <= Math.max(s[0], s[1])) return child.getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
-            return null;
+        return new Prov<T>() {
+            @Override public T getMaterial(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                for (int[] s : stripes) if (y >= Math.min(s[0], s[1]) && y <= Math.max(s[0], s[1])) return child.getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
+                return null;
+            }
         };
     }
 
@@ -75,12 +132,17 @@ public final class HMaterials {
         double total = 0;
         for (double w : weights) total += w;
         final double sum = total;
-        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
-            if (providers.isEmpty() || sum <= 0) return null;
-            if (skipChance > 0 && hash01(seed, x, y, z, 1) < skipChance) return null;
-            double r = hash01(seed, x, y, z, 2) * sum;
-            for (int i = 0; i < providers.size(); i++) { r -= weights.get(i); if (r < 0) return providers.get(i).getMaterial(x, y, z, df, sf, dc, sc, slope, ref); }
-            return providers.get(providers.size() - 1).getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
+        return new Prov<T>() {
+            @Override public T getMaterial(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                if (providers.isEmpty() || sum <= 0) return null;
+                if (skipChance > 0 && hash01(seed, x, y, z, 1) < skipChance) return null;
+                double r = hash01(seed, x, y, z, 2) * sum;
+                for (int i = 0; i < providers.size(); i++) { r -= weights.get(i); if (r < 0) return providers.get(i).getMaterial(x, y, z, df, sf, dc, sc, slope, ref); }
+                return providers.get(providers.size() - 1).getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
+            }
+            @Override public int runLength(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                return providers.isEmpty() || sum <= 0 ? Integer.MAX_VALUE : 1;                       // chosen per block
+            }
         };
     }
 
@@ -88,13 +150,24 @@ public final class HMaterials {
     public record Delimiter<T>(double from, double to, MaterialProvider<T> provider) {}
 
     public static <T> MaterialProvider<T> fieldFunction(DensityFunction field, List<Delimiter<T>> delimiters) {
-        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
-            double v = field.compute(x, y, z);
-            for (int i = delimiters.size() - 1; i >= 0; i--) {
-                Delimiter<T> d = delimiters.get(i);
-                if (v >= d.from() && v <= d.to()) return d.provider().getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
+        return new Prov<T>() {
+            private MaterialProvider<T> pick(int x, int y, int z) {
+                double v = field.compute(x, y, z);
+                for (int i = delimiters.size() - 1; i >= 0; i--) {
+                    Delimiter<T> d = delimiters.get(i);
+                    if (v >= d.from() && v <= d.to()) return d.provider();
+                }
+                return null;
             }
-            return null;
+            @Override public T getMaterial(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                MaterialProvider<T> p = pick(x, y, z);
+                return p == null ? null : p.getMaterial(x, y, z, df, sf, dc, sc, slope, ref);
+            }
+            @Override public int runLength(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                if (!field.yIndependent()) return 1;                                                  // the field changes from block to block
+                MaterialProvider<T> p = pick(x, y, z);
+                return p == null ? Integer.MAX_VALUE : p.runLength(x, y, z, df, sf, dc, sc, slope, ref);
+            }
         };
     }
 
@@ -104,19 +177,31 @@ public final class HMaterials {
     @FunctionalInterface
     public interface SpaceCondition {
         boolean test(int spaceAboveFloor, int spaceBelowCeiling);
+
+        /** True when the answer can change from one block of a column to the next (it reads the space below the ceiling). */
+        default boolean usesCeiling() { return true; }
+    }
+
+    private static SpaceCondition conditionOf(boolean usesCeiling, SpaceCondition test) {
+        return new SpaceCondition() {
+            @Override public boolean test(int sf, int sc) { return test.test(sf, sc); }
+            @Override public boolean usesCeiling() { return usesCeiling; }
+        };
     }
 
     /** A Condition reads the space above the floor or below the ceiling. */
     public static SpaceCondition condition(String type, String context, int value, List<SpaceCondition> children) {
         boolean ceiling = "SPACE_BELOW_CEILING".equalsIgnoreCase(context);
+        boolean kids = false;
+        for (SpaceCondition c : children) kids |= c.usesCeiling();
         switch (type.toLowerCase(java.util.Locale.ROOT)) {
-            case "equalscondition": return (sf, sc) -> (ceiling ? sc : sf) == value;
-            case "greaterthancondition": return (sf, sc) -> (ceiling ? sc : sf) > value;
-            case "smallerthancondition": return (sf, sc) -> (ceiling ? sc : sf) < value;
-            case "andcondition": return (sf, sc) -> { for (SpaceCondition c : children) if (!c.test(sf, sc)) return false; return true; };
-            case "orcondition": return (sf, sc) -> { for (SpaceCondition c : children) if (c.test(sf, sc)) return true; return false; };
-            case "notcondition": return (sf, sc) -> !children.get(0).test(sf, sc);
-            default: return (sf, sc) -> true;
+            case "equalscondition": return conditionOf(ceiling, (sf, sc) -> (ceiling ? sc : sf) == value);
+            case "greaterthancondition": return conditionOf(ceiling, (sf, sc) -> (ceiling ? sc : sf) > value);
+            case "smallerthancondition": return conditionOf(ceiling, (sf, sc) -> (ceiling ? sc : sf) < value);
+            case "andcondition": return conditionOf(kids, (sf, sc) -> { for (SpaceCondition c : children) if (!c.test(sf, sc)) return false; return true; });
+            case "orcondition": return conditionOf(kids, (sf, sc) -> { for (SpaceCondition c : children) if (c.test(sf, sc)) return true; return false; });
+            case "notcondition": return conditionOf(kids, (sf, sc) -> !children.get(0).test(sf, sc));
+            default: return conditionOf(false, (sf, sc) -> true);
         }
     }
 
@@ -167,16 +252,34 @@ public final class HMaterials {
      * gives no block.
      */
     public static <T> MaterialProvider<T> spaceAndDepth(boolean floor, SpaceCondition condition, List<Layer<T>> layers) {
-        return (FullProvider<T>) (x, y, z, df, sf, dc, sc, slope, ref) -> {
-            int depth = floor ? df : dc;
-            if (depth < 0 || (condition != null && !condition.test(sf, sc))) return null;
-            int top = 0;
-            for (Layer<T> l : layers) {
-                int bottom = top + Math.max(0, l.thickness(x, z));
-                if (depth < bottom) return l.provider().getMaterial(x, y, z, depth - top, sf, dc, sc, slope, ref);
-                top = bottom;
+        return new Prov<T>() {
+            @Override public T getMaterial(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                int depth = floor ? df : dc;
+                if (depth < 0 || (condition != null && !condition.test(sf, sc))) return null;
+                int top = 0;
+                for (Layer<T> l : layers) {
+                    int bottom = top + Math.max(0, l.thickness(x, z));
+                    if (depth < bottom) return l.provider().getMaterial(x, y, z, depth - top, sf, dc, sc, slope, ref);
+                    top = bottom;
+                }
+                return null;
             }
-            return null;
+            @Override public int runLength(int x, int y, int z, int df, int sf, int dc, int sc, float slope, VoxelSpace<T> ref) {
+                if (!floor) return 1;                                                                  // the ceiling above changes block to block
+                int depth = df;
+                if (depth < 0) return 1;
+                if (condition != null) {
+                    if (condition.usesCeiling()) return 1;
+                    if (!condition.test(sf, sc)) return Integer.MAX_VALUE;                            // the space above does not change down a solid run
+                }
+                int top = 0;
+                for (Layer<T> l : layers) {
+                    int bottom = top + Math.max(0, l.thickness(x, z));
+                    if (depth < bottom) return Math.min(bottom - depth, l.provider().runLength(x, y, z, depth - top, sf, dc, sc, slope, ref));
+                    top = bottom;
+                }
+                return Integer.MAX_VALUE;                                                              // below every layer: nothing from here down
+            }
         };
     }
 }

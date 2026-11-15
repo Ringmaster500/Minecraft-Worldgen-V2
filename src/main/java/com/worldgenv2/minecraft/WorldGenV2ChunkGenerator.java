@@ -138,10 +138,23 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
         this(biomeSource, WorldHeightConfig.custom(minY, genDepth, seaLevel));
     }
 
+    private static final java.util.concurrent.ConcurrentHashMap<String, BlockState> RESOLVED_BLOCKS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Block id (or Hytale block name) to state. Successful lookups are remembered: prefabs ask for the same few ids once per block. */
     public static BlockState resolveBlockState(String blockId, BlockState fallback) {
         if (blockId == null || blockId.isBlank()) {
             return fallback;
         }
+        BlockState known = RESOLVED_BLOCKS.get(blockId);
+        if (known != null) return known;
+        BlockState found = resolveBlockStateUncached(blockId);
+        if (found == null) return fallback;
+        RESOLVED_BLOCKS.put(blockId, found);
+        return found;
+    }
+
+    private static BlockState resolveBlockStateUncached(String blockId) {
+        BlockState fallback = null;
         String mapped = com.worldgenv2.hytale.HytaleBlocks.toMinecraft(blockId);   // Hytale's own block names
         if (mapped != null) blockId = mapped;
         try {
@@ -449,7 +462,8 @@ public final class WorldGenV2ChunkGenerator extends ChunkGenerator {
                 };
 
                 // Execute Worldgen V2 StagedChunkGenerator (Biome Halo -> 3D Density + Beardifier -> SpaceAndDepth Materials -> Props -> Landmarks)
-                this.stagedGenerator.generateChunk(chunkPos.x(), chunkPos.z(), voxelSpace, beardifierDensity);
+                // no structure pieces near this chunk: no terrain adaptation to apply (and the chunk can share its cached terrain tile)
+                this.stagedGenerator.generateChunk(chunkPos.x(), chunkPos.z(), voxelSpace, beardifier == Beardifier.EMPTY ? null : beardifierDensity);
 
             } finally {
                 for (LevelChunkSection section : lockedSections) {

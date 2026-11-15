@@ -69,6 +69,8 @@ public final class StagedChunkGenerator<T> {
     private TerrainFinisher<T> terrainFinisher;
     private java.util.function.Predicate<T> fluidTest = b -> false;
     private final PropContextPass<T> propPass;
+    /** True when any biome has props that work per surface column (not distributions); those need the density halo of the real chunk. */
+    private final boolean columnarPropsPresent;
     private final ThreadLocal<ColumnScratch> tileScratch = ThreadLocal.withInitial(ColumnScratch::new);
 
     /** Finishes a chunk's terrain (bedrock, water) as part of the terrain stage, so every consumer of terrain sees the same world. */
@@ -135,6 +137,10 @@ public final class StagedChunkGenerator<T> {
         this.roadShoulderBlock = roadShoulderBlock;
 
         this.propPass = new PropContextPass<>(worldStructure, this.surfaceProps, airBlock);
+        boolean columnar = false;
+        for (Prop<T> p : this.surfaceProps) if (!PropContextPass.isDistribution(p)) columnar = true;
+        for (WorldStructure.BiomeProp<T> bp : worldStructure.<T>allBiomeProps()) if (!PropContextPass.isDistribution(bp.prop())) columnar = true;
+        this.columnarPropsPresent = columnar;
         this.contextCache = propRuntimePipeline != null && propRuntimePipeline.getContextCache() != null
             ? propRuntimePipeline.getContextCache()
             : new StageContextCache<>();
@@ -280,9 +286,17 @@ public final class StagedChunkGenerator<T> {
                 // cave floor, which must receive plain rock instead of sky-exposed grass/sand cover
                 boolean underground = false;
 
-                for (int worldY = maxY - 1; worldY >= minY; worldY--) {
+                // A provider that knows its answer holds for a stretch of the column says how long; those blocks are resolved in one go.
+                // Road surfaces, spawn scorching and the river's own material depend on the exact block, so they use the slow path.
+                boolean riverColumn = worldStructure.isRiverChannel(worldX, worldZ) && worldStructure.getRiverMaterialProvider() != null;
+                boolean runsAllowed = !riverColumn && worldStructure.getSplineRoadEngine() == null
+                    && !(prefabBlockResolver != null && worldStructure.getSpawnAnchorManager() != null && worldStructure.getSpawnAnchorManager().hasActiveRule());
+                boolean hasEmptySide = materialProvider != null && materialProvider.providesEmpty();
+
+                for (int worldY = maxY - 1; worldY >= minY; ) {
                     int yIdx = worldY - minY;
                     float compositeDensity = densityVolume[colOffset + yIdx];
+                    int span = 1;
 
                     if (compositeDensity > 0.0f) {
                         // Voxel is solid: latch accumulated air clearance when entering a new surface stratum
@@ -305,9 +319,7 @@ public final class StagedChunkGenerator<T> {
 
                         int materialDepth = underground ? depth + UNDERGROUND_DEPTH_OFFSET : depth;
                         MaterialProvider<T> activeProvider = materialProvider;
-                        if (worldStructure.isRiverChannel(worldX, worldZ)
-                            && worldStructure.getRiverMaterialProvider() != null
-                            && worldY <= 64) {
+                        if (riverColumn && worldY <= 64) {
                             activeProvider = worldStructure.getRiverMaterialProvider();
                         }
                         T material = activeProvider != null
@@ -330,23 +342,37 @@ public final class StagedChunkGenerator<T> {
                                 if (scorch != null) material = scorch;
                             }
                         }
-                        voxelSpace.setBlock(worldX, worldY, worldZ, material != null ? material : baseSolidBlock);
+                        if (runsAllowed && activeProvider != null) {
+                            int run = activeProvider.runLength(worldX, worldY, worldZ, materialDepth, currentSurfaceSpace,
+                                ceilingDepth[yIdx], ceilingSpace[yIdx], slopeAngle, voxelSpace);
+                            if (run > 1) {
+                                int limit = Math.min(run, yIdx + 1);
+                                while (span < limit && densityVolume[colOffset + yIdx - span] > 0.0f) span++;
+                            }
+                        }
+                        voxelSpace.setBlockRun(worldX, worldZ, worldY - span + 1, worldY + 1, material != null ? material : baseSolidBlock);
 
-                        depth++;
+                        depth += span;
                         airSpaceAbove = 0;
                     } else {
-                        T filler = materialProvider != null && materialProvider.providesEmpty() ? materialProvider.getEmptyMaterial(worldX, worldY, worldZ, voxelSpace) : null;
-                        voxelSpace.setBlock(worldX, worldY, worldZ, filler != null ? filler : airBlock);   // Solidity's Empty side: fluids
+                        T filler = hasEmptySide ? materialProvider.getEmptyMaterial(worldX, worldY, worldZ, voxelSpace) : null;   // Solidity's Empty side: fluids
+                        int limit = yIdx + 1;
+                        if (hasEmptySide) {
+                            int run = materialProvider.emptyRunLength(worldX, worldY, worldZ, voxelSpace);
+                            limit = Math.min(run, limit);
+                        }
+                        while (span < limit && densityVolume[colOffset + yIdx - span] <= 0.0f) span++;
+                        voxelSpace.setBlockRun(worldX, worldZ, worldY - span + 1, worldY + 1, filler != null ? filler : airBlock);
                         if (depth >= UNDERGROUND_MIN_MASS) {
                             underground = true;
                         }
                         depth = 0;
-                        airSpaceAbove++;
+                        airSpaceAbove += span;
                     }
+                    worldY -= span;
                 }
             }
         }
-
         // =====================================================================
         // Stage 3b: UndergroundBiomeStage (3D biome volumes paint cave floors & ceilings)
         // =====================================================================
@@ -375,6 +401,17 @@ public final class StagedChunkGenerator<T> {
         int maxY = voxelSpace.getMaxY();
         int height = maxY - minY;
         if (height <= 0) {
+            return;
+        }
+
+        noteCounters(true);
+        if (structureAdaptationDensity == null && !columnarPropsPresent) {
+            // Nothing needs the real chunk's density halo, so its terrain is the cached tile (computed once, shared with every
+            // neighbour whose props read it): copy it in, then run the prop pass.
+            ImmutableChunkSnapshot<T> tile = getTerrainTile(chunkX, chunkZ, minY, maxY);
+            tile.copyTo(voxelSpace);
+            runDistributionPass(chunkX, chunkZ, voxelSpace, minY, maxY);
+            runChunkTail(chunkX, chunkZ, voxelSpace);
             return;
         }
 
@@ -453,16 +490,28 @@ public final class StagedChunkGenerator<T> {
             }
         }
 
-        // Distribution props (positions -> scanner -> assignments) run as Prop Runtime stages over a context region:
-        // every anchor that can reach this chunk is evaluated against deterministic neighbour terrain, so nothing clips at a border.
-        final int ctxMinY = minY, ctxMaxY = maxY;
-        contextCache.ensureCapacity(propPass.tilesPerChunk() * 16);
-        propPass.run(chunkX, chunkZ, voxelSpace, b -> b != null && !b.equals(airBlock) && !fluidTest.test(b), (cx, cz) -> getTerrainTile(cx, cz, ctxMinY, ctxMaxY));
+        runDistributionPass(chunkX, chunkZ, voxelSpace, minY, maxY);
 
         // Capture immutable snapshot at stage 1
         ImmutableChunkSnapshot<T> stage1Snapshot = ImmutableChunkSnapshot.capture(chunkX, chunkZ, voxelSpace, airBlock);
         contextCache.putSnapshot(chunkX, chunkZ, 1, stage1Snapshot);
 
+        runChunkTail(chunkX, chunkZ, voxelSpace);
+    }
+
+    /**
+     * Distribution props (positions -> scanner -> assignments) run as Prop Runtime stages over a context region:
+     * every anchor that can reach this chunk is evaluated against deterministic neighbour terrain, so nothing clips at a border.
+     */
+    private void runDistributionPass(int chunkX, int chunkZ, VoxelSpace<T> voxelSpace, int minY, int maxY) {
+        final int ctxMinY = minY, ctxMaxY = maxY;
+        contextCache.ensureCapacity(Math.max(propPass.tilesPerChunk() * 16, 20000));   // the memory budget, not the count, is the real limit
+        propPass.run(chunkX, chunkZ, voxelSpace, b -> b != null && !b.equals(airBlock) && !fluidTest.test(b), (cx, cz) -> getTerrainTile(cx, cz, ctxMinY, ctxMaxY));
+    }
+
+    /** Ore veins, project structures and macro landmarks: what happens to a chunk after its props. */
+    private void runChunkTail(int chunkX, int chunkZ, VoxelSpace<T> voxelSpace) {
+        long chunkSeed = ((long) chunkX * 341873128712L) ^ ((long) chunkZ * 132897987541L);
         // =====================================================================
         // Stage 4a: Ore veins (declarative OreRules; vanilla feature generation is never used)
         // =====================================================================
@@ -512,19 +561,42 @@ public final class StagedChunkGenerator<T> {
      * Terrain for any chunk, computed on demand and cached. The chunk being generated stores its own terrain here right after its
      * terrain stage; a neighbour that has not been generated is computed the same way, so context never depends on order.
      */
-    private ImmutableChunkSnapshot<T> getTerrainTile(int cx, int cz, int minY, int maxY) {
-        ImmutableChunkSnapshot<T> snap = contextCache.getSnapshot(cx, cz, 0);
-        if (snap != null && snap.getMinY() == minY && snap.getMaxY() == maxY) return snap;
-        int height = maxY - minY;
-        ColumnScratch scratch = tileScratch.get();
-        scratch.ensureCapacity(height);
-        TerrainTileSpace<T> space = new TerrainTileSpace<>(cx, cz, minY, maxY, airBlock);
-        terrainStage(cx, cz, space, null, scratch);
-        snap = ImmutableChunkSnapshot.capture(cx, cz, space, airBlock);
-        contextCache.putSnapshot(cx, cz, 0, snap);
-        return snap;
+    /** Dev counters: how many terrain tiles were computed, and how many chunks were generated. Written to a temp file now and then. */
+    private static final java.util.concurrent.atomic.AtomicLong TILES_COMPUTED = new java.util.concurrent.atomic.AtomicLong(), CHUNKS_GENERATED = new java.util.concurrent.atomic.AtomicLong(), TILE_HITS = new java.util.concurrent.atomic.AtomicLong();
+
+    private static final boolean COUNTERS = System.getenv("WG2_COUNTERS") != null;
+
+    private static void noteCounters(boolean chunk) {
+        if (!COUNTERS) return;
+        long c = chunk ? CHUNKS_GENERATED.incrementAndGet() : CHUNKS_GENERATED.get();
+        if (chunk && c % 64 == 0) {
+            try { java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "wg2_counts.txt"), "chunks " + c + " tilesComputed " + TILES_COMPUTED.get() + " tileCacheHits " + TILE_HITS.get()); } catch (Exception ignored) { }
+        }
     }
 
+    private final Object[] tileLocks = newLocks(128);
+
+    private static Object[] newLocks(int n) { Object[] l = new Object[n]; for (int i = 0; i < n; i++) l[i] = new Object(); return l; }
+
+    private ImmutableChunkSnapshot<T> getTerrainTile(int cx, int cz, int minY, int maxY) {
+        ImmutableChunkSnapshot<T> snap = contextCache.getSnapshot(cx, cz, 0);
+        if (snap != null && snap.getMinY() == minY && snap.getMaxY() == maxY) { TILE_HITS.incrementAndGet(); return snap; }
+        // One thread computes a tile; any other that wants it meanwhile waits for the result instead of doing the same work.
+        // (Computing a tile never asks for another tile, so waiting cannot deadlock.)
+        synchronized (tileLocks[((cx * 73856093) ^ (cz * 19349663)) & 127]) {
+            snap = contextCache.getSnapshot(cx, cz, 0);
+            if (snap != null && snap.getMinY() == minY && snap.getMaxY() == maxY) { TILE_HITS.incrementAndGet(); return snap; }
+            TILES_COMPUTED.incrementAndGet();
+            int height = maxY - minY;
+            ColumnScratch scratch = tileScratch.get();
+            scratch.ensureCapacity(height);
+            TerrainTileSpace<T> space = new TerrainTileSpace<>(cx, cz, minY, maxY, airBlock);
+            terrainStage(cx, cz, space, null, scratch);
+            snap = space.toSnapshot(cx, cz);
+            contextCache.putSnapshot(cx, cz, 0, snap);
+            return snap;
+        }
+    }
     private record ResolvedOre<B>(B ore, java.util.Set<B> replaceable) {}
 
     private final java.util.concurrent.ConcurrentHashMap<com.worldgenv2.worldstructure.OreRule, ResolvedOre<T>> oreCache =

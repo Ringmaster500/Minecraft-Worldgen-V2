@@ -672,7 +672,7 @@ public final class HytaleDialect {
         overD(R, "Pow", j -> j.containsKey("inputs"), (j, ctx) -> {
             DensityFunction in = input(j, 0, ctx);
             float e = (float) dnum(get(j, "exponent"), 2.0);
-            return HDensity.pointwise(in, v -> (float) (Math.signum(v) * Math.pow(Math.abs(v), e)));
+            return new com.worldgenv2.density.SignedPowDensity(in, e);
         });
         overD(R, "Cube", j ->j.containsKey("curve") && !j.containsKey("size") && !j.containsKey("halfx"), (j, ctx) ->
                 HDensity.cuboid(JsonAstCompiler.compileCurve(get(j, "curve"), ctx), 1, 1, 1, HDensity.Frame.of(0, 1, 0, 0)));
@@ -734,7 +734,7 @@ public final class HytaleDialect {
         });
         R.register("BaseHeight", (j, ctx) -> {
             String name = String.valueOf(get(j, "baseheightname"));
-            return HDensity.baseHeight(() -> ctx.decimalConstants().getOrDefault(name, 0.0), flag(get(j, "distance"), false));
+            return HDensity.baseHeight(constantReader(ctx, name), flag(get(j, "distance"), false));
         });
         R.register("Distance", (j, ctx) -> HDensity.distance(JsonAstCompiler.compileCurve(get(j, "curve"), ctx)));
         R.register("Axis", (j, ctx) -> { double[] a = vecD(get(j, "axis"), 0.0); return HDensity.axis(a[0], a[1], a[2], JsonAstCompiler.compileCurve(get(j, "curve"), ctx)); });
@@ -796,6 +796,18 @@ public final class HytaleDialect {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
+    /** Reads a world-structure constant (Base, Water, ...) the first time it is needed, then keeps the value: it is asked for once per block. */
+    private static java.util.function.DoubleSupplier constantReader(JsonAstCompiler.CompileContext ctx, String name) {
+        return new java.util.function.DoubleSupplier() {
+            private volatile double value = Double.NaN;
+            @Override public double getAsDouble() {
+                double v = value;
+                if (Double.isNaN(v)) value = v = ctx.decimalConstants().getOrDefault(name, 0.0);
+                return v;
+            }
+        };
+    }
+
     static void registerMaterials() {
         overMat("Transparent", j -> true, (j, ctx, r) -> HMaterials.transparent());
         overMat("Solidity", j -> j.containsKey("solid") || j.containsKey("empty"), (j, ctx, r) -> HMaterials.solidity(slot(get(j, "solid"), ctx, r), j.containsKey("empty") ? slot(get(j, "empty"), ctx, r) : null));
@@ -806,8 +818,8 @@ public final class HytaleDialect {
         });
         overMat("SimpleHorizontal", j -> j.containsKey("topy") || j.containsKey("bottomy"), (j, ctx, r) -> {
             String tb = String.valueOf(get(j, "topbaseheight", "topbaseheightname")), bb = String.valueOf(get(j, "bottombaseheight", "bottombaseheightname"));
-            java.util.function.DoubleSupplier top = get(j, "topbaseheight", "topbaseheightname") == null ? null : () -> ctx.decimalConstants().getOrDefault(tb, 0.0);
-            java.util.function.DoubleSupplier bottom = get(j, "bottombaseheight", "bottombaseheightname") == null ? null : () -> ctx.decimalConstants().getOrDefault(bb, 0.0);
+            java.util.function.DoubleSupplier top = get(j, "topbaseheight", "topbaseheightname") == null ? null : constantReader(ctx, tb);
+            java.util.function.DoubleSupplier bottom = get(j, "bottombaseheight", "bottombaseheightname") == null ? null : constantReader(ctx, bb);
             return HMaterials.simpleHorizontal(num(get(j, "topy"), 256), num(get(j, "bottomy"), 0), top, bottom, slot(get(j, "material"), ctx, r));
         });
         overMat("Striped", j -> j.containsKey("stripes") && get(j, "stripes") instanceof List<?> l && !l.isEmpty() && obj(l.get(0)) != null && obj(l.get(0)).containsKey("topy"), (j, ctx, r) -> {
@@ -895,8 +907,8 @@ public final class HytaleDialect {
         overD(R, "XOverride", j -> j.containsKey("value") || !j.containsKey("override"), (j, ctx) -> HDensity.overrideX(input(j, 0, ctx), (float) dnum(get(j, "value"), 0)));
         overD(R, "ZOverride", j -> j.containsKey("value") || !j.containsKey("override"), (j, ctx) -> HDensity.overrideZ(input(j, 0, ctx), (float) dnum(get(j, "value"), 0)));
         overD(R, "YSampled", j -> j.containsKey("sampledistance"), (j, ctx) -> HDensity.ySampled(input(j, 0, ctx), dnum(get(j, "sampledistance"), 4), dnum(get(j, "sampleoffset"), 0), flag(get(j, "interpolate"), true)));
-        R.register("OffsetConstant", (j, ctx) -> { float v = (float) dnum(get(j, "value"), 0); return HDensity.pointwise(input(j, 0, ctx), a -> a + v); });
-        R.register("AmplitudeConstant", (j, ctx) -> { float v = (float) dnum(get(j, "value"), 1); return HDensity.pointwise(input(j, 0, ctx), a -> a * v); });
+        R.register("OffsetConstant", (j, ctx) -> { float v = (float) dnum(get(j, "value"), 0); return new com.worldgenv2.density.LinearDensity(input(j, 0, ctx), 1f, v); });
+        R.register("AmplitudeConstant", (j, ctx) -> { float v = (float) dnum(get(j, "value"), 1); return new com.worldgenv2.density.LinearDensity(input(j, 0, ctx), v, 0f); });
         R.register("Amplitude", (j, ctx) -> { DensityFunction in = input(j, 0, ctx); var f = yFunction(get(j, "functionfory")); return (x, y, z) -> in.compute(x, y, z) * (float) f.applyAsDouble(y); });
         R.register("Offset", (j, ctx) -> { DensityFunction in = input(j, 0, ctx); var f = yFunction(get(j, "functionfory")); return (x, y, z) -> in.compute(x, y, z) + (float) f.applyAsDouble(y); });
         R.register("Cache2D", (j, ctx) -> HDensity.atFixedY(input(j, 0, ctx), (float) dnum(get(j, "y"), 0)));

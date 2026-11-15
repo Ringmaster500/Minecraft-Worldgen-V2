@@ -19,4 +19,14 @@ public interface Distribution<T> extends Prop<T> {
      */
     int generateInRegion(int minX, int minZ, int maxX, int maxZ, VoxelSpace<T> space, long seedBase,
                          BiPredicate<Integer, Integer> accept, Predicate<T> solid);
+
+    /**
+     * Like the method above, when only blocks inside [needMinX, needMaxX) x [needMinZ, needMaxZ) will ever be read. A position whose
+     * prop cannot build anything in that rectangle (its own reach is smaller than the distribution's worst case) may be skipped.
+     * Implementations that cannot tell just ignore the rectangle.
+     */
+    default int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
+                                 VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
+        return generateInRegion(minX, minZ, maxX, maxZ, space, seedBase, accept, solid);
+    }
 }

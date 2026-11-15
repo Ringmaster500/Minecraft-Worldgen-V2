@@ -45,11 +45,15 @@ public final class CacheDensity implements DensityFunction {
         return v;
     }
 
-    @Override public boolean yIndependent() { return source.yIndependent(); }
+    private byte yFlat, xzFlat;
+    private final YTable yTable = new YTable();
+    @Override public boolean yIndependent() { byte f = yFlat; if (f == 0) yFlat = f = (byte) (source.yIndependent() ? 1 : 2); return f == 1; }
+    @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (source.xzIndependent() ? 1 : 2); return f == 1; }
 
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
+        if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }
         CacheEntry entry = cache.get();
         int height = maxY - minY;
         if (entry.colX == x && entry.colZ == z && entry.minY == minY && entry.maxY == maxY && entry.colData != null) {

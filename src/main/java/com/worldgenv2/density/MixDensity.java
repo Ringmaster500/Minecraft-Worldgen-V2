@@ -40,23 +40,38 @@ public final class MixDensity implements DensityFunction {
         return va + t * (vb - va);
     }
 
-    @Override public boolean yIndependent() { return a.yIndependent() && b.yIndependent() && factor.yIndependent(); }
+    private byte yFlat, xzFlat;
+    private final YTable yTable = new YTable();
+    @Override public boolean yIndependent() { byte f = yFlat; if (f == 0) yFlat = f = (byte) (a.yIndependent() && b.yIndependent() && factor.yIndependent() ? 1 : 2); return f == 1; }
+    @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (a.xzIndependent() && b.xzIndependent() && factor.xzIndependent() ? 1 : 2); return f == 1; }
 
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
+        if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }
         int height = maxY - minY;
-        float[] bufA = new float[height];
-        float[] bufB = new float[height];
-        float[] bufF = new float[height];
-
-        a.computeColumn(x, z, minY, maxY, bufA);
+        if (factor.yIndependent()) {
+            // the blend is the same for the whole column: often it picks one input outright, and the other is never evaluated
+            float t = Math.clamp(factor.compute(x, minY, z), 0.0f, 1.0f);
+            if (t <= 0.0f) { a.computeColumn(x, z, minY, maxY, out); return; }
+            if (t >= 1.0f) { b.computeColumn(x, z, minY, maxY, out); return; }
+            float[] bufB = ColumnPool.take(height);
+            a.computeColumn(x, z, minY, maxY, out);
+            b.computeColumn(x, z, minY, maxY, bufB);
+            for (int i = 0; i < height; i++) out[i] += t * (bufB[i] - out[i]);
+            ColumnPool.give(bufB);
+            return;
+        }
+        float[] bufB = ColumnPool.take(height);
+        float[] bufF = ColumnPool.take(height);
+        a.computeColumn(x, z, minY, maxY, out);
         b.computeColumn(x, z, minY, maxY, bufB);
         factor.computeColumn(x, z, minY, maxY, bufF);
-
         for (int i = 0; i < height; i++) {
             float t = Math.clamp(bufF[i], 0.0f, 1.0f);
-            out[i] = bufA[i] + t * (bufB[i] - bufA[i]);
+            out[i] += t * (bufB[i] - out[i]);
         }
+        ColumnPool.give(bufF);
+        ColumnPool.give(bufB);
     }
 }

@@ -130,6 +130,12 @@ public final class HDistributions {
         @Override
         public int generateInRegion(int minX, int minZ, int maxX, int maxZ, VoxelSpace<T> space, long seedBase,
                                     BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
+            return generateInRegion(minX, minZ, maxX, maxZ, minX, minZ, maxX, maxZ, space, seedBase, accept, solid);
+        }
+
+        @Override
+        public int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
+                                    VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
             List<Placed<T>> all = new ArrayList<>(field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase));
             all.sort((a, b) -> {
                 int c = Double.compare(a.position().x(), b.position().x());
@@ -141,6 +147,8 @@ public final class HDistributions {
             for (Placed<T> p : all) {
                 int px = (int) Math.floor(p.position().x()), py = (int) Math.floor(p.position().y()), pz = (int) Math.floor(p.position().z());
                 if (p.prop() == null || px < minX || px >= maxX || pz < minZ || pz >= maxZ) continue;
+                int reach = p.prop().contentReach();
+                if (px + reach < needMinX || px - reach >= needMaxX || pz + reach < needMinZ || pz - reach >= needMaxZ) continue;   // builds nothing anyone reads
                 if (accept != null && !accept.test(px, pz)) continue;
                 long seed = seedAt(seedBase, p.position());
                 if (p.prop().generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, space, seed))) placed++;

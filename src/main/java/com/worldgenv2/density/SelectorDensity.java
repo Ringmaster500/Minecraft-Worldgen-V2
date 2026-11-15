@@ -26,12 +26,20 @@ public final class SelectorDensity implements DensityFunction {
         return cond != 0.0f ? thenDensity.compute(x, y, z) : elseDensity.compute(x, y, z);
     }
 
-    @Override public boolean yIndependent() { return condition.yIndependent() && thenDensity.yIndependent() && elseDensity.yIndependent(); }
+    private byte yFlat, xzFlat;
+    private final YTable yTable = new YTable();
+    @Override public boolean yIndependent() { byte f = yFlat; if (f == 0) yFlat = f = (byte) (condition.yIndependent() && thenDensity.yIndependent() && elseDensity.yIndependent() ? 1 : 2); return f == 1; }
+    @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (condition.xzIndependent() && thenDensity.xzIndependent() && elseDensity.xzIndependent() ? 1 : 2); return f == 1; }
 
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
+        if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }
         int height = maxY - minY;
+        if (condition.yIndependent()) {
+            (condition.compute(x, minY, z) != 0.0f ? thenDensity : elseDensity).computeColumn(x, z, minY, maxY, out);
+            return;
+        }
         for (int i = 0; i < height; i++) {
             float y = minY + i;
             float cond = condition.compute(x, y, z);

@@ -36,6 +36,21 @@ public interface MaterialProvider<T> {
     }
 
     /**
+     * How many blocks, going straight down from this one through solid ground (one block deeper each step), give exactly the same
+     * answer as this one, so the caller can resolve them all at once. 1 means no promise and is always safe. Only providers that
+     * know their answer cannot change (not a function of the block position, nor of the ceiling above) say more.
+     */
+    default int runLength(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor,
+                          int depthIntoCeiling, int spaceBelowCeiling, float slopeAngle, VoxelSpace<T> spaceRef) {
+        return 1;
+    }
+
+    /** Like {@link #runLength} for the empty side: how many blocks straight down give the same {@link #getEmptyMaterial}. */
+    default int emptyRunLength(int x, int y, int z, VoxelSpace<T> spaceRef) {
+        return 1;
+    }
+
+    /**
      * Hytale's Solidity splits a provider in two: one for solid blocks, one for empty ones (where fluids come from). A provider that
      * has an empty side says so here, and the terrain stage asks it about every empty block.
      */

@@ -83,6 +83,28 @@ public final class MinecraftVoxelSpace implements VoxelSpace<BlockState> {
     }
 
     @Override
+    public void setBlockRun(int x, int z, int yFrom, int yTo, BlockState block) {
+        if (block == null) return;
+        int lx = x - minBlockX, lz = z - minBlockZ;
+        if ((lx | lz) < 0 || lx >= 16 || lz >= 16) return;
+        yFrom = Math.max(yFrom, minY);
+        yTo = Math.min(yTo, maxY);
+        if (yFrom >= yTo) return;
+        boolean air = block.isAir();
+        for (int y = yFrom; y < yTo; y++) {
+            int sectionIdx = chunk.getSectionIndex(y);
+            if (sectionIdx < 0 || sectionIdx >= sections.length) continue;
+            LevelChunkSection section = sections[sectionIdx];
+            if (air && section.hasOnlyAir()) { y |= 15; continue; }
+            section.setBlockState(lx, y & 15, lz, block, false);
+        }
+        if (!air) {
+            oceanFloorHeightmap.update(lx, yTo - 1, lz, block);
+            worldSurfaceHeightmap.update(lx, yTo - 1, lz, block);
+        }
+    }
+
+    @Override
     public boolean isAir(int x, int y, int z) {
         return getBlock(x, y, z).isAir();
     }

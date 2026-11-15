@@ -46,11 +46,15 @@ public final class MultiMixDensity implements DensityFunction {
         return v0 + frac * (v1 - v0);
     }
 
-    @Override public boolean yIndependent() { return selector.yIndependent() && inputs.stream().allMatch(DensityFunction::yIndependent); }
+    private byte yFlat, xzFlat;
+    private final YTable yTable = new YTable();
+    @Override public boolean yIndependent() { byte f = yFlat; if (f == 0) yFlat = f = (byte) (selector.yIndependent() && inputs.stream().allMatch(DensityFunction::yIndependent) ? 1 : 2); return f == 1; }
+    @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (selector.xzIndependent() && inputs.stream().allMatch(DensityFunction::xzIndependent) ? 1 : 2); return f == 1; }
 
     @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
+        if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }
         int height = maxY - minY;
         for (int i = 0; i < height; i++) {
             out[i] = compute(x, minY + i, z);
