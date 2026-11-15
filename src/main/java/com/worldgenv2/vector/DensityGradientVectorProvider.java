@@ -23,42 +23,42 @@ public final class DensityGradientVectorProvider implements VectorProvider {
     }
 
     /**
-     * Terrain materials ask for the gradient at a few blocks of the same column in a row. On whole-number positions the five columns
-     * around it (centre and the four neighbours) are evaluated once over a short window of heights, instead of six separate
-     * single-point evaluations of the whole density for every block.
+     * Terrain materials ask for the gradient at a few blocks of a column, then at the next column, and so on. On whole-number
+     * positions the density is read from short column windows that are kept per thread, so each column window is evaluated once and
+     * shared by the gradients of all its neighbours, instead of six single-point evaluations of the whole density per block.
      */
-    private static final class Window {
-        int x, z, y0, y1;
-        boolean valid;
-        final float[][] cols = new float[5][];     // centre, +x, -x, +z, -z
+    private static final class Windows {
+        final int[] xs = new int[64], zs = new int[64], y0s = new int[64], y1s = new int[64];
+        final float[][] vals = new float[64][];
+        Windows() { java.util.Arrays.fill(y1s, Integer.MIN_VALUE); }
     }
 
-    private final ThreadLocal<Window> windows = ThreadLocal.withInitial(Window::new);
+    private static final int HALF = 8;
+    private final ThreadLocal<Windows> windows = ThreadLocal.withInitial(Windows::new);
+
+    private float at(Windows w, int x, int y, int z) {
+        int slot = ((x * 73856093) ^ (z * 19349663)) & 63;
+        if (w.xs[slot] != x || w.zs[slot] != z || y < w.y0s[slot] || y >= w.y1s[slot]) {
+            int y0 = y - HALF, y1 = y + HALF;
+            float[] v = w.vals[slot];
+            if (v == null) v = w.vals[slot] = new float[y1 - y0];
+            density.computeColumn(x, z, y0, y1, v);
+            w.xs[slot] = x; w.zs[slot] = z; w.y0s[slot] = y0; w.y1s[slot] = y1;
+        }
+        return w.vals[slot][y - w.y0s[slot]];
+    }
 
     private Vec3d windowed(int ix, int iy, int iz, int d) {
-        Window w = windows.get();
-        if (!w.valid || w.x != ix || w.z != iz || iy - d < w.y0 || iy + d >= w.y1) {
-            int y0 = iy - d - 3, y1 = iy + d + 2;
-            int n = y1 - y0;
-            for (int k = 0; k < 5; k++) if (w.cols[k] == null || w.cols[k].length < n) w.cols[k] = new float[Math.max(n, 12)];
-            density.computeColumn(ix, iz, y0, y1, w.cols[0]);
-            density.computeColumn(ix + d, iz, y0, y1, w.cols[1]);
-            density.computeColumn(ix - d, iz, y0, y1, w.cols[2]);
-            density.computeColumn(ix, iz + d, y0, y1, w.cols[3]);
-            density.computeColumn(ix, iz - d, y0, y1, w.cols[4]);
-            w.x = ix; w.z = iz; w.y0 = y0; w.y1 = y1; w.valid = true;
-        }
-        int i = iy - w.y0;
+        Windows w = windows.get();
         float inv = 1.0f / (2.0f * d);
-        float dx = (w.cols[1][i] - w.cols[2][i]) * inv;
-        float dy = (w.cols[0][i + d] - w.cols[0][i - d]) * inv;
-        float dz = (w.cols[3][i] - w.cols[4][i]) * inv;
+        float dx = (at(w, ix + d, iy, iz) - at(w, ix - d, iy, iz)) * inv;
+        float dy = (at(w, ix, iy + d, iz) - at(w, ix, iy - d, iz)) * inv;
+        float dz = (at(w, ix, iy, iz + d) - at(w, ix, iy, iz - d)) * inv;
         return new Vec3d(dx, dy, dz);
     }
-
     @Override
     public Vec3d getVector(double x, double y, double z) {
-        if (sampleDistance >= 1.0 && sampleDistance == Math.rint(sampleDistance) && x == Math.rint(x) && y == Math.rint(y) && z == Math.rint(z)
+        if (sampleDistance >= 1.0 && sampleDistance <= HALF - 1 && sampleDistance == Math.rint(sampleDistance) && x == Math.rint(x) && y == Math.rint(y) && z == Math.rint(z)
                 && Math.abs(x) < 1e7 && Math.abs(z) < 1e7) {
             return windowed((int) x, (int) y, (int) z, (int) sampleDistance);
         }

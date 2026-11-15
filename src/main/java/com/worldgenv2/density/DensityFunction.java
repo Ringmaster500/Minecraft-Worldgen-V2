@@ -43,6 +43,44 @@ public interface DensityFunction {
     /** True when the value depends on Y only (never on X or Z), so it can be tabulated once for the whole world. */
     default boolean xzIndependent() { return false; }
 
+    /**
+     * Conservative bounds of the values at (x, y, z) for every integer Y in [y0, y1): out[0] at most the smallest, out[1] at least
+     * the largest. Used to skip parts of a column whose sign is already certain. The default knows a node that does not depend on Y
+     * (one value) and otherwise nothing (the whole number line); nodes that can do better say so.
+     */
+    default void bounds(float x, float z, int y0, int y1, float[] out) {
+        if (yIndependent()) {
+            float v = compute(x, y0, z);
+            if (Float.isNaN(v)) { out[0] = Float.NEGATIVE_INFINITY; out[1] = Float.POSITIVE_INFINITY; return; }
+            out[0] = v;
+            out[1] = v;
+            return;
+        }
+        out[0] = Float.NEGATIVE_INFINITY;
+        out[1] = Float.POSITIVE_INFINITY;
+    }
+
+    /**
+     * {@link #bounds} for every slab of {@code bs} heights of [minY, maxY) at once: slab k covers [minY + k*bs, min(maxY, minY + (k+1)*bs)).
+     * One walk of the tree serves a whole column. The default asks {@link #bounds} slab by slab.
+     */
+    default void boundsSlabs(float x, float z, int minY, int maxY, int bs, float[] lo, float[] hi) {
+        int nb = (maxY - minY + bs - 1) / bs;
+        if (yIndependent()) {
+            float v = compute(x, minY, z);
+            float l = Float.isNaN(v) ? Float.NEGATIVE_INFINITY : v, h = Float.isNaN(v) ? Float.POSITIVE_INFINITY : v;
+            java.util.Arrays.fill(lo, 0, nb, l);
+            java.util.Arrays.fill(hi, 0, nb, h);
+            return;
+        }
+        float[] b = new float[2];
+        for (int k = 0; k < nb; k++) {
+            bounds(x, z, minY + k * bs, Math.min(maxY, minY + (k + 1) * bs), b);
+            lo[k] = b[0];
+            hi[k] = b[1];
+        }
+    }
+
     default DensityFunction add(DensityFunction other) {
         return new SumDensity(this, other);
     }

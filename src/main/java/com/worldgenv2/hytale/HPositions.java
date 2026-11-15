@@ -274,8 +274,10 @@ public final class HPositions {
     /** Remembers the child's output in cubic sections; the answers are identical, only repeated queries get cheaper. */
     public static PositionsProvider cache(PositionsProvider child, int sectionSize, int cacheSize) {
         if (cacheSize <= 0 || sectionSize <= 0) return child;
-        final java.util.Map<Long, List<Vec3d>> sections = new java.util.LinkedHashMap<>(16, 0.75f, true) {
-            @Override protected boolean removeEldestEntry(java.util.Map.Entry<Long, List<Vec3d>> e) { return size() > cacheSize; }
+        // Sections are keyed exactly (a hashed key let two sections share an entry, so the answer depended on which was cached first).
+        record Section(long x, long y, long z) {}
+        final java.util.Map<Section, List<Vec3d>> sections = new java.util.LinkedHashMap<>(16, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(java.util.Map.Entry<Section, List<Vec3d>> e) { return size() > cacheSize; }
         };
         return (x0, y0, z0, x1, y1, z1) -> {
             List<Vec3d> out = new ArrayList<>();
@@ -283,11 +285,17 @@ public final class HPositions {
             for (long sx = Math.floorDiv((long) Math.floor(x0), s); sx <= Math.floorDiv((long) Math.floor(x1), s); sx++)
                 for (long sy = Math.floorDiv((long) Math.floor(y0), s); sy <= Math.floorDiv((long) Math.floor(y1), s); sy++)
                     for (long sz = Math.floorDiv((long) Math.floor(z0), s); sz <= Math.floorDiv((long) Math.floor(z1), s); sz++) {
-                        long key = (sx * 73856093L) ^ (sy * 19349663L) ^ (sz * 83492791L);
+                        Section key = new Section(sx, sy, sz);
                         List<Vec3d> cached;
                         synchronized (sections) { cached = sections.get(key); }
                         if (cached == null) {
-                            cached = child.getPositions(sx * s, sy * s, sz * s, (sx + 1) * s - 1e-9, (sy + 1) * s - 1e-9, (sz + 1) * s - 1e-9);
+                            // the section's own positions: asked inclusively, kept half-open, so every position belongs to exactly one section
+                            List<Vec3d> raw = child.getPositions(sx * s, sy * s, sz * s, (sx + 1) * s, (sy + 1) * s, (sz + 1) * s);
+                            cached = new ArrayList<>(raw.size());
+                            for (Vec3d p : raw) {
+                                if (Math.floorDiv((long) Math.floor(p.x()), s) == sx && Math.floorDiv((long) Math.floor(p.y()), s) == sy
+                                        && Math.floorDiv((long) Math.floor(p.z()), s) == sz) cached.add(p);
+                            }
                             synchronized (sections) { sections.put(key, cached); }
                         }
                         for (Vec3d p : cached) if (in(p, x0, y0, z0, x1, y1, z1)) out.add(p);

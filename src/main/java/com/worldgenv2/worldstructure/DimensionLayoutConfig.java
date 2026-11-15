@@ -467,6 +467,14 @@ public final class DimensionLayoutConfig {
      * Applies all configured {@link RadialZoneRule}s and the {@link OutsideBoundsFallback} to the
      * density column {@code [minY, maxY)}.
      */
+    /** True when {@link #applyMacroZonesAndBounds} never changes a column (no shaping zones, no finite bounds). */
+    public boolean leavesTerrainAlone() {
+        for (RadialZoneRule zone : radialZones) {
+            if (zone.mode() != ZoneMode.BIOME_OVERRIDE || zone.targetElevation() < 55.0f) return false;
+        }
+        return !(boundsRadius > 0.0f && outsideFallback != OutsideBoundsFallback.DEFAULT_BIOMES);
+    }
+
     public void applyMacroZonesAndBounds(float x, float z, int minY, int maxY, float[] column) {
         int height = maxY - minY;
         if (height <= 0) {

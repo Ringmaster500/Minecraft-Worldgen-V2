@@ -198,6 +198,28 @@ public final class StagedChunkGenerator<T> {
         // =====================================================================
         // Stage 1 & 2: Biome Resolution & 18x18 Halo Column Density Evaluation
         // =====================================================================
+        // The ring of neighbouring columns (the halo) is only there to measure slopes. When no material here reads the slope, and no
+        // per-column prop needs surface normals, the ring is skipped: the blocks come out the same, a fifth of the density work less.
+        boolean needHalo = columnarPropsPresent
+            || (worldStructure.getRiverMaterialProvider() != null && worldStructure.getRiverMaterialProvider().usesSlope());
+        for (int lx = 0; lx < CHUNK_SIZE_X; lx++) {
+            for (int lz = 0; lz < CHUNK_SIZE_Z; lz++) {
+                int worldX = originX + lx, worldZ = originZ + lz;
+                WorldStructure.BiomeQueryResult q = worldStructure.queryBiome(worldX, worldZ);
+                chunkBiomes[(lx << 4) | lz] = q;
+                if (!needHalo) {
+                    MaterialProvider<T> mp = q.resolveMaterialProvider(worldX, worldZ, defaultMaterialProvider);
+                    if (mp != null && mp.usesSlope()) needHalo = true;
+                }
+            }
+        }
+
+        // Only the sign of the density decides blocks when nothing reads exact values (no slope, no structure shaping, no roads or
+        // terrain modifiers); then stretches of a column whose sign the density bounds already prove are not evaluated.
+        boolean prune = !PRUNE_OFF && !needHalo && structureAdaptationDensity == null && worldStructure.getSplineRoadEngine() == null
+            && !worldStructure.terrainModifiersPresent();
+        float[] pruneTmp = prune ? new float[height] : null;
+        float[] pruneBounds = new float[2];
         for (int hx = 0; hx < HALO_SIZE; hx++) {
             int lx = hx - 1;
             int worldX = originX + lx;
@@ -205,12 +227,12 @@ public final class StagedChunkGenerator<T> {
                 int lz = hz - 1;
                 int worldZ = originZ + lz;
 
-                WorldStructure.BiomeQueryResult biomeQuery = worldStructure.queryBiome(worldX, worldZ);
-                if (lx >= 0 && lx < CHUNK_SIZE_X && lz >= 0 && lz < CHUNK_SIZE_Z) {
-                    chunkBiomes[(lx << 4) | lz] = biomeQuery;
-                }
+                boolean inner = lx >= 0 && lx < CHUNK_SIZE_X && lz >= 0 && lz < CHUNK_SIZE_Z;
+                if (!inner && !needHalo) continue;
+                WorldStructure.BiomeQueryResult biomeQuery = inner ? chunkBiomes[(lx << 4) | lz] : worldStructure.queryBiome(worldX, worldZ);
 
-                biomeQuery.computeBlendedColumn(worldX, worldZ, minY, maxY, colBuffer, blendScratch);
+                if (prune) prunedColumn(biomeQuery, worldX, worldZ, minY, maxY, colBuffer, blendScratch, pruneTmp, pruneBounds);
+                else biomeQuery.computeBlendedColumn(worldX, worldZ, minY, maxY, colBuffer, blendScratch);
                 worldStructure.applyTerrainModifiers(worldX, worldZ, minY, maxY, colBuffer);
                 if (worldStructure.getSplineRoadEngine() != null) {
                     worldStructure.getSplineRoadEngine().applyRoadToColumn(worldX, worldZ, minY, maxY, colBuffer);
@@ -238,6 +260,7 @@ public final class StagedChunkGenerator<T> {
         // =====================================================================
         // Stage 3: TerrainStage (Volumetric Density Sculpting & Material Rules)
         // =====================================================================
+        int[] runOut = new int[1];
         int[] ceilingDepth = new int[height];
         int[] ceilingSpace = new int[height];
         for (int lx = 0; lx < CHUNK_SIZE_X; lx++) {
@@ -305,7 +328,7 @@ public final class StagedChunkGenerator<T> {
                         }
 
                         float slopeAngle = 0.0f;
-                        if (depth < MAX_SLOPE_EVAL_DEPTH) {
+                        if (needHalo && depth < MAX_SLOPE_EVAL_DEPTH) {
                             float dx = (densityVolume[xPlusOffset + yIdx] - densityVolume[xMinusOffset + yIdx]) * 0.5f;
                             int yUp = Math.min(height - 1, yIdx + 1);
                             int yDown = Math.max(0, yIdx - 1);
@@ -322,12 +345,18 @@ public final class StagedChunkGenerator<T> {
                         if (riverColumn && worldY <= 64) {
                             activeProvider = worldStructure.getRiverMaterialProvider();
                         }
-                        T material = activeProvider != null
-                            ? activeProvider.getMaterial(
-                                worldX, worldY, worldZ, materialDepth, currentSurfaceSpace,
-                                ceilingDepth[yIdx], ceilingSpace[yIdx], slopeAngle, voxelSpace
-                            )
-                            : baseSolidBlock;
+                        int run = 1;
+                        T material;
+                        if (activeProvider == null) {
+                            material = baseSolidBlock;
+                        } else if (runsAllowed) {
+                            material = activeProvider.getMaterialRun(worldX, worldY, worldZ, materialDepth, currentSurfaceSpace,
+                                ceilingDepth[yIdx], ceilingSpace[yIdx], slopeAngle, voxelSpace, runOut);
+                            run = runOut[0];
+                        } else {
+                            material = activeProvider.getMaterial(worldX, worldY, worldZ, materialDepth, currentSurfaceSpace,
+                                ceilingDepth[yIdx], ceilingSpace[yIdx], slopeAngle, voxelSpace);
+                        }
                         if (worldStructure.getSplineRoadEngine() != null && (roadDeckBlock != null || roadShoulderBlock != null)) {
                             material = worldStructure.getSplineRoadEngine().resolveRoadMaterial(
                                 worldX, worldY, worldZ, depth, material, roadDeckBlock, roadShoulderBlock
@@ -342,13 +371,9 @@ public final class StagedChunkGenerator<T> {
                                 if (scorch != null) material = scorch;
                             }
                         }
-                        if (runsAllowed && activeProvider != null) {
-                            int run = activeProvider.runLength(worldX, worldY, worldZ, materialDepth, currentSurfaceSpace,
-                                ceilingDepth[yIdx], ceilingSpace[yIdx], slopeAngle, voxelSpace);
-                            if (run > 1) {
-                                int limit = Math.min(run, yIdx + 1);
-                                while (span < limit && densityVolume[colOffset + yIdx - span] > 0.0f) span++;
-                            }
+                        if (run > 1) {
+                            int limit = Math.min(run, yIdx + 1);
+                            while (span < limit && densityVolume[colOffset + yIdx - span] > 0.0f) span++;
                         }
                         voxelSpace.setBlockRun(worldX, worldZ, worldY - span + 1, worldY + 1, material != null ? material : baseSolidBlock);
 
@@ -395,6 +420,13 @@ public final class StagedChunkGenerator<T> {
         VoxelSpace<T> voxelSpace,
         DensityFunction structureAdaptationDensity
     ) {
+        if (!COUNTERS) { generateChunkTimed(chunkX, chunkZ, voxelSpace, structureAdaptationDensity); return; }
+        long t0 = System.nanoTime();
+        generateChunkTimed(chunkX, chunkZ, voxelSpace, structureAdaptationDensity);
+        GEN_NANOS.addAndGet(System.nanoTime() - t0);
+    }
+
+    private void generateChunkTimed(int chunkX, int chunkZ, VoxelSpace<T> voxelSpace, DensityFunction structureAdaptationDensity) {
         int originX = chunkX * CHUNK_SIZE_X;
         int originZ = chunkZ * CHUNK_SIZE_Z;
         int minY = voxelSpace.getMinY();
@@ -409,8 +441,12 @@ public final class StagedChunkGenerator<T> {
             // Nothing needs the real chunk's density halo, so its terrain is the cached tile (computed once, shared with every
             // neighbour whose props read it): copy it in, then run the prop pass.
             ImmutableChunkSnapshot<T> tile = getTerrainTile(chunkX, chunkZ, minY, maxY);
+            long c0 = COUNTERS ? System.nanoTime() : 0;
             tile.copyTo(voxelSpace);
+            if (COUNTERS) COPY_NANOS.addAndGet(System.nanoTime() - c0);
+            long p0 = COUNTERS ? System.nanoTime() : 0;
             runDistributionPass(chunkX, chunkZ, voxelSpace, minY, maxY);
+            if (COUNTERS) PROPS_NANOS.addAndGet(System.nanoTime() - p0);
             runChunkTail(chunkX, chunkZ, voxelSpace);
             return;
         }
@@ -506,7 +542,11 @@ public final class StagedChunkGenerator<T> {
     private void runDistributionPass(int chunkX, int chunkZ, VoxelSpace<T> voxelSpace, int minY, int maxY) {
         final int ctxMinY = minY, ctxMaxY = maxY;
         contextCache.ensureCapacity(Math.max(propPass.tilesPerChunk() * 16, 20000));   // the memory budget, not the count, is the real limit
-        propPass.run(chunkX, chunkZ, voxelSpace, b -> b != null && !b.equals(airBlock) && !fluidTest.test(b), (cx, cz) -> getTerrainTile(cx, cz, ctxMinY, ctxMaxY));
+        propPass.run(chunkX, chunkZ, voxelSpace, b -> b != null && !b.equals(airBlock) && !fluidTest.test(b), new PropContextPass.TileSource<T>() {
+            @Override public ImmutableChunkSnapshot<T> tile(int cx, int cz) { return getTerrainTile(cx, cz, ctxMinY, ctxMaxY); }
+            @Override public Object tileOrPending(int cx, int cz) { return terrainTileOrPending(cx, cz, ctxMinY, ctxMaxY); }
+            @Override public ImmutableChunkSnapshot<T> await(Object pending) { return awaitTile(pending); }
+        });
     }
 
     /** Ore veins, project structures and macro landmarks: what happens to a chunk after its props. */
@@ -562,7 +602,10 @@ public final class StagedChunkGenerator<T> {
      * terrain stage; a neighbour that has not been generated is computed the same way, so context never depends on order.
      */
     /** Dev counters: how many terrain tiles were computed, and how many chunks were generated. Written to a temp file now and then. */
-    private static final java.util.concurrent.atomic.AtomicLong TILES_COMPUTED = new java.util.concurrent.atomic.AtomicLong(), CHUNKS_GENERATED = new java.util.concurrent.atomic.AtomicLong(), TILE_HITS = new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong TILES_COMPUTED = new java.util.concurrent.atomic.AtomicLong(), CHUNKS_GENERATED = new java.util.concurrent.atomic.AtomicLong(), TILE_HITS = new java.util.concurrent.atomic.AtomicLong(),
+        GEN_NANOS = new java.util.concurrent.atomic.AtomicLong(), TILE_NANOS = new java.util.concurrent.atomic.AtomicLong(),
+        WAIT_NANOS = new java.util.concurrent.atomic.AtomicLong(), PROPS_NANOS = new java.util.concurrent.atomic.AtomicLong(), COPY_NANOS = new java.util.concurrent.atomic.AtomicLong(),
+        PRUNED = new java.util.concurrent.atomic.AtomicLong(), EXACT = new java.util.concurrent.atomic.AtomicLong(), BOUND_MISSES = new java.util.concurrent.atomic.AtomicLong();
 
     private static final boolean COUNTERS = System.getenv("WG2_COUNTERS") != null;
 
@@ -570,32 +613,118 @@ public final class StagedChunkGenerator<T> {
         if (!COUNTERS) return;
         long c = chunk ? CHUNKS_GENERATED.incrementAndGet() : CHUNKS_GENERATED.get();
         if (chunk && c % 64 == 0) {
-            try { java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "wg2_counts.txt"), "chunks " + c + " tilesComputed " + TILES_COMPUTED.get() + " tileCacheHits " + TILE_HITS.get()); } catch (Exception ignored) { }
+            try { java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "wg2_counts.txt"), "chunks " + c + " tilesComputed " + TILES_COMPUTED.get() + " tileCacheHits " + TILE_HITS.get()
+                + String.format(" | %.1f ms per chunk (all work), %.1f ms per tile (terrain)", GEN_NANOS.get() / 1e6 / Math.max(1, c - 1), TILE_NANOS.get() / 1e6 / Math.max(1, TILES_COMPUTED.get()))
+                + String.format(" | per chunk: props %.1f ms (of which waiting for tiles %.1f, computing tiles %.1f), copying terrain in %.1f ms", PROPS_NANOS.get() / 1e6 / Math.max(1, c - 1), WAIT_NANOS.get() / 1e6 / Math.max(1, c - 1), TILE_NANOS.get() / 1e6 / Math.max(1, c - 1), COPY_NANOS.get() / 1e6 / Math.max(1, c - 1))
+                + String.format(" | pruned %d blocks, exact %d, exact runs %d", PRUNED.get(), EXACT.get(), BOUND_MISSES.get())); } catch (Exception ignored) { }
         }
     }
 
-    private final Object[] tileLocks = newLocks(128);
+    /**
+     * Bounds pruning is exact but currently slower on Hytale's assets (their densities are mostly per-column 2D noise, which the bounds
+     * walk evaluates a second time), so it is off unless WG2_PRUNE=1. It may pay off for densities built on 3D noise.
+     */
+    private static final boolean PRUNE_OFF = System.getenv("WG2_PRUNE") == null;
 
-    private static Object[] newLocks(int n) { Object[] l = new Object[n]; for (int i = 0; i < n; i++) l[i] = new Object(); return l; }
+    /** How far from zero a bound must be before its sign is trusted (well above any rounding difference between paths). */
+    private static final float PRUNE_MARGIN = 0.01f;
 
-    private ImmutableChunkSnapshot<T> getTerrainTile(int cx, int cz, int minY, int maxY) {
-        ImmutableChunkSnapshot<T> snap = contextCache.getSnapshot(cx, cz, 0);
-        if (snap != null && snap.getMinY() == minY && snap.getMaxY() == maxY) { TILE_HITS.incrementAndGet(); return snap; }
-        // One thread computes a tile; any other that wants it meanwhile waits for the result instead of doing the same work.
-        // (Computing a tile never asks for another tile, so waiting cannot deadlock.)
-        synchronized (tileLocks[((cx * 73856093) ^ (cz * 19349663)) & 127]) {
-            snap = contextCache.getSnapshot(cx, cz, 0);
-            if (snap != null && snap.getMinY() == minY && snap.getMaxY() == maxY) { TILE_HITS.incrementAndGet(); return snap; }
-            TILES_COMPUTED.incrementAndGet();
-            int height = maxY - minY;
-            ColumnScratch scratch = tileScratch.get();
-            scratch.ensureCapacity(height);
-            TerrainTileSpace<T> space = new TerrainTileSpace<>(cx, cz, minY, maxY, airBlock);
-            terrainStage(cx, cz, space, null, scratch);
-            snap = space.toSnapshot(cx, cz);
-            contextCache.putSnapshot(cx, cz, 0, snap);
-            return snap;
+    private static final int SLAB = 16;
+
+    /**
+     * The blended density of a column, exactly where its sign could go either way, and only a placeholder of the right sign (+1 or -1)
+     * where the bounds prove it: solid stays solid, air stays air, and the blocks come out the same. One walk of the density tree gives
+     * bounds for every 16-block slab; neighbouring slabs that need exact values are evaluated together.
+     */
+    private void prunedColumn(WorldStructure.BiomeQueryResult q, float x, float z, int minY, int maxY, float[] out, float[] scratch,
+                              float[] tmp, float[] bnd) {
+        int height = maxY - minY;
+        int nb = (height + SLAB - 1) / SLAB;
+        float[] lo = com.worldgenv2.density.ColumnPool.take(nb), hi = com.worldgenv2.density.ColumnPool.take(nb);
+        float[] tl = com.worldgenv2.density.ColumnPool.take(nb), th = com.worldgenv2.density.ColumnPool.take(nb);
+        q.boundsBlendedSlabs(x, z, minY, maxY, SLAB, lo, hi, tl, th);
+        int k = 0;
+        while (k < nb) {
+            int a = k * SLAB, b = Math.min(height, a + SLAB);
+            if (lo[k] > PRUNE_MARGIN) { java.util.Arrays.fill(out, a, b, 1.0f); if (COUNTERS) PRUNED.addAndGet(b - a); k++; continue; }
+            if (hi[k] < -PRUNE_MARGIN) { java.util.Arrays.fill(out, a, b, -1.0f); if (COUNTERS) PRUNED.addAndGet(b - a); k++; continue; }
+            int start = k;
+            while (k < nb && !(lo[k] > PRUNE_MARGIN) && !(hi[k] < -PRUNE_MARGIN)) k++;
+            int ra = start * SLAB, rb = Math.min(height, k * SLAB);
+            q.computeBlendedColumn(x, z, minY + ra, minY + rb, tmp, scratch);
+            System.arraycopy(tmp, 0, out, ra, rb - ra);
+            if (COUNTERS) { EXACT.addAndGet(rb - ra); BOUND_MISSES.incrementAndGet(); }
         }
+        com.worldgenv2.density.ColumnPool.give(th); com.worldgenv2.density.ColumnPool.give(tl);
+        com.worldgenv2.density.ColumnPool.give(hi); com.worldgenv2.density.ColumnPool.give(lo);
+    }
+    /** Tiles being computed right now, by whichever thread claimed them first. */
+    private final java.util.concurrent.ConcurrentHashMap<Long, java.util.concurrent.CompletableFuture<ImmutableChunkSnapshot<T>>> tilesInFlight =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
+    private ImmutableChunkSnapshot<T> cachedTile(int cx, int cz, int minY, int maxY) {
+        ImmutableChunkSnapshot<T> snap = contextCache.getSnapshot(cx, cz, 0);
+        return snap != null && snap.getMinY() == minY && snap.getMaxY() == maxY ? snap : null;
+    }
+
+    /**
+     * The tile if it is ready (cached, or computed right here because nobody else is on it), otherwise the future of the thread that
+     * is computing it. Callers that need many tiles take everything they can compute first and wait only at the end.
+     * (Computing a tile never asks for another tile, so waiting cannot deadlock.)
+     */
+    @SuppressWarnings("unchecked")
+    private Object tileOrPending(int cx, int cz, int minY, int maxY) {
+        ImmutableChunkSnapshot<T> snap = cachedTile(cx, cz, minY, maxY);
+        if (snap != null) { TILE_HITS.incrementAndGet(); return snap; }
+        long key = StageContextCache.key(cx, cz, 0);
+        java.util.concurrent.CompletableFuture<ImmutableChunkSnapshot<T>> mine = new java.util.concurrent.CompletableFuture<>();
+        java.util.concurrent.CompletableFuture<ImmutableChunkSnapshot<T>> other = tilesInFlight.putIfAbsent(key, mine);
+        if (other != null) return other;
+        try {
+            snap = cachedTile(cx, cz, minY, maxY);       // finished between our first look and the claim
+            if (snap == null) {
+                TILES_COMPUTED.incrementAndGet();
+                long t0 = COUNTERS ? System.nanoTime() : 0;
+                int height = maxY - minY;
+                ColumnScratch scratch = tileScratch.get();
+                scratch.ensureCapacity(height);
+                TerrainTileSpace<T> space = new TerrainTileSpace<>(cx, cz, minY, maxY, airBlock);
+                terrainStage(cx, cz, space, null, scratch);
+                snap = space.toSnapshot(cx, cz);
+                if (COUNTERS) TILE_NANOS.addAndGet(System.nanoTime() - t0);
+                contextCache.putSnapshot(cx, cz, 0, snap);
+            }
+            mine.complete(snap);
+            return snap;
+        } catch (Throwable ex) {
+            mine.completeExceptionally(ex);
+            throw ex;
+        } finally {
+            tilesInFlight.remove(key, mine);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private ImmutableChunkSnapshot<T> getTerrainTile(int cx, int cz, int minY, int maxY) {
+        Object o = tileOrPending(cx, cz, minY, maxY);
+        if (!(o instanceof java.util.concurrent.CompletableFuture<?> f)) return (ImmutableChunkSnapshot<T>) o;
+        long w0 = COUNTERS ? System.nanoTime() : 0;
+        ImmutableChunkSnapshot<T> snap = (ImmutableChunkSnapshot<T>) f.join();
+        if (COUNTERS) WAIT_NANOS.addAndGet(System.nanoTime() - w0);
+        return snap;
+    }
+
+    /** For the prop pass: a tile, or the future of a tile someone else is computing. */
+    Object terrainTileOrPending(int cx, int cz, int minY, int maxY) { return tileOrPending(cx, cz, minY, maxY); }
+
+    /** Waits for a tile someone else is computing. */
+    @SuppressWarnings("unchecked")
+    ImmutableChunkSnapshot<T> awaitTile(Object pending) {
+        if (!(pending instanceof java.util.concurrent.CompletableFuture<?> f)) return (ImmutableChunkSnapshot<T>) pending;
+        long w0 = COUNTERS ? System.nanoTime() : 0;
+        ImmutableChunkSnapshot<T> snap = (ImmutableChunkSnapshot<T>) f.join();
+        if (COUNTERS) WAIT_NANOS.addAndGet(System.nanoTime() - w0);
+        return snap;
     }
     private record ResolvedOre<B>(B ore, java.util.Set<B> replaceable) {}
 

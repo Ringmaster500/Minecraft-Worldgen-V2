@@ -1,0 +1,4 @@
+﻿# Reference block hashes for hytale_default (seed of projtest), from tools\samecheck.ps1. Any speed change must reproduce these.
+area 0,0: 989504336d05bcd5
+area 3000,-2000: 5fbdcd6173a4fb4
+area -5000,7000: 10cc1c7906fb2ec1

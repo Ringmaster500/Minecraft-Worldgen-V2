@@ -54,6 +54,78 @@ public final class WorldStructure {
         }
 
         /**
+         * Conservative bounds of {@link #computeBlendedColumn} for Y in [y0, y1): the same blend applied to each biome's bounds.
+         */
+        public void boundsBlendedColumn(float x, float z, int y0, int y1, float[] out) {
+            boolean hasSecondary = tileBlendFactor > 0.001f
+                && secondaryTileBiome != null
+                && secondaryTileBiome.id() != primaryTileBiome.id();
+            boolean hasTertiary = tertiaryBlendFactor > 0.001f
+                && tertiaryTileBiome != null
+                && tertiaryTileBiome.id() != primaryTileBiome.id()
+                && (secondaryTileBiome == null || tertiaryTileBiome.id() != secondaryTileBiome.id());
+            if (customBiome != null && customBlendWeight >= 0.999f && !hasSecondary && !hasTertiary) {
+                customBiome.terrainDensity().bounds(x, z, y0, y1, out);
+                return;
+            }
+            primaryTileBiome.terrainDensity().bounds(x, z, y0, y1, out);
+            float lo = out[0], hi = out[1];
+            if (customBiome != null && customBlendWeight > 0.001f) {
+                customBiome.terrainDensity().bounds(x, z, y0, y1, out);
+                float inv = 1.0f - customBlendWeight;
+                lo = lo * inv + out[0] * customBlendWeight;
+                hi = hi * inv + out[1] * customBlendWeight;
+            }
+            if (hasSecondary || hasTertiary) {
+                float w2 = hasSecondary ? tileBlendFactor : 0.0f;
+                float w3 = hasTertiary ? tertiaryBlendFactor : 0.0f;
+                float w1 = Math.max(0.0f, 1.0f - w2 - w3);
+                lo *= w1;
+                hi *= w1;
+                if (hasSecondary) { secondaryTileBiome.terrainDensity().bounds(x, z, y0, y1, out); lo += out[0] * w2; hi += out[1] * w2; }
+                if (hasTertiary) { tertiaryTileBiome.terrainDensity().bounds(x, z, y0, y1, out); lo += out[0] * w3; hi += out[1] * w3; }
+            }
+            com.worldgenv2.density.Bounds.set(out, lo, hi);
+        }
+
+        /** {@link #boundsBlendedColumn} for every slab of {@code bs} heights at once (see {@code DensityFunction.boundsSlabs}). */
+        public void boundsBlendedSlabs(float x, float z, int minY, int maxY, int bs, float[] lo, float[] hi, float[] tl, float[] th) {
+            int nb = (maxY - minY + bs - 1) / bs;
+            boolean hasSecondary = tileBlendFactor > 0.001f
+                && secondaryTileBiome != null
+                && secondaryTileBiome.id() != primaryTileBiome.id();
+            boolean hasTertiary = tertiaryBlendFactor > 0.001f
+                && tertiaryTileBiome != null
+                && tertiaryTileBiome.id() != primaryTileBiome.id()
+                && (secondaryTileBiome == null || tertiaryTileBiome.id() != secondaryTileBiome.id());
+            if (customBiome != null && customBlendWeight >= 0.999f && !hasSecondary && !hasTertiary) {
+                customBiome.terrainDensity().boundsSlabs(x, z, minY, maxY, bs, lo, hi);
+                return;
+            }
+            primaryTileBiome.terrainDensity().boundsSlabs(x, z, minY, maxY, bs, lo, hi);
+            if (customBiome != null && customBlendWeight > 0.001f) {
+                customBiome.terrainDensity().boundsSlabs(x, z, minY, maxY, bs, tl, th);
+                float inv = 1.0f - customBlendWeight;
+                for (int k = 0; k < nb; k++) { lo[k] = lo[k] * inv + tl[k] * customBlendWeight; hi[k] = hi[k] * inv + th[k] * customBlendWeight; }
+            }
+            if (hasSecondary || hasTertiary) {
+                float w2 = hasSecondary ? tileBlendFactor : 0.0f;
+                float w3 = hasTertiary ? tertiaryBlendFactor : 0.0f;
+                float w1 = Math.max(0.0f, 1.0f - w2 - w3);
+                for (int k = 0; k < nb; k++) { lo[k] *= w1; hi[k] *= w1; }
+                if (hasSecondary) {
+                    secondaryTileBiome.terrainDensity().boundsSlabs(x, z, minY, maxY, bs, tl, th);
+                    for (int k = 0; k < nb; k++) { lo[k] += tl[k] * w2; hi[k] += th[k] * w2; }
+                }
+                if (hasTertiary) {
+                    tertiaryTileBiome.terrainDensity().boundsSlabs(x, z, minY, maxY, bs, tl, th);
+                    for (int k = 0; k < nb; k++) { lo[k] += tl[k] * w3; hi[k] += th[k] * w3; }
+                }
+            }
+            for (int k = 0; k < nb; k++) if (Float.isNaN(lo[k]) || Float.isNaN(hi[k])) { lo[k] = Float.NEGATIVE_INFINITY; hi[k] = Float.POSITIVE_INFINITY; }
+        }
+
+        /**
          * Evaluates the composite blended terrain density column [minY, maxY) into `out`.
          * Propagates column batching down to primary, secondary, tertiary, and custom biome density DAGs.
          */
@@ -407,6 +479,17 @@ public final class WorldStructure {
      * radial zones / outside-bounds fallbacks) to an already biome-blended density column.
      */
     public void applyTerrainModifiers(float x, float z, int minY, int maxY, float[] column) {
+        applyTerrainModifiersImpl(x, z, minY, maxY, column);
+    }
+
+    /** True when {@link #applyTerrainModifiers} can change a column at all (sea depth, carvers, zones, layout bounds, spawn crater). */
+    public boolean terrainModifiersPresent() {
+        return oceanDepthScale != 1.0f || riverCarver != null || caveCarver != null
+            || (dimensionLayout != null && !dimensionLayout.leavesTerrainAlone()) || zoneLayout != null
+            || (spawnAnchorManager != null && spawnAnchorManager.hasActiveRule());
+    }
+
+    private void applyTerrainModifiersImpl(float x, float z, int minY, int maxY, float[] column) {
         if (oceanDepthScale != 1.0f) {
             applyOceanDepth(minY, maxY, column);
         }

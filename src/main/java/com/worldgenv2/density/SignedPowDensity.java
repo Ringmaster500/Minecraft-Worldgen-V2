@@ -29,6 +29,24 @@ public final class SignedPowDensity implements DensityFunction {
     @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (in.xzIndependent() ? 1 : 2); return f == 1; }
 
     @Override
+    public void boundsSlabs(float x, float z, int minY, int maxY, int bs, float[] lo, float[] hi) {
+        int nb = (maxY - minY + bs - 1) / bs;
+        if (yIndependent() || xzIndependent()) { DensityFunction.super.boundsSlabs(x, z, minY, maxY, bs, lo, hi); return; }
+        in.boundsSlabs(x, z, minY, maxY, bs, lo, hi);
+        for (int k = 0; k < nb; k++) {
+            float l = apply(lo[k]), h = apply(hi[k]);
+            if (Float.isNaN(l) || Float.isNaN(h)) { lo[k] = Float.NEGATIVE_INFINITY; hi[k] = Float.POSITIVE_INFINITY; }
+            else { lo[k] = l; hi[k] = h; }
+        }    }
+
+    @Override
+    public void bounds(float x, float z, int y0, int y1, float[] out) {
+        if (yIndependent()) { DensityFunction.super.bounds(x, z, y0, y1, out); return; }
+        if (xzIndependent()) { yTable.bounds(this, y0, y1, out); return; }
+        in.bounds(x, z, y0, y1, out);
+        Bounds.set(out, apply(out[0]), apply(out[1]));    }
+
+    @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }

@@ -221,6 +221,7 @@ public final class StudioApp {
     public String probeWorld(int x, int z, int radius) { return LiveWorld.probe(x, z, radius); }
 
     public String censusWorld(int x, int z) { return LiveWorld.census(x, z); }
+    public String hashArea(int x, int z, int r) { return LiveWorld.hashArea(x, z, r); }
     public String serverCommand(String cmd) { return LiveWorld.command(cmd); }
     public String spansNear(int x, int z, int radius) { return LiveWorld.spans(x, z, radius); }
 

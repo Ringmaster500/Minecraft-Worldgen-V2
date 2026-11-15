@@ -58,6 +58,13 @@ public final class Noise3dDensity implements DensityFunction {
         }
     }
 
+    /** FastNoiseLite keeps every noise and fractal within [-1, 1]; half again is left as a safety margin. */
+    @Override
+    public void bounds(float x, float z, int y0, int y1, float[] out) {
+        float a = Math.abs(amplitude) * 1.5f;
+        Bounds.set(out, -a, a);
+    }
+
     public FastNoiseLite getNoise() {
         return noise;
     }

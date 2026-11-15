@@ -167,6 +167,39 @@ final class LiveWorld {
         }
     }
 
+    /**
+     * A fingerprint of every block in the (2r+1)^2 chunks around (x, z), generating them if needed: two builds (or two runs) that
+     * generate the same world give the same numbers. Returns the overall hash and a short hash per chunk.
+     */
+    static String hashArea(int x, int z, int r) {
+        MinecraftServer server = server();
+        if (server == null) return "no world";
+        try {
+            return server.submit(() -> {
+                ServerLevel level = server.overworld();
+                int minY = level.getMinY(), maxY = level.getMaxY();
+                var pos = new net.minecraft.core.BlockPos.MutableBlockPos();
+                long all = 1469598103934665603L;
+                StringBuilder per = new StringBuilder();
+                for (int cx = (x >> 4) - r; cx <= (x >> 4) + r; cx++) {
+                    for (int cz = (z >> 4) - r; cz <= (z >> 4) + r; cz++) {
+                        var chunk = level.getChunk(cx, cz);
+                        long h = 1469598103934665603L;
+                        for (int dx = 0; dx < 16; dx++) for (int dz = 0; dz < 16; dz++) for (int y = minY; y < maxY; y++) {
+                            pos.set((cx << 4) + dx, y, (cz << 4) + dz);
+                            h = (h ^ net.minecraft.world.level.block.Block.getId(chunk.getBlockState(pos))) * 1099511628211L;
+                        }
+                        all = (all ^ h) * 1099511628211L;
+                        per.append(Long.toHexString(h), 0, 6).append(' ');
+                    }
+                }
+                return Long.toHexString(all) + " | " + per.toString().trim();
+            }).get(600, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            return "hash failed: " + t;
+        }
+    }
+
     /** Counts every block type in the chunk containing (x, z): proof of what generation actually produced. */
     static String census(int x, int z) {
         MinecraftServer server = server();

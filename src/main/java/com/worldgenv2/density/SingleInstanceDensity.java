@@ -25,6 +25,18 @@ public final class SingleInstanceDensity implements DensityFunction {
     @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (delegate.xzIndependent() ? 1 : 2); return f == 1; }
 
     @Override
+    public void boundsSlabs(float x, float z, int minY, int maxY, int bs, float[] lo, float[] hi) {
+        int nb = (maxY - minY + bs - 1) / bs;
+        if (yIndependent() || xzIndependent()) { DensityFunction.super.boundsSlabs(x, z, minY, maxY, bs, lo, hi); return; }
+        delegate.boundsSlabs(x, z, minY, maxY, bs, lo, hi);    }
+
+    @Override
+    public void bounds(float x, float z, int y0, int y1, float[] out) {
+        if (yIndependent()) { DensityFunction.super.bounds(x, z, y0, y1, out); return; }
+        if (xzIndependent()) { yTable.bounds(this, y0, y1, out); return; }
+        delegate.bounds(x, z, y0, y1, out);    }
+
+    @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }

@@ -45,6 +45,13 @@ public final class HytaleDistribution<T> implements Distribution<T> {
     @Override
     public int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
                                 VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
+        return generateInRegion(minX, minZ, maxX, maxZ, needMinX, needMinZ, needMaxX, needMaxZ, space, seedBase, accept, solid, null);
+    }
+
+    @Override
+    public int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
+                                VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid,
+                                com.worldgenv2.props.AnchorMemo<T> memo) {
         List<Vec3d> points = new ArrayList<>(positions.getPositions(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ));
         points.sort((a, b) -> {
             int c = Double.compare(a.x(), b.x());
@@ -64,10 +71,21 @@ public final class HytaleDistribution<T> implements Distribution<T> {
                 int reach = chosen.contentReach();
                 if (px + reach < needMinX || px - reach >= needMaxX || pz + reach < needMinZ || pz - reach >= needMaxZ) continue;   // builds nothing anyone reads
             }
-            if (chosen != null && chosen.generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, space, seed))) placed++;
+            if (chosen == null) continue;
+            if (memo == null || !memo.remembers()) {
+                if (chosen.generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, space, seed))) placed++;
+                continue;
+            }
+            if (MEMO_CHECK) { final Prop<T> fc = chosen; final int fx = px, fy = py, fz = pz; final long fs = seed; memo.verify(seedBase, px, py, pz, chosen, space, s -> fc.generate(new Context<>(fx, fy, fz, 0.0f, 1.0f, 0.0f, s, fs))); }
+            if (memo.replay(seedBase, px, py, pz, chosen, space)) { placed++; continue; }
+            com.worldgenv2.props.AnchorMemo.Recorder<T> rec = memo.recorder(space);
+            if (chosen.generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, rec, seed))) placed++;
+            memo.remember(seedBase, px, py, pz, chosen, rec);
         }
         return placed;
     }
+
+    private static final boolean MEMO_CHECK = System.getenv("WG2_MEMO_CHECK") != null;
 
     /** Everything a position's prop can reach: what it scans and tests (Pattern, Scanner) and what it builds. */
     @Override

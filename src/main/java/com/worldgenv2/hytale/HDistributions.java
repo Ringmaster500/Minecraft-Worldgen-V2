@@ -136,7 +136,38 @@ public final class HDistributions {
         @Override
         public int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
                                     VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
-            List<Placed<T>> all = new ArrayList<>(field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase));
+            return generateInRegion(minX, minZ, maxX, maxZ, needMinX, needMinZ, needMaxX, needMaxZ, space, seedBase, accept, solid, null);
+        }
+
+        @Override
+        public int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
+                                    VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid,
+                                    com.worldgenv2.props.AnchorMemo<T> memo) {
+            List<Placed<T>> all;
+            if (memo == null || NO_CELLS) {
+                all = new ArrayList<>(field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase));
+            } else {
+                // The positions of a 16 x 16 cell are the same whichever chunk asks, so each cell is evaluated once and shared.
+                all = new ArrayList<>();
+                int y0 = space.getMinY(), y1 = space.getMaxY();
+                for (int cx = Math.floorDiv(minX, 16); cx <= Math.floorDiv(maxX - 1, 16); cx++) {
+                    for (int cz = Math.floorDiv(minZ, 16); cz <= Math.floorDiv(maxZ - 1, 16); cz++) {
+                        final int fcx = cx, fcz = cz;
+                        @SuppressWarnings("unchecked")
+                        List<Placed<T>> cell = (List<Placed<T>>) memo.cell(this, seedBase, cx, cz, () -> cellPositions(fcx, fcz, y0, y1, seedBase));
+                        for (Placed<T> p : cell) {
+                            int px = (int) Math.floor(p.position().x()), pz = (int) Math.floor(p.position().z());
+                            if (px >= minX && px < maxX && pz >= minZ && pz < maxZ) all.add(p);
+                        }
+                    }
+                }
+                if (CELL_CHECK) {
+                    List<Placed<T>> r1 = field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase);
+                    List<Placed<T>> r2 = field.evaluate(minX, space.getMinY(), minZ, maxX, space.getMaxY(), maxZ, seedBase);
+                    if (r1.size() != r2.size()) log("SAME REGION TWICE: " + r1.size() + " then " + r2.size() + " | " + describeField());
+                    else checkCells(all, r1, minX, minZ, maxX, maxZ);
+                }
+            }
             all.sort((a, b) -> {
                 int c = Double.compare(a.position().x(), b.position().x());
                 if (c != 0) return c;
@@ -151,10 +182,76 @@ public final class HDistributions {
                 if (px + reach < needMinX || px - reach >= needMaxX || pz + reach < needMinZ || pz - reach >= needMaxZ) continue;   // builds nothing anyone reads
                 if (accept != null && !accept.test(px, pz)) continue;
                 long seed = seedAt(seedBase, p.position());
-                if (p.prop().generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, space, seed))) placed++;
+                if (memo == null || !memo.remembers()) {
+                    if (p.prop().generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, space, seed))) placed++;
+                    continue;
+                }
+                if (MEMO_CHECK) { final Placed<T> fp = p; final int fx = px, fy = py, fz = pz; memo.verify(seedBase, px, py, pz, p.prop(), space, s -> fp.prop().generate(new Context<>(fx, fy, fz, 0.0f, 1.0f, 0.0f, s, seed))); }
+                if (memo.replay(seedBase, px, py, pz, p.prop(), space)) { placed++; continue; }
+                com.worldgenv2.props.AnchorMemo.Recorder<T> rec = memo.recorder(space);
+                if (p.prop().generate(new Context<>(px, py, pz, 0.0f, 1.0f, 0.0f, rec, seed))) placed++;
+                memo.remember(seedBase, px, py, pz, p.prop(), rec);
             }
             return placed;
         }
+
+        /** The positions whose block lies in cell (cx, cz), each exactly once (a position on a cell edge belongs to the cell it starts). */
+        private List<Placed<T>> cellPositions(int cx, int cz, int y0, int y1, long seedBase) {
+            int x0 = cx << 4, z0 = cz << 4;
+            List<Placed<T>> out = new ArrayList<>();
+            for (Placed<T> p : field.evaluate(x0, y0, z0, x0 + 16, y1, z0 + 16, seedBase)) {
+                int px = (int) Math.floor(p.position().x()), pz = (int) Math.floor(p.position().z());
+                if (px >= x0 && px < x0 + 16 && pz >= z0 && pz < z0 + 16) out.add(p);
+            }
+            return out;
+        }
+
+        private static final boolean CELL_CHECK = System.getenv("WG2_CELL_CHECK") != null;
+
+        /** Dev check: the per-cell positions must equal the region's own positions (same points, same props, any order). */
+        private void checkCells(List<Placed<T>> cells, List<Placed<T>> region, int minX, int minZ, int maxX, int maxZ) {
+            java.util.Map<String, Integer> a = new java.util.HashMap<>(), b = new java.util.HashMap<>();
+            for (Placed<T> p : cells) a.merge(key(p), 1, Integer::sum);
+            for (Placed<T> p : region) {
+                int px = (int) Math.floor(p.position().x()), pz = (int) Math.floor(p.position().z());
+                if (px >= minX && px < maxX && pz >= minZ && pz < maxZ) b.merge(key(p), 1, Integer::sum);
+            }
+            if (a.equals(b)) return;
+            StringBuilder sb = new StringBuilder("cells " + cells.size() + " vs region " + b.values().stream().mapToInt(Integer::intValue).sum() + ":");
+            int shown = 0, shown2 = 0;
+            for (var e : b.entrySet()) if (!e.getValue().equals(a.get(e.getKey())) && shown++ < 3) sb.append(" missing-in-cells ").append(e.getKey());
+            for (var e : a.entrySet()) if (!e.getValue().equals(b.get(e.getKey())) && shown2++ < 3) sb.append(" extra-in-cells ").append(e.getKey());
+            sb.append(" | ").append(describeField());
+            log(sb.toString());
+        }
+
+        private String describeField() { return field.getClass().getName(); }
+
+        private static void log(String s) {
+            try {
+                synchronized (FieldProp.class) {
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "wg2_cell_diff.txt"), s + "\n",
+                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+                }
+            } catch (Exception ignored) { }
+        }
+
+        private void unusedLog(StringBuilder sb) {
+            try {
+                synchronized (FieldProp.class) {
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "wg2_cell_diff.txt"), sb + "\n",
+                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+                }
+            } catch (Exception ignored) { }
+        }
+
+        private static String key(Placed<?> p) {
+            return p.position().x() + "," + p.position().y() + "," + p.position().z() + ":" + (p.prop() == null ? "-" : p.prop().getClass().getSimpleName() + "@" + System.identityHashCode(p.prop()));
+        }
+
+        /** Dev switch for A/B checks: WG2_NO_CELLS=1 evaluates positions per region as before. */
+        private static final boolean NO_CELLS = System.getenv("WG2_NO_CELLS") != null;
+        private static final boolean MEMO_CHECK = System.getenv("WG2_MEMO_CHECK") != null;
 
         @Override
         public int horizontalReach() { return field.reach(); }

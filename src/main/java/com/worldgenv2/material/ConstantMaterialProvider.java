@@ -29,6 +29,17 @@ public final class ConstantMaterialProvider<T> implements MaterialProvider<T> {
     }
 
     @Override
+    public T getMaterialRun(int x, int y, int z, int df, int sf, int dc, int sc, float slopeAngle, VoxelSpace<T> spaceRef, int[] run) {
+        run[0] = Integer.MAX_VALUE;
+        return material;
+    }
+
+    @Override
+    public boolean usesSlope() {
+        return false;
+    }
+
+    @Override
     public int emptyRunLength(int x, int y, int z, VoxelSpace<T> spaceRef) {
         return Integer.MAX_VALUE;
     }

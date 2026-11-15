@@ -15,12 +15,17 @@ if (-not $Keep) {
     & "$PSScriptRoot\dev.ps1" start 2>&1 | Select-Object -Last 1 | Out-Null
 }
 & "$PSScriptRoot\dev.ps1" call "/openproject?name=$Project" | Out-Null
+Remove-Item "$env:TEMP\wg2_counts.txt" -ErrorAction SilentlyContinue
+$gp0 = (& "$j\jcmd.exe" | Select-String "devlaunch").ToString().Split(" ")[0]; $cpuStart = (Get-Process -Id $gp0).TotalProcessorTime.TotalSeconds
 $sw = [Diagnostics.Stopwatch]::StartNew()
 & "$PSScriptRoot\dev.ps1" call "/world?name=$World" | Out-Null
 if ($Profile) { Start-Sleep 12; $p0 = (& "$j\jcmd.exe" | Select-String "devlaunch").ToString().Split(" ")[0]; & "$j\jcmd.exe" $p0 JFR.start name=spawn duration=25s filename="$env:TEMP\wg_bench.jfr" settings=profile | Out-Null }
 for ($i = 0; $i -lt 120; $i++) { Start-Sleep 3; try { $s = Invoke-RestMethod "$bridge/state" -TimeoutSec 20; if ($s.inWorld) { break } } catch {} }
-$idle = 0; while ($sw.Elapsed.TotalSeconds -lt 600) { Start-Sleep 2; if ((Busy) -eq 0) { $idle++ } else { $idle = 0 }; if ($idle -ge 3) { break } }
-"spawn area ready after $([int]($sw.Elapsed.TotalSeconds - 6))s"
+function Chunks { $f = "$env:TEMP\wg2_counts.txt"; if (Test-Path $f) { $m = [regex]::Match((Get-Content $f -Raw), "chunks (\d+)"); if ($m.Success) { return [int]$m.Groups[1].Value } }; 0 }
+$last = -1; $lastChange = 0
+while ($sw.Elapsed.TotalSeconds -lt 600) { Start-Sleep 1; $c = Chunks; if ($c -ne $last) { $last = $c; $lastChange = $sw.Elapsed.TotalSeconds } elseif ($c -gt 0 -and $sw.Elapsed.TotalSeconds - $lastChange -ge 5) { break } }
+$readyAt = $lastChange
+"spawn area ($last chunks) ready after $([int]$readyAt)s ($([int]((Get-Process -Id $gp0).TotalProcessorTime.TotalSeconds - $cpuStart)) CPU-seconds)"
 $spots = @(@(20000, 20000), @(-20000, 15000), @(5000, -30000))
 for ($r = 0; $r -lt $Runs; $r++) {
     $x = $spots[$r % 3][0]; $z = $spots[$r % 3][1]
@@ -33,6 +38,8 @@ for ($r = 0; $r -lt $Runs; $r++) {
     $cpu = (Get-Process -Id $gp).TotalProcessorTime.TotalSeconds - $cpu0
     "fresh view radius at $x,$z generated in $([int]($sw.Elapsed.TotalSeconds - 3))s ($([int]$cpu) CPU-seconds, $([math]::Round($cpu / [math]::Max(1, $sw.Elapsed.TotalSeconds - 3), 1)) cores busy)"
 }
+
+
 
 
 

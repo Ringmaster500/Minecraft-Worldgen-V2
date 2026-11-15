@@ -250,6 +250,10 @@ public final class DevBridge {
                 String res = com.worldgenv2.studio.shell.StudioApp.get().spansNear((int) d(q, "x"), (int) d(q, "z"), q.containsKey("r") ? (int) d(q, "r") : 400);
                 yield "{\"spans\":\"" + esc(res) + "\"}";
             }
+            case "/hash" -> {
+                String res = com.worldgenv2.studio.shell.StudioApp.get().hashArea((int) d(q, "x"), (int) d(q, "z"), q.containsKey("r") ? (int) d(q, "r") : 3);
+                yield "{\"hash\":\"" + esc(res) + "\"}";
+            }
             case "/census" -> {
                 String res = com.worldgenv2.studio.shell.StudioApp.get().censusWorld((int) d(q, "x"), (int) d(q, "z"));
                 yield "{\"census\":\"" + esc(res) + "\"}";

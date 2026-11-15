@@ -73,6 +73,16 @@ public final class ManualCurve implements Curve {
             default: return ys[idx] + t * (ys[next] - ys[idx]);
         }
     }
+    @Override
+    public double[] range(double lo, double hi) {
+        if (Double.isNaN(lo) || Double.isNaN(hi)) return null;
+        // piecewise linear (or smoothstep, which stays between its end points): the extremes are at the ends or at points inside
+        double a = evaluate(lo), b = evaluate(hi);
+        double mn = Math.min(a, b), mx = Math.max(a, b);
+        for (int i = 0; i < xs.length; i++) if (xs[i] > lo && xs[i] < hi) { mn = Math.min(mn, ys[i]); mx = Math.max(mx, ys[i]); }
+        return new double[]{mn, mx};
+    }
+
     public List<Point> getPoints() {
         return points;
     }

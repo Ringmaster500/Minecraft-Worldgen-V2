@@ -40,10 +40,20 @@ final class PropContextPass<T> {
     /** Source of deterministic terrain for any chunk. */
     interface TileSource<T> {
         ImmutableChunkSnapshot<T> tile(int chunkX, int chunkZ);
+
+        /** The tile if it is ready or can be computed right away, otherwise something to {@link #await} later. */
+        @SuppressWarnings("unchecked")
+        default Object tileOrPending(int chunkX, int chunkZ) { return tile(chunkX, chunkZ); }
+
+        @SuppressWarnings("unchecked")
+        default ImmutableChunkSnapshot<T> await(Object pending) { return (ImmutableChunkSnapshot<T>) pending; }
     }
 
     /** content: how far its blocks reach from an anchor; extra: how much farther it reads (scans and tests). */
-    private record Item<T>(Prop<T> wrapper, Distribution<T> dist, int stage, long salt, int content, int extra) {}
+    private record Item<T>(Prop<T> wrapper, Distribution<T> dist, int stage, long salt, int content, int extra) {
+        /** How far, horizontally, a prop of this distribution reads or writes from its anchor. */
+        int total() { return content + extra; }
+    }
 
     private static final class Plan<T> {
         final List<Item<T>> items = new ArrayList<>();
@@ -111,8 +121,8 @@ final class PropContextPass<T> {
         Map<Long, List<Prop<T>>> biomeCache = new HashMap<>();
 
         // Work out, from the last stage backwards, which distributions can touch this chunk at all and how far the context must
-        // reach: a distribution only matters if its biome lies within (later stages' reach + its own build size) of the chunk,
-        // and the context only needs the largest reach of the distributions that do.
+        // reach. A prop reaches (reads and writes) up to its horizontal reach R from its anchor. The blocks later stages read lie within
+        // `after` of the chunk, so anchors within after + R matter, and those anchors read up to R further: each stage adds 2 R.
         int ns = pl.stages.length;
         int[] after = new int[ns];
         @SuppressWarnings("unchecked") List<Item<T>>[] active = new List[ns];
@@ -141,12 +151,25 @@ final class PropContextPass<T> {
         int side = 2 * rc + 1;
         ContextSpace<T> ctx = ContextSpace.acquire((chunkX - rc) << 4, (chunkZ - rc) << 4, side * 16, side * 16, minY, maxY, air);
         try {
-            for (int cx = chunkX - rc; cx <= chunkX + rc; cx++)
-                for (int cz = chunkZ - rc; cz <= chunkZ + rc; cz++) ctx.loadTile(tiles.tile(cx, cz), cx, cz);
+            // Compute every missing tile nobody else is working on, then wait for the ones other threads are still computing.
+            List<Object[]> pending = null;
+            for (int cx = chunkX - rc; cx <= chunkX + rc; cx++) {
+                for (int cz = chunkZ - rc; cz <= chunkZ + rc; cz++) {
+                    Object o = tiles.tileOrPending(cx, cz);
+                    if (o instanceof ImmutableChunkSnapshot<?> s) ctx.loadTile(s, cx, cz);
+                    else { if (pending == null) pending = new ArrayList<>(); pending.add(new Object[]{o, cx, cz}); }
+                }
+            }
+            if (pending != null) for (Object[] p : pending) ctx.loadTile(tiles.await(p[0]), (Integer) p[1], (Integer) p[2]);
 
             for (int si = 0; si < ns; si++) {
                 int stage = pl.stages[si];
                 int need = after[si];
+                // Anchor results are shared only for the first stage: it reads nothing but terrain, which is the same in every chunk's
+                // context. A later stage reads what earlier stages built there, and which distributions a chunk considers present (biomes
+                // are sampled every 4 blocks) can differ from chunk to chunk, so those results stay per chunk. Per-cell positions are
+                // shared in every stage.
+                Memo memo = new Memo(si == 0 && !NO_ANCHORS, (chunkX - rc) << 4, (chunkZ - rc) << 4, ((chunkX - rc) << 4) + side * 16, ((chunkZ - rc) << 4) + side * 16);
                 ContextSpace<T>.View view = ctx.view(footMinX - need, footMinZ - need, footMinX + 16 + need, footMinZ + 16 + need);
                 for (Item<T> it : active[si]) {
                     int m = after[si] + it.content();
@@ -154,7 +177,7 @@ final class PropContextPass<T> {
                     int minZ = footMinZ - m, maxZ = footMinZ + 16 + m;
                     long seedBase = ws.seed() * 0x9E3779B97F4A7C15L ^ it.salt() * 0xC2B2AE3D27D4EB4FL ^ stage;
                     it.dist().generateInRegion(minX, minZ, maxX, maxZ, footMinX - need, footMinZ - need, footMinX + 16 + need, footMinZ + 16 + need, view, seedBase,
-                        (x, z) -> contains(biomeProps(biomeCache, x, z), it.wrapper()), solid);
+                        (x, z) -> contains(biomeProps(biomeCache, x, z), it.wrapper()), solid, NO_MEMO ? null : memo);
                 }
                 ctx.commitStage();
             }
@@ -190,8 +213,243 @@ final class PropContextPass<T> {
         return false;
     }
 
-    // ================================================================== the region
+    // ================================================================== remembered anchors
 
+    private record AnchorKey(long seedBase, long pos, int prop) {}
+
+    /** Per-cell values (a distribution's positions in a 16 x 16 cell), shared by all chunks; two generations like the anchors. */
+    private record CellKey(Identity owner, long seedBase, int cellX, int cellZ) {}
+
+    /** Wraps an object so that equality is identity (records compare their parts with equals). */
+    private record Identity(Object o) {
+        @Override public boolean equals(Object other) { return other instanceof Identity i && i.o == o; }
+        @Override public int hashCode() { return System.identityHashCode(o); }
+    }
+    private static final int CELL_BUDGET = 400_000;
+    private volatile java.util.concurrent.ConcurrentHashMap<CellKey, Object> cellsFresh = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile java.util.concurrent.ConcurrentHashMap<CellKey, Object> cellsAged = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicInteger cellCount = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** Dev switch for A/B checks: WG2_NO_MEMO=1 turns the anchor memo off. */
+    private static final boolean NO_MEMO = System.getenv("WG2_NO_MEMO") != null;
+    /** Dev switch: WG2_NO_ANCHORS=1 keeps per-cell positions but stops remembering anchors. */
+    private static final boolean NO_ANCHORS = System.getenv("WG2_NO_ANCHORS") != null;
+
+    /** What one prop built at one anchor: the blocks in order, and any loot tables. */
+    private static final class WriteSet {
+        final Object prop;
+        final int[] xyz;
+        final Object[] blocks;
+        final Object[] loot;      // {x, y, z, table, seed} per entry
+        final long bytes;
+        int readMinX = Integer.MAX_VALUE, readMinZ = Integer.MAX_VALUE, readMaxX = Integer.MIN_VALUE, readMaxZ = Integer.MIN_VALUE;
+
+        WriteSet(Object prop, int[] xyz, Object[] blocks, Object[] loot) {
+            this.prop = prop;
+            this.xyz = xyz;
+            this.blocks = blocks;
+            this.loot = loot;
+            this.bytes = 96 + 4L * xyz.length + 4L * blocks.length + 32L * loot.length;
+        }
+    }
+
+    /** Two generations: new results go into {@code fresh}; when it is full it becomes {@code aged} and the old aged one is dropped. */
+    private static final long ANCHOR_BUDGET = 96L * 1024 * 1024;
+    private volatile java.util.concurrent.ConcurrentHashMap<AnchorKey, WriteSet> fresh = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile java.util.concurrent.ConcurrentHashMap<AnchorKey, WriteSet> aged = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicLong freshBytes = new java.util.concurrent.atomic.AtomicLong();
+
+    private static long packPos(int x, int y, int z) {
+        return (((long) x & 0x3FFFFFFL) << 38) | (((long) z & 0x3FFFFFFL) << 12) | ((long) y & 0xFFFL);
+    }
+
+    private WriteSet lookup(AnchorKey k) {
+        WriteSet w = fresh.get(k);
+        if (w != null) return w;
+        w = aged.get(k);
+        if (w != null) store(k, w);
+        return w;
+    }
+
+    private void store(AnchorKey k, WriteSet w) {
+        if (fresh.put(k, w) == null && freshBytes.addAndGet(w.bytes) > ANCHOR_BUDGET / 2) {
+            synchronized (this) {
+                if (freshBytes.get() > ANCHOR_BUDGET / 2) {
+                    aged = fresh;
+                    fresh = new java.util.concurrent.ConcurrentHashMap<>();
+                    freshBytes.set(0);
+                }
+            }
+        }
+    }
+
+    /** The memo one chunk's prop pass uses: results are shared by all chunks; a result is kept only if its reads stayed in this context. */
+    private final class Memo implements com.worldgenv2.props.AnchorMemo<T> {
+        final boolean anchors;
+        final int x0, z0, x1, z1;
+
+        Memo(boolean anchors, int x0, int z0, int x1, int z1) { this.anchors = anchors; this.x0 = x0; this.z0 = z0; this.x1 = x1; this.z1 = z1; }
+
+        @Override public boolean remembers() { return anchors; }
+
+        @Override @SuppressWarnings("unchecked")
+        public boolean replay(long seedBase, int x, int y, int z, Object prop, VoxelSpace<T> space) {
+            WriteSet w = lookup(new AnchorKey(seedBase, packPos(x, y, z), System.identityHashCode(prop)));
+            if (w == null || w.prop != prop) return false;
+            // Replay only if every block the prop read lies inside this context: then this chunk would have computed the same.
+            if (w.readMinX < x0 || w.readMaxX >= x1 || w.readMinZ < z0 || w.readMaxZ >= z1) return false;
+            int[] c = w.xyz;
+            for (int i = 0, n = w.blocks.length; i < n; i++) space.setBlock(c[3 * i], c[3 * i + 1], c[3 * i + 2], (T) w.blocks[i]);
+            for (int i = 0; i < w.loot.length; i += 5)
+                space.setBlockLoot((Integer) w.loot[i], (Integer) w.loot[i + 1], (Integer) w.loot[i + 2], (String) w.loot[i + 3], (Long) w.loot[i + 4]);
+            return true;
+        }
+
+        @Override
+        public com.worldgenv2.props.AnchorMemo.Recorder<T> recorder(VoxelSpace<T> space) { return new Rec(space); }
+
+        @Override
+        public void verify(long seedBase, int x, int y, int z, Object prop, VoxelSpace<T> space, java.util.function.Consumer<VoxelSpace<T>> generate) {
+            if (!anchors) return;
+            WriteSet w = lookup(new AnchorKey(seedBase, packPos(x, y, z), System.identityHashCode(prop)));
+            if (w == null || w.prop != prop) return;
+            VoxelSpace<T> readOnly = new VoxelSpace<>() {
+                public T getBlock(int a, int b, int c) { return space.getBlock(a, b, c); }
+                public void setBlock(int a, int b, int c, T block) { }
+                public boolean isAir(int a, int b, int c) { return space.isAir(a, b, c); }
+                public int getMinY() { return space.getMinY(); }
+                public int getMaxY() { return space.getMaxY(); }
+            };
+            Rec r = new Rec(readOnly);
+            r.ax = x;
+            r.az = z;
+            generate.accept(r);
+            boolean same = r.n == w.blocks.length;
+            int firstDiff = -1;
+            for (int i = 0; same && i < r.n; i++) {
+                if (r.xyz[3 * i] != w.xyz[3 * i] || r.xyz[3 * i + 1] != w.xyz[3 * i + 1] || r.xyz[3 * i + 2] != w.xyz[3 * i + 2] || r.blocks.get(i) != w.blocks[i]) { same = false; firstDiff = i; }
+            }
+            if (same) return;
+            synchronized (PropContextPass.class) {
+                try {
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "wg2_memo_diff.txt"),
+                        "anchor " + x + "," + y + "," + z + " prop " + prop.getClass().getName() + " remembered " + w.blocks.length + " writes, now " + r.n
+                            + " (reads outside now: " + r.outside + ") first difference at write " + firstDiff
+                            + (firstDiff >= 0 ? " remembered " + w.xyz[3 * firstDiff] + "," + w.xyz[3 * firstDiff + 1] + "," + w.xyz[3 * firstDiff + 2] + "=" + w.blocks[firstDiff]
+                                + " now " + r.xyz[3 * firstDiff] + "," + r.xyz[3 * firstDiff + 1] + "," + r.xyz[3 * firstDiff + 2] + "=" + r.blocks.get(firstDiff) : "")
+                            + " | context " + x0 + ".." + x1 + " x " + z0 + ".." + z1
+                            + " | declared reach " + ((com.worldgenv2.props.Prop<?>) prop).horizontalReach() + " content " + ((com.worldgenv2.props.Prop<?>) prop).contentReach()
+                            + " | actually read up to " + r.maxRead + ", wrote up to " + r.maxWrite + " | " + describe(prop) + "\n",
+                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+                } catch (Exception ignored) { }
+            }
+        }
+
+        @Override
+        public Object cell(Object owner, long seedBase, int cellX, int cellZ, java.util.function.Supplier<Object> compute) {
+            CellKey k = new CellKey(new Identity(owner), seedBase, cellX, cellZ);
+            Object v = cellsFresh.get(k);
+            if (v == null) {
+                v = cellsAged.get(k);
+                if (v == null) v = compute.get();
+                if (cellsFresh.put(k, v) == null && cellCount.incrementAndGet() > CELL_BUDGET / 2) {
+                    synchronized (PropContextPass.this) {
+                        if (cellCount.get() > CELL_BUDGET / 2) {
+                            cellsAged = cellsFresh;
+                            cellsFresh = new java.util.concurrent.ConcurrentHashMap<>();
+                            cellCount.set(0);
+                        }
+                    }
+                }
+            }
+            return v;
+        }
+
+        @Override
+        public void remember(long seedBase, int x, int y, int z, Object prop, com.worldgenv2.props.AnchorMemo.Recorder<T> recorder) {
+            Rec r = (Rec) recorder;
+            if (r.outside) return;
+            WriteSet w = new WriteSet(prop, java.util.Arrays.copyOf(r.xyz, r.n * 3), r.blocks.toArray(), r.loot.toArray());
+            w.readMinX = r.rMinX; w.readMaxX = r.rMaxX; w.readMinZ = r.rMinZ; w.readMaxZ = r.rMaxZ;
+            store(new AnchorKey(seedBase, packPos(x, y, z), System.identityHashCode(prop)), w);
+        }
+
+        /** Passes everything through and notes the writes; a read outside this context makes the result one not to keep. */
+        final class Rec implements com.worldgenv2.props.AnchorMemo.Recorder<T> {
+            final VoxelSpace<T> base;
+            boolean outside;
+            int[] xyz = new int[48];
+            int n;
+            final ArrayList<Object> blocks = new ArrayList<>();
+            final ArrayList<Object> loot = new ArrayList<>();
+
+            int ax = Integer.MIN_VALUE, az, maxRead, maxWrite;   // dev check only: distances from the anchor
+
+            Rec(VoxelSpace<T> base) { this.base = base; }
+
+            int rMinX = Integer.MAX_VALUE, rMinZ = Integer.MAX_VALUE, rMaxX = Integer.MIN_VALUE, rMaxZ = Integer.MIN_VALUE;
+
+            private void read(int x, int z) {
+                if (x < x0 || x >= x1 || z < z0 || z >= z1) outside = true;
+                if (x < rMinX) rMinX = x;
+                if (x > rMaxX) rMaxX = x;
+                if (z < rMinZ) rMinZ = z;
+                if (z > rMaxZ) rMaxZ = z;
+                if (ax != Integer.MIN_VALUE) maxRead = Math.max(maxRead, Math.max(Math.abs(x - ax), Math.abs(z - az)));
+            }
+
+            @Override public T getBlock(int x, int y, int z) { read(x, z); return base.getBlock(x, y, z); }
+
+            @Override public boolean isAir(int x, int y, int z) { read(x, z); return base.isAir(x, y, z); }
+
+            @Override
+            public void setBlock(int x, int y, int z, T block) {
+                if (block != null && ax != Integer.MIN_VALUE) maxWrite = Math.max(maxWrite, Math.max(Math.abs(x - ax), Math.abs(z - az)));
+                if (block != null) {
+                    if (3 * n + 3 > xyz.length) xyz = java.util.Arrays.copyOf(xyz, xyz.length * 2);
+                    xyz[3 * n] = x; xyz[3 * n + 1] = y; xyz[3 * n + 2] = z;
+                    n++;
+                    blocks.add(block);
+                }
+                base.setBlock(x, y, z, block);
+            }
+
+            @Override
+            public void setBlockLoot(int x, int y, int z, String lootTableId, long seed) {
+                loot.add(x); loot.add(y); loot.add(z); loot.add(lootTableId); loot.add(seed);
+                base.setBlockLoot(x, y, z, lootTableId, seed);
+            }
+
+            @Override public int getMinY() { return base.getMinY(); }
+
+            @Override public int getMaxY() { return base.getMaxY(); }
+        }
+    }
+
+    /** Dev check: a prop and its children with their declared reaches (horizontal/content). */
+    private static String describe(Object p) {
+        StringBuilder sb = new StringBuilder(p.getClass().getSimpleName());
+        if (p instanceof com.worldgenv2.props.Prop<?> pr) sb.append('(').append(pr.horizontalReach()).append('/').append(pr.contentReach()).append(')');
+        try {
+            for (var fld : p.getClass().getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(fld.getModifiers())) continue;
+                fld.setAccessible(true);
+                Object v = fld.get(p);
+                if (v instanceof com.worldgenv2.props.Prop<?> c) sb.append(' ').append(fld.getName()).append("={").append(describe(c)).append('}');
+                else if (v instanceof java.util.List<?> l && !l.isEmpty() && l.get(0) instanceof com.worldgenv2.props.Prop<?>) {
+                    sb.append(' ').append(fld.getName()).append("=[");
+                    for (Object c : l) sb.append(describe(c)).append("; ");
+                    sb.append(']');
+                } else if (v != null && !(v instanceof Number) && !(v instanceof Boolean)) {
+                    String name = fld.getName().toLowerCase(java.util.Locale.ROOT);
+                    if (name.contains("scanner") || name.contains("pattern")) sb.append(' ').append(fld.getName()).append('=').append(v.getClass().getSimpleName());
+                }
+            }
+        } catch (Exception ignored) { }
+        return sb.toString();
+    }
+
+    // ================================================================== the region
     /**
      * A writable region of blocks (terrain from tiles) with stage isolation: a {@link View} reads the result of the previous
      * stage and records its writes, which {@link #commitStage()} then applies.

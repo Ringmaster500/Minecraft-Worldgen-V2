@@ -29,6 +29,25 @@ public final class SumDensity implements DensityFunction {
     @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (allFlatXZ(inputs) ? 1 : 2); return f == 1; }
 
     @Override
+    public void boundsSlabs(float x, float z, int minY, int maxY, int bs, float[] lo, float[] hi) {
+        int nb = (maxY - minY + bs - 1) / bs;
+        if (yIndependent() || xzIndependent()) { DensityFunction.super.boundsSlabs(x, z, minY, maxY, bs, lo, hi); return; }
+        java.util.Arrays.fill(lo, 0, nb, 0f);
+        java.util.Arrays.fill(hi, 0, nb, 0f);
+        float[] l = ColumnPool.take(nb), h = ColumnPool.take(nb);
+        for (DensityFunction in : inputs) { in.boundsSlabs(x, z, minY, maxY, bs, l, h); for (int k = 0; k < nb; k++) { lo[k] += l[k]; hi[k] += h[k]; } }
+        ColumnPool.give(h); ColumnPool.give(l);
+        for (int k = 0; k < nb; k++) if (Float.isNaN(lo[k]) || Float.isNaN(hi[k])) { lo[k] = Float.NEGATIVE_INFINITY; hi[k] = Float.POSITIVE_INFINITY; }    }
+
+    @Override
+    public void bounds(float x, float z, int y0, int y1, float[] out) {
+        if (yIndependent()) { DensityFunction.super.bounds(x, z, y0, y1, out); return; }
+        if (xzIndependent()) { yTable.bounds(this, y0, y1, out); return; }
+        float lo = 0f, hi = 0f;
+        for (DensityFunction in : inputs) { in.bounds(x, z, y0, y1, out); lo += out[0]; hi += out[1]; }
+        Bounds.set(out, lo, hi);    }
+
+    @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }

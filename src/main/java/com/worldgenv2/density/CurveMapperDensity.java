@@ -29,6 +29,26 @@ public final class CurveMapperDensity implements DensityFunction {
     @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (source.xzIndependent() ? 1 : 2); return f == 1; }
 
     @Override
+    public void boundsSlabs(float x, float z, int minY, int maxY, int bs, float[] lo, float[] hi) {
+        int nb = (maxY - minY + bs - 1) / bs;
+        if (yIndependent() || xzIndependent()) { DensityFunction.super.boundsSlabs(x, z, minY, maxY, bs, lo, hi); return; }
+        source.boundsSlabs(x, z, minY, maxY, bs, lo, hi);
+        for (int k = 0; k < nb; k++) {
+            double[] r = curve.range(lo[k], hi[k]);
+            if (r == null || Double.isNaN(r[0]) || Double.isNaN(r[1])) { lo[k] = Float.NEGATIVE_INFINITY; hi[k] = Float.POSITIVE_INFINITY; }
+            else { lo[k] = (float) r[0]; hi[k] = (float) r[1]; }
+        }    }
+
+    @Override
+    public void bounds(float x, float z, int y0, int y1, float[] out) {
+        if (yIndependent()) { DensityFunction.super.bounds(x, z, y0, y1, out); return; }
+        if (xzIndependent()) { yTable.bounds(this, y0, y1, out); return; }
+        source.bounds(x, z, y0, y1, out);
+        double[] r = curve.range(out[0], out[1]);
+        if (r == null) { Bounds.unknown(out); return; }
+        Bounds.set(out, (float) r[0], (float) r[1]);    }
+
+    @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }

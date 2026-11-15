@@ -45,6 +45,22 @@ public interface MaterialProvider<T> {
         return 1;
     }
 
+    /**
+     * True when the answer can depend on the slope angle. The terrain stage only measures slopes (which needs the densities of the
+     * neighbouring columns) when some provider says so. Unknown providers say yes.
+     */
+    default boolean usesSlope() {
+        return true;
+    }
+
+    /** {@link #getMaterial} and {@link #runLength} together (the run goes into {@code run[0]}); providers can do both in one pass. */
+    default T getMaterialRun(int x, int y, int z, int depthIntoFloor, int spaceAboveFloor, int depthIntoCeiling, int spaceBelowCeiling,
+                             float slopeAngle, VoxelSpace<T> spaceRef, int[] run) {
+        T m = getMaterial(x, y, z, depthIntoFloor, spaceAboveFloor, depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
+        run[0] = runLength(x, y, z, depthIntoFloor, spaceAboveFloor, depthIntoCeiling, spaceBelowCeiling, slopeAngle, spaceRef);
+        return m;
+    }
+
     /** Like {@link #runLength} for the empty side: how many blocks straight down give the same {@link #getEmptyMaterial}. */
     default int emptyRunLength(int x, int y, int z, VoxelSpace<T> spaceRef) {
         return 1;

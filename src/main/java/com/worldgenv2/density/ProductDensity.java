@@ -29,6 +29,14 @@ public final class ProductDensity implements DensityFunction {
     @Override public boolean xzIndependent() { byte f = xzFlat; if (f == 0) xzFlat = f = (byte) (allFlatXZ(inputs) ? 1 : 2); return f == 1; }
 
     @Override
+    public void bounds(float x, float z, int y0, int y1, float[] out) {
+        if (yIndependent()) { DensityFunction.super.bounds(x, z, y0, y1, out); return; }
+        if (xzIndependent()) { yTable.bounds(this, y0, y1, out); return; }
+        float lo = 1f, hi = 1f;
+        for (DensityFunction in : inputs) { in.bounds(x, z, y0, y1, out); float l = Bounds.mulLo(lo, hi, out[0], out[1]), h = Bounds.mulHi(lo, hi, out[0], out[1]); lo = l; hi = h; }
+        Bounds.set(out, lo, hi);    }
+
+    @Override
     public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
         if (yIndependent()) { java.util.Arrays.fill(out, 0, maxY - minY, compute(x, minY, z)); return; }
         if (xzIndependent()) { yTable.fill(this, minY, maxY, out); return; }

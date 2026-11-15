@@ -60,6 +60,12 @@ public final class HDensity {
             private final boolean yFlat = in.stream().allMatch(DensityFunction::yIndependent), xzFlat = in.stream().allMatch(DensityFunction::xzIndependent);
             @Override public boolean yIndependent() { return yFlat; }
             @Override public boolean xzIndependent() { return xzFlat; }
+            @Override public void bounds(float x, float z, int y0, int y1, float[] out) {
+                if (yFlat) { DensityFunction.super.bounds(x, z, y0, y1, out); return; }
+                float lo = 1f, hi = 1f;
+                for (DensityFunction d : in) { d.bounds(x, z, y0, y1, out); float l = com.worldgenv2.density.Bounds.mulLo(lo, hi, out[0], out[1]), h = com.worldgenv2.density.Bounds.mulHi(lo, hi, out[0], out[1]); lo = l; hi = h; }
+                com.worldgenv2.density.Bounds.set(out, lo, hi);
+            }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
                 int n = maxY - minY;
                 if (yIndependent()) { java.util.Arrays.fill(out, 0, n, compute(x, minY, z)); return; }
@@ -106,6 +112,9 @@ public final class HDensity {
                 if (ay == 1f) { in.computeColumn(x / ax, z / az, minY, maxY, out); return; }
                 for (int i = 0, n = maxY - minY; i < n; i++) out[i] = in.compute(x / ax, (minY + i) / ay, z / az);
             }
+            @Override public void bounds(float x, float z, int y0, int y1, float[] out) {
+                if (ay == 1f || in.yIndependent()) in.bounds(x / ax, z / az, y0, y1, out); else DensityFunction.super.bounds(x, z, y0, y1, out);
+            }
         };
     }
 
@@ -143,6 +152,11 @@ public final class HDensity {
         return new DensityFunction() {
             @Override public boolean yIndependent() { return !distance; }
             @Override public boolean xzIndependent() { return true; }
+            @Override public void bounds(float x, float z, int y0, int y1, float[] out) {
+                float h = (float) height.getAsDouble();
+                if (!distance) { com.worldgenv2.density.Bounds.set(out, h, h); return; }
+                com.worldgenv2.density.Bounds.set(out, (float) (y0 - (double) h) - 1e-3f, (float) ((y1 - 1) - (double) h) + 1e-3f);
+            }
             @Override public float compute(float x, float y, float z) { return distance ? (float) (y - height.getAsDouble()) : (float) height.getAsDouble(); }
             @Override public void computeColumn(float x, float z, int minY, int maxY, float[] out) {
                 float h = (float) height.getAsDouble();

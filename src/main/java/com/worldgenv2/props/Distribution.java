@@ -29,4 +29,11 @@ public interface Distribution<T> extends Prop<T> {
                                  VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid) {
         return generateInRegion(minX, minZ, maxX, maxZ, space, seedBase, accept, solid);
     }
+
+    /** As above, with a memo of what props built at anchors other chunks already evaluated (null for none). */
+    default int generateInRegion(int minX, int minZ, int maxX, int maxZ, int needMinX, int needMinZ, int needMaxX, int needMaxZ,
+                                 VoxelSpace<T> space, long seedBase, BiPredicate<Integer, Integer> accept, Predicate<T> solid,
+                                 AnchorMemo<T> memo) {
+        return generateInRegion(minX, minZ, maxX, maxZ, needMinX, needMinZ, needMaxX, needMaxZ, space, seedBase, accept, solid);
+    }
 }

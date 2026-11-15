@@ -31,4 +31,7 @@ public interface Curve {
     default Curve smoothClamp(double wallA, double wallB, double range) {
         return new SmoothClampCurve(this, wallA, wallB, range);
     }
+
+    /** The smallest and largest output for inputs in [lo, hi], or null when the curve cannot tell. */
+    default double[] range(double lo, double hi) { return null; }
 }
