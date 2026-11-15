@@ -21,7 +21,7 @@ public final class GuideVerificationTest {
             if (GuideContent.nodeLines(p.node()).size() >= 3) withText++;
             if (p.node().kind().equals("density")) {
                 densityNodes++;
-                try { if (DensityDemo.forNode(p.node()) != null) demos++; } catch (Throwable t) { System.out.println("  demo threw for " + p.title() + ": " + t); }
+                try { if (DemoInfo.forNode(p.node()) != null) demos++; } catch (Throwable t) { System.out.println("  demo threw for " + p.title() + ": " + t); }
             }
         }
         System.out.println((withText == nodes ? "[PASS] " : "[FAIL] ") + "every node page has text (" + withText + "/" + nodes + ")");
@@ -29,17 +29,17 @@ public final class GuideVerificationTest {
         boolean enough = demos * 2 >= densityNodes;
         System.out.println((enough ? "[PASS] " : "[FAIL] ") + demos + " of " + densityNodes + " density nodes have a working live demo");
         if (enough) pass++; else fail++;
-        int[] kinds = new int[4], kdemos = new int[4];
-        String[] kn = {"material", "positions"};
-        for (int k = 0; k < 2; k++) for (var p : pages) if (p.node() != null && p.node().kind().equals(kn[k])) { kinds[k]++; try { if (DensityDemo.forNode(p.node()) != null) kdemos[k]++; } catch (Throwable t) { } }
-        for (int k = 0; k < 2; k++) { boolean okk = kinds[k] > 0 && kdemos[k] * 2 >= kinds[k]; System.out.println((okk ? "[PASS] " : "[FAIL] ") + kdemos[k] + " of " + kinds[k] + " " + kn[k] + " nodes have a working live demo"); if (okk) pass++; else fail++; }
+        int[] kinds = new int[7], kdemos = new int[7];
+        String[] kn = {"material", "positions", "pattern", "scanner", "prop", "vector", "assignments"};
+        for (int k = 0; k < kn.length; k++) for (var p : pages) if (p.node() != null && p.node().kind().equals(kn[k])) { kinds[k]++; try { if (DemoInfo.forNode(p.node()) != null) kdemos[k]++; else if (SceneDemo.lastFailure != null) System.out.println("    no demo: " + SceneDemo.lastFailure.substring(0, Math.min(150, SceneDemo.lastFailure.length())).replace((char) 10, (char) 32)); } catch (Throwable t) { } }
+        for (int k = 0; k < kn.length; k++) { boolean okk = kinds[k] > 0 && kdemos[k] * 2 >= kinds[k]; System.out.println((okk ? "[PASS] " : "[FAIL] ") + kdemos[k] + " of " + kinds[k] + " " + kn[k] + " nodes have a working live demo"); if (okk) pass++; else fail++; }
         int curveNodes = 0, curveDemos = 0;
-        for (var p : pages) if (p.node() != null && p.node().kind().equals("curve")) { curveNodes++; try { if (DensityDemo.forNode(p.node()) != null) curveDemos++; } catch (Throwable t) { } }
+        for (var p : pages) if (p.node() != null && p.node().kind().equals("curve")) { curveNodes++; try { if (DemoInfo.forNode(p.node()) != null) curveDemos++; } catch (Throwable t) { } }
         boolean cok = curveNodes > 0 && curveDemos * 2 >= curveNodes;
         System.out.println((cok ? "[PASS] " : "[FAIL] ") + curveDemos + " of " + curveNodes + " curve nodes have a working live demo");
         if (cok) pass++; else fail++;
         var simplex = NodeSchemas.get("density", "SimplexNoise2D");
-        boolean s = simplex != null && DensityDemo.forNode(simplex) != null;
+        boolean s = simplex != null && DemoInfo.forNode(simplex) != null;
         System.out.println((s ? "[PASS] " : "[FAIL] ") + "SimplexNoise2D demo builds");
         if (s) pass++; else fail++;
         for (GuideRecipes.Recipe r : GuideRecipes.all()) {

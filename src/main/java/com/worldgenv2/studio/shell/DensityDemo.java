@@ -18,7 +18,9 @@ import java.util.Map;
  * filled with a stand-in (the first with gentle noise, the rest with a constant), so the node's effect is visible. Shows a top-down
  * slice (x, z at a chosen height) and the vertical profile through the origin.
  */
-final class DensityDemo extends Widget {
+final class DensityDemo extends Widget implements DemoInfo {
+    @Override public List<String> standIns() { return standIns; }
+
     private static final int GRID = 56, CELL = 3, PROFILE_N = 96;
 
     private final NodeSchemas.NodeType type;
@@ -82,15 +84,16 @@ final class DensityDemo extends Widget {
     private void fillInputs() {
         int n = 0;
         for (NodeSchemas.Slot s : type.slots()) {
-            if (type.kind().equals("curve") && s.kind().equals("curve")) {
+            if (s.kind().equals("curve")) {
+                boolean inCurve = type.kind().equals("curve");
                 // a stand-in curve that rises from -1 to 1, so what this node does to its input is easy to see
                 JsonObject c = new JsonObject();
                 c.addProperty("type", "Manual");
                 JsonArray pts = new JsonArray();
-                for (double[] pt : new double[][]{{-1, -1}, {1, 1}}) { JsonObject p = new JsonObject(); p.addProperty("in", pt[0]); p.addProperty("out", pt[1]); pts.add(p); }
+                for (double[] pt : inCurve ? new double[][]{{-1, -1}, {1, 1}} : new double[][]{{0, 1}, {120, -1}}) { JsonObject p = new JsonObject(); p.addProperty("in", pt[0]); p.addProperty("out", pt[1]); pts.add(p); }
                 c.add("points", pts);
                 if (s.multi()) { JsonArray arr = new JsonArray(); arr.add(c); arr.add(c.deepCopy()); json.add(s.key(), arr); } else json.add(s.key(), c);
-                standIns.add(s.key() + " = a straight line from -1 to 1");
+                standIns.add(s.key() + (inCurve ? " = a straight line from -1 to 1" : " = a line falling from 1 at 0 to -1 at 120"));
                 continue;
             }
             if (type.kind().equals("material") && s.kind().equals("material")) {

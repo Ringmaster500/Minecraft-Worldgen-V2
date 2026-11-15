@@ -57,13 +57,20 @@ final class GuideContent {
                     if (t.name().endsWith(suf) && t.name().length() > suf.length() && names.contains(t.name().substring(0, t.name().length() - suf.length()).toLowerCase(Locale.ROOT))) { alias = true; break; }
                 }
                 if (alias) continue;
-                JsonObject w = wikiFor(t.name());
+                JsonObject w = wikiFor(t.name(), kind);
                 String text = t.name() + " " + kind + " " + (w == null ? "" : w.has("doc") ? w.get("doc").getAsString() : "");
                 out.add(new Page("node:" + kind + ":" + t.name(), "Nodes: " + kind, t.name(), List.of(), t, text.toLowerCase(Locale.ROOT)));
             }
         }
         pages = out;
         return out;
+    }
+
+    /** The documentation for a node. Entries that name a different kind (the density Cuboid, for the prop Cuboid) are not used. */
+    static JsonObject wikiFor(String type, String kind) {
+        JsonObject w = wikiFor(type);
+        if (w != null && w.has("kind") && !w.get("kind").getAsString().equalsIgnoreCase(kind)) return null;
+        return w;
     }
 
     static synchronized JsonObject wikiFor(String type) {
@@ -85,7 +92,7 @@ final class GuideContent {
     /** The text of a node page as markup lines ({@code #} heading, {@code -} bullet, {@code `} formula, else a paragraph). */
     static List<String> nodeLines(NodeSchemas.NodeType t) {
         List<String> l = new ArrayList<>();
-        JsonObject w = wikiFor(t.name());
+        JsonObject w = wikiFor(t.name(), t.kind());
         l.add("# What it does");
         String mainDoc = w != null && w.has("doc") ? w.get("doc").getAsString() : "";
         l.add(mainDoc.length() >= 15 ? mainDoc : "A " + t.kind() + " node. " + kindWord(t.kind()));

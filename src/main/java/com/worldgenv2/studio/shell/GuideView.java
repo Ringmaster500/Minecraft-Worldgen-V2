@@ -19,7 +19,7 @@ final class GuideView extends Widget {
     private List<Row> rows = new ArrayList<>();
     private String selectedId = "start";
     private int navScroll, pageScroll;
-    private DensityDemo demo;
+    private Widget demo;
     private String demoFor = "";
     private List<Line> lines = new ArrayList<>();
     private String linesFor = "";
@@ -144,7 +144,7 @@ final class GuideView extends Widget {
             if (demo != null) { remove(demo); demo = null; }
             demoFor = p.id();
             if (p.node() != null) {
-                demo = DensityDemo.forNode(p.node());
+                demo = DemoInfo.forNode(p.node());
                 if (demo != null) { add(demo); layout(); }
             }
         }
@@ -153,9 +153,9 @@ final class GuideView extends Widget {
 
         if (linesW != pw || !linesFor.equals(p.id())) {
             List<String> markup = new ArrayList<>(p.node() != null ? GuideContent.nodeLines(p.node()) : p.lines());
-            if (demo != null && !demo.standIns.isEmpty()) {
+            if (demo instanceof DemoInfo di && !di.standIns().isEmpty()) {
                 markup.add("# Stand-in inputs in the demo above");
-                for (String s : demo.standIns) markup.add("- " + s);
+                for (String s : di.standIns()) markup.add("- " + s);
             }
             lines = wrap(g, markup, pw);
             linesW = pw;
