@@ -136,9 +136,6 @@ public final class WorldGenV2Mod {
                         ))
                     )
                 )
-                .then(Commands.literal("test-prefab")
-                    .executes(ctx -> executeTestPrefab(ctx.getSource()))
-                )
                 .then(Commands.literal("landmarks")
                     .executes(ctx -> executeLandmarks(ctx.getSource()))
                 )
@@ -256,60 +253,4 @@ public final class WorldGenV2Mod {
         return count;
     }
 
-    private static int executeTestPrefab(CommandSourceStack source) {
-        ServerLevel level = source.getLevel();
-        BlockPos origin = BlockPos.containing(source.getPosition()).offset(3, 0, 3);
-
-        BlockState stoneBricks = Blocks.STONE_BRICKS.defaultBlockState();
-        BlockState mossyBricks = Blocks.MOSSY_STONE_BRICKS.defaultBlockState();
-        BlockState cobble = Blocks.COBBLESTONE.defaultBlockState();
-        BlockState oakPlanks = Blocks.OAK_PLANKS.defaultBlockState();
-        BlockState lantern = Blocks.LANTERN.defaultBlockState();
-
-        // 1. Adaptive foundation plinth: ray-march downward under the 5x5 footprint until hitting solid terrain
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                int wx = origin.getX() + dx;
-                int wz = origin.getZ() + dz;
-                int y = origin.getY() - 1;
-                int depth = 0;
-                while (y > level.getMinY() && level.getBlockState(new BlockPos(wx, y, wz)).isAir() && depth < 24) {
-                    level.setBlock(new BlockPos(wx, y, wz), cobble, 3);
-                    y--;
-                    depth++;
-                }
-                level.setBlock(new BlockPos(wx, origin.getY(), wz), stoneBricks, 3);
-            }
-        }
-
-        // 2. Watchtower walls & timber deck
-        for (int dy = 1; dy <= 6; dy++) {
-            for (int dx = -2; dx <= 2; dx++) {
-                for (int dz = -2; dz <= 2; dz++) {
-                    boolean isWall = Math.abs(dx) == 2 || Math.abs(dz) == 2;
-                    BlockPos target = origin.offset(dx, dy, dz);
-                    if (dy == 5 && !isWall) {
-                        level.setBlock(target, oakPlanks, 3);
-                    } else if (isWall) {
-                        if (dy == 6 && (dx + dz) % 2 != 0) {
-                            continue;
-                        }
-                        level.setBlock(target, ((dx * 31 + dy * 17 + dz) & 3) == 0 ? mossyBricks : stoneBricks, 3);
-                    } else {
-                        level.setBlock(target, Blocks.AIR.defaultBlockState(), 3);
-                    }
-                }
-            }
-        }
-        level.setBlock(origin.offset(0, 6, 0), lantern, 3);
-
-        source.sendSuccess(
-            () -> Component.literal(String.format(
-                "[Worldgen V2] Stamped test watchtower prefab with adaptive foundation plinth at (%d, %d, %d).",
-                origin.getX(), origin.getY(), origin.getZ()
-            )),
-            true
-        );
-        return 1;
-    }
 }

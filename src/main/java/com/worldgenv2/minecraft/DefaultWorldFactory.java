@@ -473,49 +473,6 @@ public final class DefaultWorldFactory {
             structure.withDimensionLayout(com.worldgenv2.worldstructure.DimensionLayoutConfig.overworldDefault(seed));
         }
 
-        // Configure Phase 4 MacroFeatureGraph & SplineRoadEngine connecting relational landmarks
-        MacroFeatureGraph macroGraph = new MacroFeatureGraph()
-            .addPrimaryLandmark(new MacroFeatureGraph.PrimaryLandmarkRule(
-                "central_citadel",
-                "worldgenv2:structures/watchtower_01",
-                LANDMARK_BIOMES,
-                48.0f,
-                140.0f,
-                List.of(
-                    new MacroFeatureGraph.MacroAnchorDef("north_highway", "ROAD_OUTLET", 0.0f, -1.0f),
-                    new MacroFeatureGraph.MacroAnchorDef("east_outpost_way", "DEFENSIVE_PERIMETER", 1.0f, 0.0f)
-                )
-            ))
-            .addRelationalLandmark(new MacroFeatureGraph.RelationalLandmarkRule(
-                "northern_watchtower",
-                "central_citadel",
-                "ROAD_OUTLET",
-                "worldgenv2:structures/watchtower_01",
-                LANDMARK_BIOMES,
-                120.0f,
-                220.0f,
-                true,
-                true,
-                5.0f,
-                3.0f
-            ))
-            .addRelationalLandmark(new MacroFeatureGraph.RelationalLandmarkRule(
-                "eastern_waystation",
-                "central_citadel",
-                "DEFENSIVE_PERIMETER",
-                "worldgenv2:structures/watchtower_01",
-                LANDMARK_BIOMES,
-                110.0f,
-                200.0f,
-                true,
-                true,
-                4.0f,
-                2.5f
-            ));
-
-        macroGraph.buildGraph(structure, -64, 320, 63, seed);
-        SplineRoadEngine roadEngine = new SplineRoadEngine();
-        roadEngine.buildFromMacroGraph(macroGraph, structure, -64, 320, 63);
 
         ConditionalSpawnProvider.LandmassType landmass = (normPreset.contains("island") || normPreset.contains("skyblock"))
             ? ConditionalSpawnProvider.LandmassType.ISLAND
@@ -534,8 +491,6 @@ public final class DefaultWorldFactory {
         );
 
         return structure
-            .withMacroFeatureGraph(macroGraph)
-            .withSplineRoadEngine(roadEngine)
             .withConditionalSpawn(spawnProvider);
     }
 

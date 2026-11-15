@@ -571,18 +571,6 @@ public final class StagedChunkGenerator<T> {
                     .generate(new Prop.Context<>(placement.x(), placement.y(), placement.z(), 0.0f, 1.0f, 0.0f, voxelSpace, seed));
             }
         }
-
-        // =====================================================================
-        // Stage 5: Macro Landmark Stamping (Watchtowers & Road Termini)
-        // =====================================================================
-        if (worldStructure.getMacroFeatureGraph() != null && roadDeckBlock != null) {
-            T plinthBlock = roadShoulderBlock != null ? roadShoulderBlock : baseSolidBlock;
-            for (MacroFeatureGraph.PlacedLandmark landmark : worldStructure.getMacroFeatureGraph().getPlacedLandmarks().values()) {
-                if ((landmark.x() >> 4) == chunkX && (landmark.z() >> 4) == chunkZ) {
-                    stampMacroLandmark(landmark, voxelSpace, roadDeckBlock, plinthBlock);
-                }
-            }
-        }
     }
 
     private final java.util.concurrent.ConcurrentHashMap<List<Prop<T>>, List<Prop<T>>> columnarCache =
@@ -860,72 +848,6 @@ public final class StagedChunkGenerator<T> {
                         voxelSpace.setBlock(worldX, y, worldZ, (T) biome.floorBlock());
                     } else if (isCeiling && biome.ceilingBlock() != null && roll < biome.ceilingChance()) {
                         voxelSpace.setBlock(worldX, y, worldZ, (T) biome.ceilingBlock());
-                    }
-                }
-            }
-        }
-    }
-
-    private void stampMacroLandmark(
-        MacroFeatureGraph.PlacedLandmark landmark,
-        VoxelSpace<T> voxelSpace,
-        T wallBlock,
-        T plinthBlock
-    ) {
-        int cx = landmark.x();
-        int cz = landmark.z();
-        int minY = voxelSpace.getMinY();
-        int maxY = voxelSpace.getMaxY();
-
-        // Find the actual surface Y at the landmark center after road grading
-        int baseY = landmark.y();
-        for (int y = maxY - 2; y >= minY + 1; y--) {
-            if (!voxelSpace.isAir(cx, y, cz)) {
-                baseY = y + 1;
-                break;
-            }
-        }
-
-        // 1. Adaptive foundation plinth: ray-march downward under the 5x5 footprint
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                int wx = cx + dx;
-                int wz = cz + dz;
-                int y = baseY - 1;
-                int depth = 0;
-                while (y > minY && voxelSpace.isAir(wx, y, wz) && depth < 24) {
-                    voxelSpace.setBlock(wx, y, wz, plinthBlock);
-                    y--;
-                    depth++;
-                }
-                voxelSpace.setBlock(wx, baseY, wz, wallBlock);
-            }
-        }
-
-        // 2. Watchtower / Waystation walls, doorways aligned with road axes, & crenellated battlements
-        for (int dy = 1; dy <= 6; dy++) {
-            for (int dx = -2; dx <= 2; dx++) {
-                for (int dz = -2; dz <= 2; dz++) {
-                    int wx = cx + dx;
-                    int wy = baseY + dy;
-                    int wz = cz + dz;
-                    if (wy >= maxY) {
-                        continue;
-                    }
-                    boolean isPerimeter = Math.abs(dx) == 2 || Math.abs(dz) == 2;
-                    boolean isDoorway = (dy <= 2) && ((dx == 0 && Math.abs(dz) == 2) || (dz == 0 && Math.abs(dx) == 2));
-                    if (isDoorway) {
-                        voxelSpace.setBlock(wx, wy, wz, airBlock);
-                    } else if (dy == 5 && !isPerimeter) {
-                        voxelSpace.setBlock(wx, wy, wz, plinthBlock);
-                    } else if (isPerimeter) {
-                        if (dy == 6 && ((dx + dz) & 1) != 0) {
-                            voxelSpace.setBlock(wx, wy, wz, airBlock);
-                        } else {
-                            voxelSpace.setBlock(wx, wy, wz, wallBlock);
-                        }
-                    } else {
-                        voxelSpace.setBlock(wx, wy, wz, airBlock);
                     }
                 }
             }
