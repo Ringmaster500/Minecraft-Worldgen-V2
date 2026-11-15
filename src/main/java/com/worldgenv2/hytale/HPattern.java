@@ -61,8 +61,19 @@ public interface HPattern<T> {
 
     static <T> HPattern<T> blockSet(Set<T> blocks, boolean includesAir) {
         return new HPattern<>() {
+            /** Block states are shared objects, and a pattern sees the same few thousands of times: remember the answer per object. */
+            final class Known { final Object block; final boolean member; Known(Object b, boolean m) { block = b; member = m; } }
+            final Known[] known = new Known[64];
+
             public boolean test(Probe<T> p, int x, int y, int z, int rot) {
-                return (includesAir && p.air(x, y, z)) || blocks.contains(p.block(x, y, z));
+                if (includesAir && p.air(x, y, z)) return true;
+                T b = p.block(x, y, z);
+                int slot = System.identityHashCode(b) & 63;
+                Known k = known[slot];
+                if (k != null && k.block == b) return k.member;
+                boolean member = blocks.contains(b);
+                known[slot] = new Known(b, member);
+                return member;
             }
         };
     }

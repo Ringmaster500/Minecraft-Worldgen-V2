@@ -207,6 +207,8 @@ final class PropContextPass<T> {
         private final Object[][] pend;
         /** Per column: which heights any stage has written. */
         private final long[][] written;
+        /** Reads of a column that is still plain terrain: a column read often is copied into an array, one read only a few times is not. */
+        private final byte[] reads;
         private int[] touched = new int[1024];
         private int touchedCount;
         private final List<Object[]> loot = new ArrayList<>();
@@ -227,6 +229,7 @@ final class PropContextPass<T> {
             this.cur = new Object[w * d][];
             this.pend = new Object[w * d][];
             this.written = new long[w * d][];
+            this.reads = new byte[w * d];
         }
 
         static <T> ContextSpace<T> acquire(int x0, int z0, int w, int d, int minY, int maxY, Object air) {
@@ -320,7 +323,10 @@ final class PropContextPass<T> {
                 int col = column(x, z), ly = y - minY;
                 if (col < 0 || ly < 0 || ly >= h) return null;
                 Object[] a = cur[col];
-                if (a == null) a = materialize(col, x, z);
+                if (a == null) {
+                    if (reads[col] < 6) { reads[col]++; return (T) terrain(x, y, z); }
+                    a = materialize(col, x, z);
+                }
                 return (T) a[ly];
             }
 
@@ -343,8 +349,12 @@ final class PropContextPass<T> {
                 int col = column(x, z), ly = y - minY;
                 if (col < 0 || ly < 0 || ly >= h) return true;
                 Object[] a = cur[col];
-                if (a == null) a = materialize(col, x, z);
-                Object b = a[ly];
+                Object b;
+                if (a == null) {
+                    if (reads[col] < 6) { reads[col]++; b = terrain(x, y, z); return b == null || b.equals(air); }
+                    a = materialize(col, x, z);
+                }
+                b = a[ly];
                 return b == null || b.equals(air);
             }
 

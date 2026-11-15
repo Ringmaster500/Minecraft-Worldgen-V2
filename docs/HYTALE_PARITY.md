@@ -227,3 +227,16 @@ Measured on a Hytale world setup (real Assets.zip, Zone1_Plains1) by generating 
 - The prop context reads through to the terrain tiles and copies only the columns props write.
 - Props take the biome from a single sample of the biome-map density (Hytale: a prop belongs to the biome whose range contains it); the edge-blending of props between two biomes is only used with Voronoi biome maps.
 - `probeHytaleSpeed` times terrain per real biome with a sampling profile of the slowest.
+
+### Generation speed, round two
+
+Measured with `tools\benchgen.ps1` (wipes the saved chunks, opens the setup, times the first view radius; `-Profile` records a Flight Recorder profile, `tools\jfrtop.ps1` summarises it). The same 33 x 33 chunk view radius that took about 90 s now takes about 20 s, and each chunk uses about 140 ms of CPU instead of about 580 ms.
+
+What changed:
+- A chunk's terrain is computed once, as a shared tile (tiles are stored run-length encoded and built straight from runs); the chunk copies it in, and neighbours' props read the same tile. Before, each chunk computed its terrain twice and tiles were evicted and recomputed (3.8 tiles per chunk, now about 1.5). One thread computes a tile while others wait for it. The tile cache is limited by memory, not count.
+- Density nodes say whether they depend on Y only, not at all on Y, or not at all on X/Z (`yIndependent`, `xzIndependent`). A Y-only value (a curve of BaseHeight, the gradients Hytale's caves use) is tabulated once for the whole world; a column-constant input is folded in as one number; Mix skips a branch when its blend is 0 or 1 for the whole column. Buffers come from a per-thread pool instead of being allocated per node.
+- Materials report how many blocks down a column their answer holds (`runLength`), so a solid or empty run is resolved in one call. `Solidity`'s Empty side (the fluid provider) was never wired in `HMaterials`; it is now.
+- The biome map's field is cached per thread (a chunk asks for each column and its four neighbours); prop sampling points are shared across chunks; positions providers presize their lists; block names resolve through a cache.
+- The prop pass only considers distributions whose biome is near the chunk and sizes its context from them, reads the terrain tiles lazily, drops writes nobody reads, and skips positions whose prop cannot reach what will be read.
+
+Still costly: Hytale's per-block position grids for small props (each chunk evaluates a ring of positions around itself so props that overlap a border come out identical from both sides), 3D-noise biomes, and the Angle gradient used by surface materials.
