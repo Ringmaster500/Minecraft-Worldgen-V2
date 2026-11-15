@@ -175,8 +175,14 @@ public final class HytaleAssets implements Closeable {
             String mc = HytaleBlocks.toMinecraft(name);
             if (mc == null) mc = name;
             if ("minecraft:air".equals(mc)) continue;
-            Integer idx = paletteIds.get(mc);
-            if (idx == null) { idx = palette.size(); paletteIds.put(mc, idx); palette.add(Prefab.PaletteEntry.of(idx, mc, Map.of())); }
+            String shaped = name.endsWith("_Stairs") ? HytaleRotation.shaped(mc, "_stairs")
+                    : name.endsWith("_Half") ? HytaleRotation.shaped(mc, "_slab") : null;
+            if (shaped != null) mc = shaped;
+            int rot = b.has("rotation") ? b.get("rotation").getAsInt() : 0;
+            Map<String, String> props = rot == 0 ? Map.of() : HytaleRotation.properties(mc, rot);
+            String key = props.isEmpty() ? mc : mc + props;
+            Integer idx = paletteIds.get(key);
+            if (idx == null) { idx = palette.size(); paletteIds.put(key, idx); palette.add(Prefab.PaletteEntry.of(idx, mc, props)); }
             voxels.add(new Prefab.VoxelEntry(b.get("x").getAsInt() - minX, b.get("y").getAsInt() - minY, b.get("z").getAsInt() - minZ, idx));
         }
         int ax = root.has("anchorX") ? root.get("anchorX").getAsInt() : 0, ay = root.has("anchorY") ? root.get("anchorY").getAsInt() : 0, az = root.has("anchorZ") ? root.get("anchorZ").getAsInt() : 0;
