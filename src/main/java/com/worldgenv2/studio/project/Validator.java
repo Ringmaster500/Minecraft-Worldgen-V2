@@ -101,6 +101,8 @@ final class Validator {
         // Ring/skyblock layouts place their own fixed content; only continent-style layouts need a pool.
         String layout = J.str(o, "layout", "voronoi_continent");
         boolean needsPool = layout.equals("voronoi_continent") || layout.equals("spawn_island_landmarks");
+        var hy = J.obj(o, "hytale");
+        if (hy != null && !J.str(hy, "worldStructure", "").isBlank()) needsPool = false;      // a Hytale zone brings its own biomes
         if (native_ && needsPool && (biomes == null || biomes.isEmpty())) {
             warn(a, "No biomes in this dimension's pool - nothing will generate.");
             return;

@@ -30,6 +30,8 @@ public final class StudioApp {
     public final Map<String, View> views = new HashMap<>();
     public boolean problemsOpen;
     public boolean guideOpen;
+    /** A guide page to show next (set by the dev bridge); the guide takes it and clears it. */
+    public String guidePage;
     public boolean previewOpen = true;
     public int uiScale = 2;
     /** Bumped by app-level changes (doc open/close, status) so views know to refresh. */

@@ -149,3 +149,20 @@ Build order for 8.1: the page framework and search; the node reference generated
 - The real ground truth: the player's Hytale `Assets.zip` and `HytaleServer.jar` (never copied into the repo).
 
 Repository: https://github.com/Ringmaster500/Minecraft-Worldgen-V2 (public).
+
+## 10. Driving the Studio without clicking (dev bridge)
+
+For automated testing and for an assistant working through the dev bridge (`tools\dev.ps1 start`, loopback port 5006). All answers are JSON except the images.
+
+| Route | What it does |
+| :-- | :-- |
+| `/assets`, `/asset?path=`, `/problems` | list assets; read one asset's JSON; every error and warning |
+| `/put?path=&json=` (GET or POST body), `/set?path=&key=a.b.0.c&value=`, `/unset?path=&key=` | replace an asset; set or remove one value by dotted path (parents created, numbers index arrays) |
+| `/patch?path=&json=` | replace whole top-level keys of an asset |
+| `/delete?path=`, `/rename?path=&name=`, `/undo`, `/redo`, `/save`, `/apply`, `/regen` | edit-session commands |
+| `/importbiome?source=preset:ID/biome` or `hytale:Name` | add a ready-made biome |
+| `/compile?dim=overworld` | compile as the game does: warnings, biomes (id, asset, minecraft biome), sea level, height |
+| `/live?on=&radius=`, `/guide?open=&page=` | live preview, open the guide at a page id |
+| `/openproject`, `/doc`, `/newproject`, `/newasset`, `/newworld?project=&name=`, `/tp`, `/cmd` | navigation and world control |
+| `/topdown?x&z&size`, `/side?x&z&dir=x|z&len&y0&y1`, `/iso?x&z&size` (PNG) | pictures of the world drawn from its blocks: a map from above, a vertical cut, an isometric-style view |
+| `/census`, `/probe`, `/heights`, `/hash`, `/state`, `/screenshot`, `/click` etc. | inspection and raw UI |

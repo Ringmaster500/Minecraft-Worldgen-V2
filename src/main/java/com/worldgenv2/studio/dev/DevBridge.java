@@ -83,10 +83,15 @@ public final class DevBridge {
 
     private static void handle(Socket s) {
         try (s) {
-            s.setSoTimeout(5000);
+            s.setSoTimeout(30000);
             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
             String line = in.readLine();
             if (line == null) return;
+            // headers (a POST body, when there is one, is read below and handed to routes as "body")
+            int contentLength = 0;
+            for (String h = in.readLine(); h != null && !h.isEmpty(); h = in.readLine()) {
+                if (h.regionMatches(true, 0, "Content-Length:", 0, 15)) contentLength = Integer.parseInt(h.substring(15).trim());
+            }
             String[] parts = line.split(" ");
             String target = parts.length > 1 ? parts[1] : "/";
             String path = target;
@@ -99,11 +104,20 @@ public final class DevBridge {
                     if (e > 0) q.put(dec(kv.substring(0, e)), dec(kv.substring(e + 1)));
                 }
             }
+            if (contentLength > 0) {
+                char[] buf = new char[contentLength];
+                int got = 0;
+                while (got < contentLength) { int r = in.read(buf, got, contentLength - got); if (r < 0) break; got += r; }
+                q.put("body", new String(buf, 0, got));
+            }
             byte[] body;
             String type = "application/json";
             try {
                 if (path.equals("/screenshot")) {
                     body = screenshot();
+                    type = "image/png";
+                } else if (path.equals("/topdown") || path.equals("/side") || path.equals("/iso")) {
+                    body = WorldImages.render(path, q);
                     type = "image/png";
                 } else {
                     body = route(path, q).getBytes(StandardCharsets.UTF_8);
@@ -307,12 +321,15 @@ public final class DevBridge {
                 mc.resizeGui();
                 return ok();
             });
-            default -> "{\"error\":\"unknown route " + esc(path) + "\"}";
+            default -> {
+                String routed = DevRoutes.handle(path, q);
+                yield routed != null ? routed : "{\"error\":\"unknown route " + esc(path) + "\"}";
+            }
         };
     }
 
     /** Runs on the render thread and waits for the result. */
-    private static String onRender(Supplier<String> task) throws Exception {
+    static String onRender(Supplier<String> task) throws Exception {
         CompletableFuture<String> f = new CompletableFuture<>();
         Minecraft.getInstance().execute(() -> {
             try {
@@ -346,7 +363,7 @@ public final class DevBridge {
         return Files.readAllBytes(out);
     }
 
-    private static String ok() {
+    static String ok() {
         return "{\"ok\":true}";
     }
 
@@ -359,13 +376,13 @@ public final class DevBridge {
 
     private static double cy(Map<String, String> q, String k) { return cx(q, k); }
 
-    private static double d(Map<String, String> q, String k) {
+    static double d(Map<String, String> q, String k) {
         String v = q.get(k);
         if (v == null) throw new IllegalArgumentException("missing param " + k);
         return Double.parseDouble(v);
     }
 
-    private static double d(Map<String, String> q, String k, double def) {
+    static double d(Map<String, String> q, String k, double def) {
         String v = q.get(k);
         return v == null ? def : Double.parseDouble(v);
     }
@@ -374,7 +391,7 @@ public final class DevBridge {
         return URLDecoder.decode(s, StandardCharsets.UTF_8);
     }
 
-    private static String esc(String s) {
+    static String esc(String s) {
         return s.replace("\\", "\\\\").replace("\"", "'").replace("\n", " ");
     }
 }

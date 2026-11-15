@@ -99,6 +99,7 @@ final class GuideView extends Widget {
 
     @Override
     protected void render(Gfx g, int mx, int my) {
+        if (app.guidePage != null) { select(app.guidePage); app.guidePage = null; }
         if (builtFilter == null) rebuildRows();
         layout();
         g.fill(x, y, w, h, Ui.BG_PANEL);
