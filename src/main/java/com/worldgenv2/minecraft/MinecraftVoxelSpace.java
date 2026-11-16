@@ -80,6 +80,12 @@ public final class MinecraftVoxelSpace implements VoxelSpace<BlockState> {
             oceanFloorHeightmap.update(lx, y, lz, block);
             worldSurfaceHeightmap.update(lx, y, lz, block);
         }
+        // Blocks written straight into sections get no block entity from the game; a beacon, a lectern or a modded machine needs one to work.
+        if (block.hasBlockEntity() && block.getBlock() instanceof net.minecraft.world.level.block.EntityBlock eb) {
+            net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(x, y, z);
+            net.minecraft.world.level.block.entity.BlockEntity be = eb.newBlockEntity(pos, block);
+            if (be != null) chunk.setBlockEntity(be);
+        }
     }
 
     /** In a bulk write: blocks go straight into the palettes, and each touched section recounts its blocks once at the end. */
