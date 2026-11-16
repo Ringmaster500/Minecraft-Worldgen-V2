@@ -24,7 +24,7 @@ import java.util.Map;
  *   GET /compile?dim=overworld           -> compile the dimension and report warnings, biomes and sea level
  *   GET /delete?path=  /rename?path=&name=  /undo  /redo
  *   GET /importbiome?source=preset:ID/biome | hytale:Name &name=   -> add a ready-made biome
- *   GET /live?on=1&radius=3   GET /guide?open=1&page=ID
+ *   GET /live?on=1&radius=3   GET /guide?open=1&page=ID   GET /blocks?ns=powah&like=glass  -> block ids the game knows (no filter: block count per mod)
  * </pre>
  */
 final class DevRoutes {
@@ -69,6 +69,22 @@ final class DevRoutes {
             case "/undo" -> DevBridge.onRender(() -> { app().undo(); return ok(new JsonObject()); });
             case "/redo" -> DevBridge.onRender(() -> { app().redo(); return ok(new JsonObject()); });
             case "/importbiome" -> DevBridge.onRender(() -> importBiome(q));
+            case "/blocks" -> DevBridge.onRender(() -> {
+                String ns = q.getOrDefault("ns", "");
+                String like = q.getOrDefault("like", "");
+                JsonArray ids = new JsonArray();
+                java.util.TreeMap<String, Integer> perNamespace = new java.util.TreeMap<>();
+                for (var id : net.minecraft.core.registries.BuiltInRegistries.BLOCK.keySet()) {
+                    perNamespace.merge(id.getNamespace(), 1, Integer::sum);
+                    if ((ns.isEmpty() || id.getNamespace().equals(ns)) && (like.isEmpty() || id.getPath().contains(like)) && (!ns.isEmpty() || !like.isEmpty())) ids.add(id.toString());
+                }
+                JsonObject o = new JsonObject();
+                JsonObject counts = new JsonObject();
+                perNamespace.forEach(counts::addProperty);
+                o.add("namespaces", counts);
+                o.add("blocks", ids);
+                return o.toString();
+            });
             case "/live" -> DevBridge.onRender(() -> {
                 if (q.containsKey("radius")) app().liveRadius = Math.max(1, Math.min(6, (int) DevBridge.d(q, "radius")));
                 if (q.containsKey("on")) app().setLive(DevBridge.d(q, "on") != 0);

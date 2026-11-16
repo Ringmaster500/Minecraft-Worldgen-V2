@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
  *                                           shaded by slope, water darker with depth, grid lines every 64 blocks, red dot = player.
  *   GET /side?x=&z=&dir=x|z&len=128&y0=&y1=&scale=4    a vertical cut starting at (x, z) running along X or Z.
  *   GET /iso?x=&z=&size=192&step=2          the terrain drawn as columns in an isometric-style view.
+ *   All three take dim=minecraft:the_nether (or any dimension id) to draw another dimension.
  * </pre>
  */
 final class WorldImages {
@@ -35,7 +36,7 @@ final class WorldImages {
         if (server == null || Minecraft.getInstance().player == null) throw new IllegalStateException("open a world first");
         double px = Minecraft.getInstance().player.getX(), pz = Minecraft.getInstance().player.getZ();
         BufferedImage img = server.submit(() -> {
-            ServerLevel level = server.overworld();
+            ServerLevel level = dimension(server, q.getOrDefault("dim", "minecraft:overworld"));
             return switch (path) {
                 case "/topdown" -> topdown(level, q, px, pz);
                 case "/side" -> side(level, q, px, pz);
@@ -45,6 +46,12 @@ final class WorldImages {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ImageIO.write(img, "png", out);
         return out.toByteArray();
+    }
+
+    private static ServerLevel dimension(MinecraftServer server, String id) {
+        var key = net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, net.minecraft.resources.Identifier.parse(id));
+        ServerLevel l = server.getLevel(key);
+        return l != null ? l : server.overworld();
     }
 
     private static int geti(Map<String, String> q, String k, int def) {
